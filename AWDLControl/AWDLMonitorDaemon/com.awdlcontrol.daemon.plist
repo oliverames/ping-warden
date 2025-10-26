@@ -9,7 +9,7 @@
     <key>RunAtLoad</key>
     <false/>
     <key>KeepAlive</key>
-    <true/>
+    <false/>
     <key>StandardErrorPath</key>
     <string>/var/log/awdl_monitor_daemon.log</string>
     <key>StandardOutPath</key>

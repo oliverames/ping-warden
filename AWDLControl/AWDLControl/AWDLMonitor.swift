@@ -16,17 +16,34 @@ class AWDLMonitor {
 
     private init() {
         // Check if daemon is currently loaded
-        isMonitoring = isDaemonLoaded()
+        let daemonIsLoaded = isDaemonLoaded()
 
-        // Sync preferences with actual daemon state
-        AWDLPreferences.shared.isMonitoringEnabled = isMonitoring
+        // Preference is the source of truth - sync daemon state to match preference
+        let shouldMonitor = AWDLPreferences.shared.isMonitoringEnabled
 
-        if isMonitoring {
-            print("AWDLMonitor: Daemon is loaded and running")
+        if shouldMonitor && !daemonIsLoaded {
+            // Preference says monitor, but daemon not running - start it
+            print("AWDLMonitor: Preference enabled but daemon not running, starting...")
+            isMonitoring = false  // Will be set to true by startMonitoring()
+            // Don't call startMonitoring() here - let app do it after launch
+        } else if !shouldMonitor && daemonIsLoaded {
+            // Preference says don't monitor, but daemon is running - stop it
+            print("AWDLMonitor: Preference disabled but daemon running, stopping...")
+            isMonitoring = true  // Will be set to false by stopMonitoring()
+            // Don't call stopMonitoring() here - it requires password, do it in app launch
+        } else {
+            // States match
+            isMonitoring = daemonIsLoaded
+            if isMonitoring {
+                print("AWDLMonitor: Daemon is loaded and running (matches preference)")
+            } else {
+                print("AWDLMonitor: Daemon is not running (matches preference)")
+            }
         }
     }
 
     /// Start monitoring by loading the LaunchDaemon
+    /// Note: Does NOT set preference - caller should set preference
     func startMonitoring() {
         guard !isMonitoring else {
             print("AWDLMonitor: Daemon already running")
@@ -38,7 +55,6 @@ class AWDLMonitor {
         // Load the LaunchDaemon (it will bring AWDL down automatically on startup)
         if loadDaemon() {
             isMonitoring = true
-            AWDLPreferences.shared.isMonitoringEnabled = true
             AWDLPreferences.shared.lastKnownState = "down"
             print("AWDLMonitor: ✅ Daemon loaded and monitoring started")
         } else {
@@ -48,6 +64,7 @@ class AWDLMonitor {
 
     /// Stop monitoring by unloading the LaunchDaemon
     /// Note: AWDL will be brought up automatically by macOS when needed (AirDrop, Handoff, etc.)
+    /// Note: Does NOT set preference - caller should set preference
     func stopMonitoring() {
         guard isMonitoring else {
             print("AWDLMonitor: Daemon not running")
@@ -59,7 +76,6 @@ class AWDLMonitor {
         // Unload the LaunchDaemon
         if unloadDaemon() {
             isMonitoring = false
-            AWDLPreferences.shared.isMonitoringEnabled = false
             print("AWDLMonitor: ✅ Daemon unloaded - AWDL will be available for AirDrop/Handoff when needed")
         } else {
             print("AWDLMonitor: ❌ Failed to unload daemon")
@@ -96,7 +112,7 @@ class AWDLMonitor {
 
         // Use osascript to run launchctl with admin privileges
         let script = """
-        do shell script "launchctl load '\(daemonPlistPath)'" with administrator privileges
+        do shell script "launchctl load '\(daemonPlistPath)'" with administrator privileges with prompt "AWDLControl needs permission to START blocking AWDL (this will disable AirDrop, AirPlay, and Handoff)"
         """
 
         let task = Process()
@@ -130,7 +146,7 @@ class AWDLMonitor {
     private func unloadDaemon() -> Bool {
         // Use osascript to run launchctl with admin privileges
         let script = """
-        do shell script "launchctl unload '\(daemonPlistPath)'" with administrator privileges
+        do shell script "launchctl unload '\(daemonPlistPath)'" with administrator privileges with prompt "AWDLControl needs permission to STOP blocking AWDL (this will re-enable AirDrop, AirPlay, and Handoff)"
         """
 
         let task = Process()

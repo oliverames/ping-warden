@@ -15,12 +15,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var observer: NSObjectProtocol?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
+    private var isSyncing = false  // Prevent duplicate syncs
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide the app from the dock
         NSApp.setActivationPolicy(.accessory)
 
-        // Initialize monitoring (will restore previous state if enabled)
+        // Initialize monitoring
         _ = AWDLMonitor.shared
 
         print("AWDLControl: App launched, monitoring state: \(AWDLMonitor.shared.isMonitoringActive)")
@@ -28,7 +29,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup menu bar
         setupMenuBar()
 
-        // Observe preference changes from widget
+        // Sync daemon state with preference immediately after launch
+        // This ensures daemon is stopped if preference says it should be
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.syncMonitoringState()
+        }
+
+        // Observe preference changes from widget (if we add widget back later)
         observer = NotificationCenter.default.addObserver(
             forName: .awdlMonitoringStateChanged,
             object: nil,
@@ -37,14 +44,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.handleMonitoringStateChange()
         }
 
-        // Also poll for preference changes periodically
-        setupPreferenceObserver()
+        // Note: No periodic polling needed for menu bar app - user controls state directly
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Keep monitoring enabled even when app quits
-        // The monitoring state is persisted and will resume on next launch
-        print("AWDLControl: App terminating, monitoring will resume on next launch")
+        // Always stop the daemon when app quits
+        // User can re-enable monitoring by launching the app again
+        print("AWDLControl: App terminating, stopping daemon...")
+
+        if AWDLMonitor.shared.isMonitoringActive {
+            AWDLMonitor.shared.stopMonitoring()
+            AWDLPreferences.shared.isMonitoringEnabled = false  // Save disabled state
+
+            // Verify daemon actually stopped
+            sleep(1)  // Give launchctl time to unload
+            let stillRunning = AWDLMonitor.shared.isMonitoringActive
+            if stillRunning {
+                print("AWDLControl: ⚠️ WARNING: Daemon still running after unload!")
+            } else {
+                print("AWDLControl: ✅ Verified daemon stopped, AWDL will be available for AirDrop/Handoff")
+            }
+        }
 
         if let observer = observer {
             NotificationCenter.default.removeObserver(observer)
@@ -121,17 +141,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         updateMenuItem()
     }
 
-    private func setupPreferenceObserver() {
-        // Poll for preference changes periodically
-        // This ensures we catch changes made by the widget
-        Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.syncMonitoringState()
-        }
-    }
-
     private func syncMonitoringState() {
+        // Prevent duplicate syncs (e.g., multiple notification events)
+        guard !isSyncing else {
+            print("AWDLControl: Sync already in progress, skipping")
+            return
+        }
+
+        isSyncing = true
+        defer { isSyncing = false }
+
         let shouldMonitor = AWDLPreferences.shared.isMonitoringEnabled
         let isMonitoring = AWDLMonitor.shared.isMonitoringActive
+
+        print("AWDLControl: Syncing state - Preference: \(shouldMonitor), Daemon: \(isMonitoring)")
 
         if shouldMonitor && !isMonitoring {
             print("AWDLControl: Starting monitoring (triggered by preference change)")
@@ -143,6 +166,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             AWDLMonitor.shared.stopMonitoring()
             updateMenuBarIcon()
             updateMenuItem()
+        } else {
+            print("AWDLControl: States already in sync, no action needed")
         }
     }
 
