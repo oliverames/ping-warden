@@ -13,6 +13,8 @@ struct AWDLControlApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var observer: NSObjectProtocol?
+    private var statusItem: NSStatusItem?
+    private var statusMenu: NSMenu?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide the app from the dock
@@ -22,6 +24,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         _ = AWDLMonitor.shared
 
         print("AWDLControl: App launched, monitoring state: \(AWDLMonitor.shared.isMonitoringActive)")
+
+        // Setup menu bar
+        setupMenuBar()
 
         // Observe preference changes from widget
         observer = NotificationCenter.default.addObserver(
@@ -46,6 +51,76 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func setupMenuBar() {
+        // Create status item in menu bar
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+
+        guard let button = statusItem?.button else { return }
+
+        // Set icon
+        updateMenuBarIcon()
+
+        // Create menu
+        statusMenu = NSMenu()
+
+        // Add menu items
+        let toggleItem = NSMenuItem(
+            title: AWDLMonitor.shared.isMonitoringActive ? "Disable AWDL Monitoring" : "Enable AWDL Monitoring",
+            action: #selector(toggleMonitoring),
+            keyEquivalent: ""
+        )
+        toggleItem.target = self
+        statusMenu?.addItem(toggleItem)
+
+        statusMenu?.addItem(NSMenuItem.separator())
+
+        let quitItem = NSMenuItem(
+            title: "Quit",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+        statusMenu?.addItem(quitItem)
+
+        statusItem?.menu = statusMenu
+    }
+
+    private func updateMenuBarIcon() {
+        guard let button = statusItem?.button else { return }
+
+        let isMonitoring = AWDLMonitor.shared.isMonitoringActive
+
+        // Use SF Symbol for the icon
+        let symbolName = isMonitoring ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "AWDL Control")
+        image?.isTemplate = true
+
+        button.image = image
+        button.toolTip = isMonitoring ? "AWDL Monitoring: Active" : "AWDL Monitoring: Inactive"
+    }
+
+    private func updateMenuItem() {
+        guard let menu = statusMenu else { return }
+
+        let newTitle = AWDLMonitor.shared.isMonitoringActive ? "Disable AWDL Monitoring" : "Enable AWDL Monitoring"
+        menu.items.first?.title = newTitle
+    }
+
+    @objc private func toggleMonitoring() {
+        let isCurrentlyMonitoring = AWDLMonitor.shared.isMonitoringActive
+
+        if isCurrentlyMonitoring {
+            AWDLMonitor.shared.stopMonitoring()
+            AWDLPreferences.shared.isMonitoringEnabled = false
+        } else {
+            AWDLMonitor.shared.startMonitoring()
+            AWDLPreferences.shared.isMonitoringEnabled = true
+        }
+
+        updateMenuBarIcon()
+        updateMenuItem()
+    }
+
     private func setupPreferenceObserver() {
         // Poll for preference changes periodically
         // This ensures we catch changes made by the widget
@@ -59,11 +134,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let isMonitoring = AWDLMonitor.shared.isMonitoringActive
 
         if shouldMonitor && !isMonitoring {
-            print("AWDLControl: Starting monitoring (triggered by widget)")
+            print("AWDLControl: Starting monitoring (triggered by preference change)")
             AWDLMonitor.shared.startMonitoring()
+            updateMenuBarIcon()
+            updateMenuItem()
         } else if !shouldMonitor && isMonitoring {
-            print("AWDLControl: Stopping monitoring (triggered by widget)")
+            print("AWDLControl: Stopping monitoring (triggered by preference change)")
             AWDLMonitor.shared.stopMonitoring()
+            updateMenuBarIcon()
+            updateMenuItem()
         }
     }
 
