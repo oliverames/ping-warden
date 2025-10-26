@@ -3,22 +3,20 @@ import WidgetKit
 import AppIntents
 
 /// Control Widget for managing AWDL interface from Control Center and menu bar
-/// When active, continuously monitors and keeps AWDL down
+/// Tap to toggle AWDL monitoring on/off
 @available(macOS 26.0, *)
 struct AWDLControlWidget: ControlWidget {
     static let kind: String = "AWDLControlWidget"
 
+    @available(macOS 26.0, *)
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
-            ControlWidgetButton(action: ToggleAWDLIntent()) {
-                Label(
-                    AWDLPreferences.shared.isMonitoringEnabled ? "AWDL Down" : "AWDL Up",
-                    systemImage: AWDLPreferences.shared.isMonitoringEnabled ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
-                )
+            ControlWidgetButton(action: ToggleAWDLMonitoringIntent()) {
+                Label("Toggle AWDL", systemImage: "antenna.radiowaves.left.and.right.slash")
             }
-            .tint(AWDLPreferences.shared.isMonitoringEnabled ? .green : .blue)
+            .tint(.blue)
         }
         .displayName("AWDL Control")
-        .description("Keep AWDL interface down to prevent network ping spikes")
+        .description("Tap to toggle AWDL monitoring")
     }
 }

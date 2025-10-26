@@ -8,9 +8,14 @@ class AWDLPreferences {
     private let monitoringEnabledKey = "AWDLMonitoringEnabled"
     private let lastStateKey = "AWDLLastState"
 
-    private var defaults: UserDefaults? {
-        return UserDefaults(suiteName: appGroupID)
-    }
+    private lazy var defaults: UserDefaults? = {
+        // Use standard UserDefaults if App Groups aren't available
+        guard let suite = UserDefaults(suiteName: appGroupID) else {
+            print("AWDLPreferences: Failed to create App Group suite, using standard defaults")
+            return UserDefaults.standard
+        }
+        return suite
+    }()
 
     private init() {}
 
@@ -21,7 +26,6 @@ class AWDLPreferences {
         }
         set {
             defaults?.set(newValue, forKey: monitoringEnabledKey)
-            defaults?.synchronize()
 
             // Post notification for app to respond
             NotificationCenter.default.post(name: .awdlMonitoringStateChanged, object: nil)
@@ -35,7 +39,6 @@ class AWDLPreferences {
         }
         set {
             defaults?.set(newValue, forKey: lastStateKey)
-            defaults?.synchronize()
         }
     }
 }
