@@ -4,10 +4,12 @@ A macOS Sequoia/Tahoe (15.0+/26.0+) app that provides a Control Center and menu 
 
 ## Features
 
-- **Continuous Monitoring**: Actively monitors and keeps AWDL down (like awdlkiller daemon)
+- **Event-Driven Monitoring**: Real-time notifications with ~0% CPU (like awdlkiller daemon)
+- **Fast ioctl() Control**: Direct interface control without spawning processes
 - **Control Center Integration**: Add an AWDL toggle directly to your Control Center
 - **Menu Bar Support**: Drag the control from Control Center to your menu bar for quick access
 - **Simple Toggle**: Easily enable or disable AWDL monitoring with a single tap
+- **Instant Response**: <10ms reaction time when AWDL comes up
 - **Background Operation**: Runs as an accessory app (doesn't appear in the Dock)
 - **Persistent Monitoring**: Monitoring state persists across app restarts
 - **Privileged Helper**: Optional helper tool for seamless interface control without repeated admin prompts
@@ -31,14 +33,17 @@ Some users prefer to disable AWDL to:
 
 ## How It Works
 
-Unlike simple toggle utilities, AWDL Control implements **continuous monitoring** similar to awdlkiller:
+AWDL Control uses **event-driven monitoring** similar to awdlkiller, making it extremely efficient:
 
-1. **When enabled**: Monitors the awdl0 interface every 500ms
-2. **Auto-correction**: Immediately brings AWDL down if macOS re-enables it
-3. **Background persistence**: Keeps monitoring even when you're not using the computer
-4. **Shared state**: Widget and app communicate via App Groups for reliable state management
+1. **SystemConfiguration**: Receives real-time notifications when awdl0 changes state
+2. **Instant Response**: Callback fires within <10ms when AWDL comes up
+3. **Direct ioctl()**: Fast C syscalls instead of spawning ifconfig processes
+4. **Fallback Timer**: Safety net checks every 5 seconds as backup
+5. **~0% CPU Idle**: Event-driven architecture uses no CPU when nothing changes
 
 This is necessary because macOS services (AirDrop, AirPlay, etc.) will automatically re-enable AWDL within seconds if you just bring it down once.
+
+**Performance**: See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks and technical implementation.
 
 ## Requirements
 
@@ -179,18 +184,21 @@ The app consists of four main components:
 #### Control Flow
 1. **User taps control** → AppIntent updates shared preferences
 2. **App observes change** → Starts/stops AWDLMonitor
-3. **Monitor runs continuously** → Checks AWDL state every 500ms
-4. **If AWDL comes up** → Immediately brings it back down
-5. **State persists** → Monitoring continues across app restarts
+3. **Monitor sets up events** → SystemConfiguration registers callbacks
+4. **AWDL state changes** → Callback fires instantly (<10ms)
+5. **If AWDL comes up** → ioctl() brings it down immediately
+6. **State persists** → Monitoring continues across app restarts
 
 #### Technical Implementation
 - **ControlWidget**: New ControlWidget API from WidgetKit (macOS 15+/26+)
 - **App Intents**: ForegroundContinuableIntent for state changes
-- **Continuous Monitoring**: Timer-based polling (500ms interval)
+- **Event-Driven Monitoring**: SystemConfiguration SCDynamicStore callbacks
+- **Fast Interface Control**: Direct ioctl() syscalls via C bridge
+- **Fallback Timer**: 5-second safety checks (vs 500ms polling)
 - **State Synchronization**: App Groups with UserDefaults
-- **Interface Control**: `ifconfig awdl0 up/down` via Process
-- **Authentication**: osascript (without helper) or setuid binary (with helper)
+- **Authentication**: Direct ioctl(), osascript, or setuid helper
 - **Background Persistence**: LaunchAgent keeps app running
+- **Performance**: ~0% CPU idle, <10ms response time
 
 ### Permissions
 

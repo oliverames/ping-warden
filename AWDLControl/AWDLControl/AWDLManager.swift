@@ -1,7 +1,7 @@
 import Foundation
-import Network
 
 /// Manages the AWDL (Apple Wireless Direct Link) interface state
+/// Now using fast ioctl() syscalls instead of spawning ifconfig processes
 class AWDLManager {
     static let shared = AWDLManager()
 
@@ -29,54 +29,54 @@ class AWDLManager {
         }
     }
 
-    /// Bring AWDL interface down
+    /// Bring AWDL interface down (FAST - using ioctl)
     func bringDown() -> Bool {
+        // Try direct ioctl first (fastest method)
+        let result = awdl_bring_down(interfaceName)
+        if result == 0 {
+            return true
+        }
+
+        // If direct ioctl fails (permission denied), try with helper or osascript
+        print("AWDLManager: Direct ioctl failed, trying with elevated privileges")
         return executeCommand(command: "down")
     }
 
     /// Bring AWDL interface up
     func bringUp() -> Bool {
+        // Try direct ioctl first
+        let result = awdl_bring_up(interfaceName)
+        if result == 0 {
+            return true
+        }
+
+        // If direct ioctl fails, try with helper or osascript
+        print("AWDLManager: Direct ioctl failed, trying with elevated privileges")
         return executeCommand(command: "up")
     }
 
-    /// Get current interface state
+    /// Get current interface state (FAST - using ioctl)
     func getInterfaceState() -> InterfaceState {
-        let task = Process()
-        let pipe = Pipe()
+        let result = awdl_is_up(interfaceName)
 
-        task.executableURL = URL(fileURLWithPath: "/sbin/ifconfig")
-        task.arguments = [interfaceName]
-        task.standardOutput = pipe
-        task.standardError = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-
-            if output.contains("UP") && !output.isEmpty {
-                return .up
-            } else if !output.isEmpty {
-                return .down
-            } else {
-                return .unknown
-            }
-        } catch {
-            print("Error getting interface state: \(error)")
+        switch result {
+        case 1:
+            return .up
+        case 0:
+            return .down
+        default:
             return .unknown
         }
     }
 
-    /// Execute ifconfig command with elevated privileges
+    /// Execute ifconfig command with elevated privileges (fallback only)
     private func executeCommand(command: String) -> Bool {
         // Try to use helper tool if installed
         if FileManager.default.fileExists(atPath: helperToolPath) {
             return executeWithHelper(command: command)
         }
 
-        // Fallback to direct execution with admin privileges
+        // Fallback to osascript with admin privileges
         return executeWithAdminPrivileges(command: command)
     }
 
