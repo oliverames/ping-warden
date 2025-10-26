@@ -68,26 +68,8 @@ class HelperAuthorization {
     /// Check if helper is installed and running
     func isHelperInstalled() -> Bool {
         // Try to connect to the helper via XPC
-        guard let connection = getHelperConnection() else {
-            return false
-        }
-
-        var installed = false
-        let semaphore = DispatchSemaphore(value: 0)
-
-        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-            print("HelperAuthorization: Error connecting to helper: \(error)")
-            semaphore.signal()
-        } as? AWDLHelperProtocol
-
-        proxy?.getVersionWithReply { version in
-            print("HelperAuthorization: Helper version: \(String(describing: version))")
-            installed = true
-            semaphore.signal()
-        }
-
-        _ = semaphore.wait(timeout: .now() + 2.0)
-        return installed
+        // If connection succeeds, helper is installed
+        return getHelperConnection() != nil
     }
 
     /// Get connection to the helper (creates if needed)
@@ -129,10 +111,10 @@ class HelperAuthorization {
             semaphore.signal()
         } as? AWDLHelperProtocol
 
-        proxy?.loadDaemon { error in
+        proxy?.loadDaemon(reply: { error in
             loadError = error
             semaphore.signal()
-        }
+        })
 
         _ = semaphore.wait(timeout: .now() + 5.0)
 
@@ -157,10 +139,10 @@ class HelperAuthorization {
             semaphore.signal()
         } as? AWDLHelperProtocol
 
-        proxy?.unloadDaemon { error in
+        proxy?.unloadDaemon(reply: { error in
             unloadError = error
             semaphore.signal()
-        }
+        })
 
         _ = semaphore.wait(timeout: .now() + 5.0)
 
@@ -183,10 +165,10 @@ class HelperAuthorization {
             semaphore.signal()
         } as? AWDLHelperProtocol
 
-        proxy?.isDaemonLoaded { isLoaded in
+        proxy?.isDaemonLoaded(reply: { isLoaded in
             loaded = isLoaded
             semaphore.signal()
-        }
+        })
 
         _ = semaphore.wait(timeout: .now() + 2.0)
         return loaded
