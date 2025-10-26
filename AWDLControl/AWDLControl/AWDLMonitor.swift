@@ -93,7 +93,7 @@ class AWDLMonitor {
         }
     }
 
-    /// Load the LaunchDaemon
+    /// Load the LaunchDaemon (requires root privileges)
     private func loadDaemon() -> Bool {
         // Check if plist exists
         guard FileManager.default.fileExists(atPath: daemonPlistPath) else {
@@ -102,11 +102,16 @@ class AWDLMonitor {
             return false
         }
 
+        // Use osascript to run launchctl with admin privileges
+        let script = """
+        do shell script "launchctl load '\(daemonPlistPath)'" with administrator privileges
+        """
+
         let task = Process()
         let pipe = Pipe()
 
-        task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        task.arguments = ["load", daemonPlistPath]
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        task.arguments = ["-e", script]
         task.standardOutput = pipe
         task.standardError = pipe
 
@@ -121,6 +126,7 @@ class AWDLMonitor {
                 return false
             }
 
+            print("AWDLMonitor: Successfully loaded daemon with admin privileges")
             return true
         } catch {
             print("AWDLMonitor: Error loading daemon: \(error)")
@@ -128,13 +134,18 @@ class AWDLMonitor {
         }
     }
 
-    /// Unload the LaunchDaemon
+    /// Unload the LaunchDaemon (requires root privileges)
     private func unloadDaemon() -> Bool {
+        // Use osascript to run launchctl with admin privileges
+        let script = """
+        do shell script "launchctl unload '\(daemonPlistPath)'" with administrator privileges
+        """
+
         let task = Process()
         let pipe = Pipe()
 
-        task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        task.arguments = ["unload", daemonPlistPath]
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        task.arguments = ["-e", script]
         task.standardOutput = pipe
         task.standardError = pipe
 
@@ -149,6 +160,7 @@ class AWDLMonitor {
                 return false
             }
 
+            print("AWDLMonitor: Successfully unloaded daemon with admin privileges")
             return true
         } catch {
             print("AWDLMonitor: Error unloading daemon: \(error)")
