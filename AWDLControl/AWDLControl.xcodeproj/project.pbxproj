@@ -405,7 +405,8 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-			};
+			
+				SWIFT_OBJC_BRIDGING_HEADER = "AWDLControl/AWDLControl-Bridging-Header.h";};
 			name = Debug;
 		};
 		AppReleaseConfig /* Release */ = {
@@ -432,7 +433,8 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-			};
+			
+				SWIFT_OBJC_BRIDGING_HEADER = "AWDLControl/AWDLControl-Bridging-Header.h";};
 			name = Release;
 		};
 		HelperDebugConfig /* Debug */ = {
