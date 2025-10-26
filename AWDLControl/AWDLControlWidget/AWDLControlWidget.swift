@@ -5,6 +5,7 @@ import AppIntents
 /// Control Widget for managing AWDL interface from Control Center and menu bar
 /// Tap to toggle AWDL monitoring on/off
 @available(macOS 26.0, *)
+@main
 struct AWDLControlWidget: ControlWidget {
     static let kind: String = "AWDLControlWidget"
 
