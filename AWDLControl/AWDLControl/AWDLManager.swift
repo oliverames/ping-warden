@@ -40,7 +40,7 @@ class AWDLManager {
     }
 
     /// Get current interface state
-    private func getInterfaceState() -> InterfaceState {
+    func getInterfaceState() -> InterfaceState {
         let task = Process()
         let pipe = Pipe()
 

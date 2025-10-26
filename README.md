@@ -1,14 +1,17 @@
 # AWDL Control
 
-A macOS Sequoia (15.0+) app that provides a Control Center and menu bar toggle for controlling the AWDL (Apple Wireless Direct Link) interface. Built with the new ControlWidget API introduced in macOS Sequoia.
+A macOS Sequoia/Tahoe (15.0+/26.0+) app that provides a Control Center and menu bar toggle for controlling the AWDL (Apple Wireless Direct Link) interface. Built with the new ControlWidget API and featuring **continuous monitoring** to keep AWDL down.
 
 ## Features
 
+- **Continuous Monitoring**: Actively monitors and keeps AWDL down (like awdlkiller daemon)
 - **Control Center Integration**: Add an AWDL toggle directly to your Control Center
 - **Menu Bar Support**: Drag the control from Control Center to your menu bar for quick access
-- **Simple Toggle**: Easily enable or disable the AWDL interface with a single tap
+- **Simple Toggle**: Easily enable or disable AWDL monitoring with a single tap
 - **Background Operation**: Runs as an accessory app (doesn't appear in the Dock)
+- **Persistent Monitoring**: Monitoring state persists across app restarts
 - **Privileged Helper**: Optional helper tool for seamless interface control without repeated admin prompts
+- **App Groups**: Shared state between app and widget for reliable operation
 
 ## What is AWDL?
 
@@ -26,9 +29,20 @@ Some users prefer to disable AWDL to:
 
 **Note**: Disabling AWDL will prevent the above features from working until you re-enable it.
 
+## How It Works
+
+Unlike simple toggle utilities, AWDL Control implements **continuous monitoring** similar to awdlkiller:
+
+1. **When enabled**: Monitors the awdl0 interface every 500ms
+2. **Auto-correction**: Immediately brings AWDL down if macOS re-enables it
+3. **Background persistence**: Keeps monitoring even when you're not using the computer
+4. **Shared state**: Widget and app communicate via App Groups for reliable state management
+
+This is necessary because macOS services (AirDrop, AirPlay, etc.) will automatically re-enable AWDL within seconds if you just bring it down once.
+
 ## Requirements
 
-- macOS Sequoia (15.0) or later
+- macOS Sequoia (15.0) or macOS Tahoe (26.0) or later
 - Xcode 16.0+ (for building)
 - Administrator privileges (for controlling network interfaces)
 
@@ -57,9 +71,29 @@ Some users prefer to disable AWDL to:
    cp -r AWDLControl/build/Release/AWDLControl.app /Applications/
    ```
 
+### Recommended: Install LaunchAgent
+
+To ensure continuous monitoring even after logout/reboot, install the LaunchAgent:
+
+```bash
+cd AWDLControl
+./install_launchagent.sh
+```
+
+This will:
+- Start AWDLControl automatically at login
+- Keep the app running in the background
+- Maintain monitoring state across sessions
+
+To uninstall:
+```bash
+cd AWDLControl
+./uninstall_launchagent.sh
+```
+
 ### Optional: Install Privileged Helper
 
-The privileged helper tool allows the app to control the AWDL interface without prompting for admin credentials each time. This is optional but recommended for the best user experience.
+The privileged helper tool allows the app to control the AWDL interface without prompting for admin credentials each time. This is **highly recommended** for continuous monitoring to work smoothly.
 
 1. Build the helper tool (already built with the main app)
 
@@ -101,10 +135,18 @@ sudo ./uninstall_helper.sh
 
 ### Using the Control
 
-- **Tap the control** to toggle AWDL on/off
-- When the control shows "AWDL Down", the interface is disabled
-- When the control shows "AWDL Up", the interface is enabled
-- The first time you toggle, macOS will prompt for admin credentials (unless you installed the privileged helper)
+- **Tap the control** to toggle AWDL monitoring on/off
+- **When "AWDL Down" (green)**: Continuous monitoring is active, keeping AWDL down every 500ms
+- **When "AWDL Up" (blue)**: Monitoring is stopped, AWDL operates normally
+- **First time**: macOS will prompt for admin credentials (unless you installed the privileged helper)
+- **Persistent state**: Your monitoring preference is saved and restored on app launch
+
+### Checking Status
+
+Open the app from Applications (⌘+Space, type "AWDLControl") to see:
+- Current monitoring status
+- Real-time state updates
+- About information
 
 ### Managing the App
 
@@ -117,19 +159,38 @@ Since AWDLControl runs as an accessory app:
 
 ### Architecture
 
-The app consists of three components:
+The app consists of four main components:
 
 1. **AWDLControl.app**: Main application bundle (runs as accessory)
+   - AWDLMonitor: Continuous monitoring service (checks every 500ms)
+   - AWDLManager: Interface control and state detection
+   - AWDLPreferences: Shared state management via App Groups
+
 2. **AWDLControlWidget.appex**: Widget extension providing the ControlWidget
+   - ControlWidget UI with toggle
+   - AppIntent for state changes
+   - Shared preferences access
+
 3. **AWDLControlHelper**: Optional privileged helper tool for elevated operations
+4. **LaunchAgent**: Optional background service for persistence
 
 ### How It Works
 
-- The ControlWidget uses the new `ControlWidget` API from WidgetKit
-- App Intents handle the toggle action when you interact with the control
-- The AWDLManager class wraps `ifconfig` commands to control the interface
-- Without the helper: Uses `osascript` to prompt for admin credentials
-- With the helper: Executes commands directly via the setuid helper tool
+#### Control Flow
+1. **User taps control** → AppIntent updates shared preferences
+2. **App observes change** → Starts/stops AWDLMonitor
+3. **Monitor runs continuously** → Checks AWDL state every 500ms
+4. **If AWDL comes up** → Immediately brings it back down
+5. **State persists** → Monitoring continues across app restarts
+
+#### Technical Implementation
+- **ControlWidget**: New ControlWidget API from WidgetKit (macOS 15+/26+)
+- **App Intents**: ForegroundContinuableIntent for state changes
+- **Continuous Monitoring**: Timer-based polling (500ms interval)
+- **State Synchronization**: App Groups with UserDefaults
+- **Interface Control**: `ifconfig awdl0 up/down` via Process
+- **Authentication**: osascript (without helper) or setuid binary (with helper)
+- **Background Persistence**: LaunchAgent keeps app running
 
 ### Permissions
 

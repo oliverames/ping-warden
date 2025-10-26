@@ -1,49 +1,45 @@
 import AppIntents
 import Foundation
 
-/// App Intent to toggle AWDL interface state
-struct AWDLToggleIntent: AppIntent {
-    static var title: LocalizedStringResource = "Toggle AWDL"
-    static var description = IntentDescription("Toggles the AWDL interface on or off")
+/// App Intent to toggle AWDL monitoring (not just a one-time toggle)
+/// When enabled, continuously monitors and keeps AWDL down
+struct AWDLToggleIntent: AppIntent, ForegroundContinuableIntent {
+    static var title: LocalizedStringResource = "Toggle AWDL Monitoring"
+    static var description = IntentDescription("Starts or stops continuous AWDL monitoring")
 
-    @Parameter(title: "New State")
-    var newState: Bool
+    @Parameter(title: "Enable Monitoring")
+    var enableMonitoring: Bool
 
     init() {
-        self.newState = false
+        self.enableMonitoring = false
     }
 
-    init(newState: Bool) {
-        self.newState = newState
+    init(enableMonitoring: Bool) {
+        self.enableMonitoring = enableMonitoring
     }
 
     func perform() async throws -> some IntentResult {
-        // Get the shared AWDL manager
-        let manager = AWDLManager.shared
+        print("AWDLToggleIntent: Toggle monitoring to \(enableMonitoring)")
 
-        // Toggle based on the new state
-        let success: Bool
-        if newState {
-            success = manager.bringDown()
-        } else {
-            success = manager.bringUp()
-        }
+        // Update shared preferences
+        AWDLPreferences.shared.isMonitoringEnabled = enableMonitoring
 
-        if !success {
-            throw AWDLError.toggleFailed
-        }
-
+        // Request to continue in foreground to ensure monitoring runs
+        // This will launch the app if it's not running
         return .result()
     }
 }
 
 enum AWDLError: Error, CustomLocalizedStringResourceConvertible {
     case toggleFailed
+    case monitoringFailed
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
         case .toggleFailed:
             return "Failed to toggle AWDL interface"
+        case .monitoringFailed:
+            return "Failed to start monitoring"
         }
     }
 }
