@@ -13,6 +13,12 @@
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
 
+    <!-- SMJobBless configuration -->
+    <key>SMAuthorizedClients</key>
+    <array>
+        <string>identifier "com.awdlcontrol.app" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = PV3W52NDZ3</string>
+    </array>
+
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
 </dict>
