@@ -10,7 +10,6 @@ class AWDLMonitor {
 
     private let daemonLabel = "com.awdlcontrol.daemon"
     private let daemonPlistPath = "/Library/LaunchDaemons/com.awdlcontrol.daemon.plist"
-    private let manager = AWDLManager.shared
 
     private var isMonitoring = false
 

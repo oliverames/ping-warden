@@ -76,7 +76,7 @@ class HelperAuthorization {
             semaphore.signal()
         } as? AWDLHelperProtocol
 
-        proxy?.getVersion { version in
+        proxy?.getVersionWithReply { version in
             print("HelperAuthorization: Helper version: \(version)")
             installed = true
             semaphore.signal()

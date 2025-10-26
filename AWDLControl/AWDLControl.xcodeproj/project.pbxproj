@@ -404,9 +404,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "AWDLControl/AWDLControl-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-			
-				SWIFT_OBJC_BRIDGING_HEADER = "AWDLControl/AWDLControl-Bridging-Header.h";};
+			};
 			name = Debug;
 		};
 		AppReleaseConfig /* Release */ = {
@@ -432,9 +432,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "AWDLControl/AWDLControl-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-			
-				SWIFT_OBJC_BRIDGING_HEADER = "AWDLControl/AWDLControl-Bridging-Header.h";};
+			};
 			name = Release;
 		};
 		HelperDebugConfig /* Debug */ = {
@@ -583,7 +583,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PV3W52NDZ3;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -611,7 +610,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PV3W52NDZ3;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
