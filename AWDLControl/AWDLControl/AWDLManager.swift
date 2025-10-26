@@ -31,42 +31,49 @@ class AWDLManager {
 
     /// Bring AWDL interface down (FAST - using ioctl)
     func bringDown() -> Bool {
-        // Try direct ioctl first (fastest method)
-        let result = awdl_bring_down(interfaceName)
-        if result == 0 {
-            return true
-        }
-
-        // If direct ioctl fails (permission denied), try with helper or osascript
-        print("AWDLManager: Direct ioctl failed, trying with elevated privileges")
+        // TODO: Enable direct ioctl once C bridging is configured
+        // For now, use fallback method
+        print("AWDLManager: Using fallback method to bring down AWDL")
         return executeCommand(command: "down")
     }
 
     /// Bring AWDL interface up
     func bringUp() -> Bool {
-        // Try direct ioctl first
-        let result = awdl_bring_up(interfaceName)
-        if result == 0 {
-            return true
-        }
-
-        // If direct ioctl fails, try with helper or osascript
-        print("AWDLManager: Direct ioctl failed, trying with elevated privileges")
+        // TODO: Enable direct ioctl once C bridging is configured
+        // For now, use fallback method
+        print("AWDLManager: Using fallback method to bring up AWDL")
         return executeCommand(command: "up")
     }
 
     /// Get current interface state (FAST - using ioctl)
     func getInterfaceState() -> InterfaceState {
-        let result = awdl_is_up(interfaceName)
+        // TODO: Enable direct ioctl once C bridging is configured
+        // For now, use ifconfig to check state
+        let task = Process()
+        let pipe = Pipe()
 
-        switch result {
-        case 1:
-            return .up
-        case 0:
-            return .down
-        default:
-            return .unknown
+        task.executableURL = URL(fileURLWithPath: "/sbin/ifconfig")
+        task.arguments = [interfaceName]
+        task.standardOutput = pipe
+        task.standardError = pipe
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8) {
+                if output.contains("UP") {
+                    return .up
+                } else {
+                    return .down
+                }
+            }
+        } catch {
+            print("Error checking interface state: \(error)")
         }
+
+        return .unknown
     }
 
     /// Execute ifconfig command with elevated privileges (fallback only)

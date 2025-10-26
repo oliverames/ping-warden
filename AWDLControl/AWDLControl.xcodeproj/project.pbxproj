@@ -7,16 +7,48 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		Widget001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = WidgetKitRef; };
-		Widget002 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = SwiftUIRef; };
+		815E03172EAEA562006913A8 /* AWDLControlWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = WidgetRef /* AWDLControlWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		Widget001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = WidgetKitRef /* WidgetKit.framework */; };
+		Widget002 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = SwiftUIRef /* SwiftUI.framework */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		815E03182EAEA562006913A8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = RootObject /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = WidgetTarget;
+			remoteInfo = AWDLControlWidget;
+		};
+		WidgetProxy /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = RootObject /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = WidgetTarget;
+			remoteInfo = AWDLControlWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		WidgetEmbed /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				815E03172EAEA562006913A8 /* AWDLControlWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		AppRef /* AWDLControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AWDLControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		WidgetRef /* AWDLControlWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AWDLControlWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		WidgetKitRef /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
-		SwiftUIRef /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		HelperRef /* AWDLControlHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = AWDLControlHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		SwiftUIRef /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		WidgetKitRef /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		WidgetRef /* AWDLControlWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AWDLControlWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -25,14 +57,14 @@
 			path = AWDLControl;
 			sourceTree = "<group>";
 		};
-		WidgetGroup /* AWDLControlWidget */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = AWDLControlWidget;
-			sourceTree = "<group>";
-		};
 		HelperGroup /* AWDLControlHelper */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AWDLControlHelper;
+			sourceTree = "<group>";
+		};
+		WidgetGroup /* AWDLControlWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AWDLControlWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -45,15 +77,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		WidgetFrameworks /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				Widget001,
-				Widget002,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		HelperFrameworks /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -61,37 +84,46 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		WidgetFrameworks /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				Widget001 /* WidgetKit.framework in Frameworks */,
+				Widget002 /* SwiftUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		RootGroup = {
+		FrameworksGroup /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				AppGroup,
-				WidgetGroup,
-				HelperGroup,
-				ProductsGroup,
-				FrameworksGroup,
+				WidgetKitRef /* WidgetKit.framework */,
+				SwiftUIRef /* SwiftUI.framework */,
 			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		ProductsGroup /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AppRef,
-				WidgetRef,
-				HelperRef,
+				AppRef /* AWDLControl.app */,
+				WidgetRef /* AWDLControlWidget.appex */,
+				HelperRef /* AWDLControlHelper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		FrameworksGroup /* Frameworks */ = {
+		RootGroup = {
 			isa = PBXGroup;
 			children = (
-				WidgetKitRef,
-				SwiftUIRef,
+				AppGroup /* AWDLControl */,
+				WidgetGroup /* AWDLControlWidget */,
+				HelperGroup /* AWDLControlHelper */,
+				ProductsGroup /* Products */,
+				FrameworksGroup /* Frameworks */,
 			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -99,70 +131,71 @@
 /* Begin PBXNativeTarget section */
 		AppTarget /* AWDLControl */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AppConfigList;
+			buildConfigurationList = AppConfigList /* Build configuration list for PBXNativeTarget "AWDLControl" */;
 			buildPhases = (
-				AppSources,
-				AppFrameworks,
-				AppResources,
-				WidgetEmbed,
+				AppSources /* Sources */,
+				AppFrameworks /* Frameworks */,
+				AppResources /* Resources */,
+				WidgetEmbed /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				WidgetDep,
+				WidgetDep /* PBXTargetDependency */,
+				815E03192EAEA562006913A8 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				AppGroup,
+				AppGroup /* AWDLControl */,
 			);
 			name = AWDLControl;
 			packageProductDependencies = (
 			);
 			productName = AWDLControl;
-			productReference = AppRef;
+			productReference = AppRef /* AWDLControl.app */;
 			productType = "com.apple.product-type.application";
-		};
-		WidgetTarget /* AWDLControlWidget */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = WidgetConfigList;
-			buildPhases = (
-				WidgetSources,
-				WidgetFrameworks,
-				WidgetResources,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				WidgetGroup,
-			);
-			name = AWDLControlWidget;
-			packageProductDependencies = (
-			);
-			productName = AWDLControlWidget;
-			productReference = WidgetRef;
-			productType = "com.apple.product-type.app-extension";
 		};
 		HelperTarget /* AWDLControlHelper */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = HelperConfigList;
+			buildConfigurationList = HelperConfigList /* Build configuration list for PBXNativeTarget "AWDLControlHelper" */;
 			buildPhases = (
-				HelperSources,
-				HelperFrameworks,
+				HelperSources /* Sources */,
+				HelperFrameworks /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				HelperGroup,
+				HelperGroup /* AWDLControlHelper */,
 			);
 			name = AWDLControlHelper;
 			packageProductDependencies = (
 			);
 			productName = AWDLControlHelper;
-			productReference = HelperRef;
+			productReference = HelperRef /* AWDLControlHelper */;
 			productType = "com.apple.product-type.tool";
+		};
+		WidgetTarget /* AWDLControlWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = WidgetConfigList /* Build configuration list for PBXNativeTarget "AWDLControlWidget" */;
+			buildPhases = (
+				WidgetSources /* Sources */,
+				WidgetFrameworks /* Frameworks */,
+				WidgetResources /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				WidgetGroup /* AWDLControlWidget */,
+			);
+			name = AWDLControlWidget;
+			packageProductDependencies = (
+			);
+			productName = AWDLControlWidget;
+			productReference = WidgetRef /* AWDLControlWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -177,15 +210,15 @@
 					AppTarget = {
 						CreatedOnToolsVersion = 16.0;
 					};
-					WidgetTarget = {
+					HelperTarget = {
 						CreatedOnToolsVersion = 16.0;
 					};
-					HelperTarget = {
+					WidgetTarget = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
 			};
-			buildConfigurationList = RootConfigList;
+			buildConfigurationList = RootConfigList /* Build configuration list for PBXProject "AWDLControl" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -195,13 +228,13 @@
 			mainGroup = RootGroup;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = ProductsGroup;
+			productRefGroup = ProductsGroup /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				AppTarget,
-				WidgetTarget,
-				HelperTarget,
+				AppTarget /* AWDLControl */,
+				WidgetTarget /* AWDLControlWidget */,
+				HelperTarget /* AWDLControlHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -231,14 +264,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		WidgetSources /* Sources */ = {
+		HelperSources /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		HelperSources /* Sources */ = {
+		WidgetSources /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -248,35 +281,17 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		815E03192EAEA562006913A8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = WidgetTarget /* AWDLControlWidget */;
+			targetProxy = 815E03182EAEA562006913A8 /* PBXContainerItemProxy */;
+		};
 		WidgetDep /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = WidgetTarget;
-			targetProxy = WidgetProxy;
+			target = WidgetTarget /* AWDLControlWidget */;
+			targetProxy = WidgetProxy /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
-
-/* Begin PBXContainerItemProxy section */
-		WidgetProxy /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = RootObject;
-			proxyType = 1;
-			remoteGlobalIDString = WidgetTarget;
-			remoteInfo = AWDLControlWidget;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		WidgetEmbed /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		AppDebugConfig /* Debug */ = {
@@ -284,9 +299,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AWDLControl/AWDLControl.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -295,12 +312,12 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Debug;
 		};
@@ -309,9 +326,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AWDLControl/AWDLControl.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -320,66 +339,12 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-			};
-			name = Release;
-		};
-		WidgetDebugConfig /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = AWDLControlWidget/AWDLControlWidget.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app.widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-			};
-			name = Debug;
-		};
-		WidgetReleaseConfig /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = AWDLControlWidget/AWDLControlWidget.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app.widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Release;
 		};
@@ -387,9 +352,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Debug;
 		};
@@ -397,9 +363,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Release;
 		};
@@ -517,23 +484,70 @@
 			};
 			name = Release;
 		};
+		WidgetDebugConfig /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = AWDLControlWidget/AWDLControlWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		WidgetReleaseConfig /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = AWDLControlWidget/AWDLControlWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		AppConfigList /* Build configuration list for PBXNativeTarget "AWDLControl" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				AppDebugConfig,
-				AppReleaseConfig,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		WidgetConfigList /* Build configuration list for PBXNativeTarget "AWDLControlWidget" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				WidgetDebugConfig,
-				WidgetReleaseConfig,
+				AppDebugConfig /* Debug */,
+				AppReleaseConfig /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -541,8 +555,8 @@
 		HelperConfigList /* Build configuration list for PBXNativeTarget "AWDLControlHelper" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				HelperDebugConfig,
-				HelperReleaseConfig,
+				HelperDebugConfig /* Debug */,
+				HelperReleaseConfig /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -550,8 +564,17 @@
 		RootConfigList /* Build configuration list for PBXProject "AWDLControl" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				RootDebugConfig,
-				RootReleaseConfig,
+				RootDebugConfig /* Debug */,
+				RootReleaseConfig /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		WidgetConfigList /* Build configuration list for PBXNativeTarget "AWDLControlWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				WidgetDebugConfig /* Debug */,
+				WidgetReleaseConfig /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

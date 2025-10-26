@@ -3,29 +3,18 @@ import Foundation
 
 /// App Intent to toggle AWDL monitoring (not just a one-time toggle)
 /// When enabled, continuously monitors and keeps AWDL down
-struct AWDLToggleIntent: AppIntent, ForegroundContinuableIntent {
+struct ToggleAWDLIntent: AppIntent {
     static var title: LocalizedStringResource = "Toggle AWDL Monitoring"
     static var description = IntentDescription("Starts or stops continuous AWDL monitoring")
 
-    @Parameter(title: "Enable Monitoring")
-    var enableMonitoring: Bool
-
-    init() {
-        self.enableMonitoring = false
-    }
-
-    init(enableMonitoring: Bool) {
-        self.enableMonitoring = enableMonitoring
-    }
-
     func perform() async throws -> some IntentResult {
-        print("AWDLToggleIntent: Toggle monitoring to \(enableMonitoring)")
+        // Toggle the current state
+        let newState = !AWDLPreferences.shared.isMonitoringEnabled
+        print("ToggleAWDLIntent: Toggle monitoring to \(newState)")
 
         // Update shared preferences
-        AWDLPreferences.shared.isMonitoringEnabled = enableMonitoring
+        AWDLPreferences.shared.isMonitoringEnabled = newState
 
-        // Request to continue in foreground to ensure monitoring runs
-        // This will launch the app if it's not running
         return .result()
     }
 }
