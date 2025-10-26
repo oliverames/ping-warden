@@ -20,12 +20,5 @@
     <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
-
-    <!-- SMJobBless specific keys -->
-    <key>SMPrivilegedExecutables</key>
-    <dict>
-        <key>com.awdlcontrol.helper</key>
-        <string>identifier "com.awdlcontrol.helper" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = PV3W52NDZ3</string>
-    </dict>
 </dict>
 </plist>

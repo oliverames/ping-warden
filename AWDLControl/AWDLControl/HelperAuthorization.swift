@@ -20,70 +20,32 @@ class HelperAuthorization {
 
     /// Install the privileged helper tool (prompts for password once)
     func installHelper() throws {
-        var authRef: AuthorizationRef?
-        var authItem = kSMRightBlessPrivilegedHelper.withCString { authorizationString in
-            AuthorizationItem(name: authorizationString, valueLength: 0, value: nil, flags: 0)
+        // Use SMAppService (modern replacement for SMJobBless)
+        let service = SMAppService.daemon(plistName: "com.awdlcontrol.helper.plist")
+
+        do {
+            try service.register()
+            print("HelperAuthorization: Helper tool installed successfully")
+        } catch {
+            print("HelperAuthorization: Failed to install helper: \(error)")
+            throw error
         }
-
-        var authRights = withUnsafeMutablePointer(to: &authItem) { pointer in
-            AuthorizationRights(count: 1, items: pointer)
-        }
-
-        let authFlags: AuthorizationFlags = [.interactionAllowed, .extendRights, .preAuthorize]
-
-        let status = AuthorizationCreate(&authRights, nil, authFlags, &authRef)
-        guard status == errAuthorizationSuccess else {
-            throw NSError(domain: "com.awdlcontrol.helper", code: Int(status), userInfo: [
-                NSLocalizedDescriptionKey: "Failed to create authorization reference"
-            ])
-        }
-
-        defer {
-            if let authRef = authRef {
-                AuthorizationFree(authRef, [])
-            }
-        }
-
-        // Bless the helper tool
-        var error: Unmanaged<CFError>?
-        let success = SMJobBless(kSMDomainSystemLaunchd, helperLabel as CFString, authRef, &error)
-
-        if !success {
-            if let err = error?.takeRetainedValue() {
-                throw err
-            } else {
-                throw NSError(domain: "com.awdlcontrol.helper", code: -1, userInfo: [
-                    NSLocalizedDescriptionKey: "Failed to install helper tool"
-                ])
-            }
-        }
-
-        print("HelperAuthorization: Helper tool installed successfully")
     }
 
     /// Check if helper is installed and running
     func isHelperInstalled() -> Bool {
-        // Try to connect to the helper
-        guard let connection = getHelperConnection() else {
-            return false
+        // Use SMAppService to check status (modern API)
+        let service = SMAppService.daemon(plistName: "com.awdlcontrol.helper.plist")
+
+        // Check if the service is registered and enabled
+        let status = service.status
+        let isRegistered = (status == .enabled || status == .requiresApproval)
+
+        if isRegistered {
+            print("HelperAuthorization: Helper is installed (status: \(status.rawValue))")
         }
 
-        var installed = false
-        let semaphore = DispatchSemaphore(value: 0)
-
-        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-            print("HelperAuthorization: Error connecting to helper: \(error)")
-            semaphore.signal()
-        } as? AWDLHelperProtocol
-
-        proxy?.getVersionWithReply { version in
-            print("HelperAuthorization: Helper version: \(version)")
-            installed = true
-            semaphore.signal()
-        }
-
-        _ = semaphore.wait(timeout: .now() + 2.0)
-        return installed
+        return isRegistered
     }
 
     /// Get connection to the helper (creates if needed)

@@ -111,7 +111,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Use SF Symbol for the icon
         let symbolName = isMonitoring ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
         let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "AWDL Control")
         image?.isTemplate = true
 
