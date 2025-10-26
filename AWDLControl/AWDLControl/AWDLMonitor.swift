@@ -35,10 +35,7 @@ class AWDLMonitor {
 
         print("AWDLMonitor: Starting monitoring daemon")
 
-        // Bring AWDL down first
-        _ = manager.bringDown()
-
-        // Load the LaunchDaemon
+        // Load the LaunchDaemon (it will bring AWDL down automatically on startup)
         if loadDaemon() {
             isMonitoring = true
             AWDLPreferences.shared.isMonitoringEnabled = true
@@ -50,7 +47,8 @@ class AWDLMonitor {
     }
 
     /// Stop monitoring by unloading the LaunchDaemon
-    func stopMonitoring(bringUp: Bool = true) {
+    /// Note: AWDL will be brought up automatically by macOS when needed (AirDrop, Handoff, etc.)
+    func stopMonitoring() {
         guard isMonitoring else {
             print("AWDLMonitor: Daemon not running")
             return
@@ -62,13 +60,7 @@ class AWDLMonitor {
         if unloadDaemon() {
             isMonitoring = false
             AWDLPreferences.shared.isMonitoringEnabled = false
-            print("AWDLMonitor: ✅ Daemon unloaded")
-
-            // Optionally bring interface back up
-            if bringUp {
-                _ = manager.bringUp()
-                AWDLPreferences.shared.lastKnownState = "up"
-            }
+            print("AWDLMonitor: ✅ Daemon unloaded - AWDL will be available for AirDrop/Handoff when needed")
         } else {
             print("AWDLMonitor: ❌ Failed to unload daemon")
         }
