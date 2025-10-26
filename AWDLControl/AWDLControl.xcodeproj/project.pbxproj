@@ -30,6 +30,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		81865E1C2EAEC91800AB80D3 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 		WidgetEmbed /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -44,6 +53,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		81865E1E2EAEC91800AB80D3 /* AWDLHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = AWDLHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		AppRef /* AWDLControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AWDLControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		HelperRef /* AWDLControlHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = AWDLControlHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		SwiftUIRef /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -52,6 +62,11 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		81865E1F2EAEC91800AB80D3 /* AWDLHelper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AWDLHelper;
+			sourceTree = "<group>";
+		};
 		AppGroup /* AWDLControl */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AWDLControl;
@@ -70,6 +85,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		81865E1B2EAEC91800AB80D3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AppFrameworks /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -111,6 +133,7 @@
 				AppRef /* AWDLControl.app */,
 				WidgetRef /* AWDLControlWidget.appex */,
 				HelperRef /* AWDLControlHelper */,
+				81865E1E2EAEC91800AB80D3 /* AWDLHelper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -121,6 +144,7 @@
 				AppGroup /* AWDLControl */,
 				WidgetGroup /* AWDLControlWidget */,
 				HelperGroup /* AWDLControlHelper */,
+				81865E1F2EAEC91800AB80D3 /* AWDLHelper */,
 				ProductsGroup /* Products */,
 				FrameworksGroup /* Frameworks */,
 			);
@@ -129,6 +153,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		81865E1D2EAEC91800AB80D3 /* AWDLHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 81865E222EAEC91800AB80D3 /* Build configuration list for PBXNativeTarget "AWDLHelper" */;
+			buildPhases = (
+				81865E1A2EAEC91800AB80D3 /* Sources */,
+				81865E1B2EAEC91800AB80D3 /* Frameworks */,
+				81865E1C2EAEC91800AB80D3 /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				81865E1F2EAEC91800AB80D3 /* AWDLHelper */,
+			);
+			name = AWDLHelper;
+			packageProductDependencies = (
+			);
+			productName = AWDLHelper;
+			productReference = 81865E1E2EAEC91800AB80D3 /* AWDLHelper */;
+			productType = "com.apple.product-type.tool";
+		};
 		AppTarget /* AWDLControl */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AppConfigList /* Build configuration list for PBXNativeTarget "AWDLControl" */;
@@ -207,6 +253,9 @@
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					81865E1D2EAEC91800AB80D3 = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
 					AppTarget = {
 						CreatedOnToolsVersion = 16.0;
 					};
@@ -235,6 +284,7 @@
 				AppTarget /* AWDLControl */,
 				WidgetTarget /* AWDLControlWidget */,
 				HelperTarget /* AWDLControlHelper */,
+				81865E1D2EAEC91800AB80D3 /* AWDLHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -257,6 +307,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		81865E1A2EAEC91800AB80D3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AppSources /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -294,6 +351,36 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		81865E232EAEC91800AB80D3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development: oliver@amesvt.com (Y3Z79XM83W)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = AWDLHelper/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.helper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		81865E242EAEC91800AB80D3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development: oliver@amesvt.com (Y3Z79XM83W)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = AWDLHelper/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.helper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
 		AppDebugConfig /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -543,6 +630,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		81865E222EAEC91800AB80D3 /* Build configuration list for PBXNativeTarget "AWDLHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				81865E232EAEC91800AB80D3 /* Debug */,
+				81865E242EAEC91800AB80D3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		AppConfigList /* Build configuration list for PBXNativeTarget "AWDLControl" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

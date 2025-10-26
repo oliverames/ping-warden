@@ -84,6 +84,12 @@ class AWDLMonitor {
 
     /// Check if daemon is currently loaded
     private func isDaemonLoaded() -> Bool {
+        // Try to use helper first (more reliable if helper is installed)
+        if HelperAuthorization.shared.isHelperInstalled() {
+            return HelperAuthorization.shared.isDaemonLoaded()
+        }
+
+        // Fallback to direct launchctl check (doesn't require privileges)
         let task = Process()
         let pipe = Pipe()
 
@@ -101,7 +107,7 @@ class AWDLMonitor {
         }
     }
 
-    /// Load the LaunchDaemon (requires root privileges)
+    /// Load the LaunchDaemon (via privileged helper - no password prompt after initial setup!)
     private func loadDaemon() -> Bool {
         // Check if plist exists
         guard FileManager.default.fileExists(atPath: daemonPlistPath) else {
@@ -110,68 +116,35 @@ class AWDLMonitor {
             return false
         }
 
-        // Use osascript to run launchctl with admin privileges
-        let script = """
-        do shell script "launchctl load '\(daemonPlistPath)'" with administrator privileges with prompt "AWDLControl needs permission to START blocking AWDL (this will disable AirDrop, AirPlay, and Handoff)"
-        """
-
-        let task = Process()
-        let pipe = Pipe()
-
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        task.arguments = ["-e", script]
-        task.standardOutput = pipe
-        task.standardError = pipe
-
         do {
-            try task.run()
-            task.waitUntilExit()
-
-            if task.terminationStatus != 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
-                print("AWDLMonitor: Error loading daemon: \(output)")
-                return false
+            // Check if helper is installed
+            if !HelperAuthorization.shared.isHelperInstalled() {
+                print("AWDLMonitor: Helper not installed, installing now...")
+                print("AWDLMonitor: You will be prompted for your password to install the privileged helper")
+                print("AWDLMonitor: After this ONE-TIME setup, you'll never see password prompts again!")
+                try HelperAuthorization.shared.installHelper()
+                print("AWDLMonitor: ✅ Helper installed successfully")
             }
 
-            print("AWDLMonitor: Successfully loaded daemon with admin privileges")
+            // Use helper to load daemon (no password prompt!)
+            try HelperAuthorization.shared.loadDaemon()
+            print("AWDLMonitor: ✅ Successfully loaded daemon via helper (no password prompt!)")
             return true
         } catch {
-            print("AWDLMonitor: Error loading daemon: \(error)")
+            print("AWDLMonitor: ❌ Error loading daemon: \(error)")
             return false
         }
     }
 
-    /// Unload the LaunchDaemon (requires root privileges)
+    /// Unload the LaunchDaemon (via privileged helper - no password prompt!)
     private func unloadDaemon() -> Bool {
-        // Use osascript to run launchctl with admin privileges
-        let script = """
-        do shell script "launchctl unload '\(daemonPlistPath)'" with administrator privileges with prompt "AWDLControl needs permission to STOP blocking AWDL (this will re-enable AirDrop, AirPlay, and Handoff)"
-        """
-
-        let task = Process()
-        let pipe = Pipe()
-
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        task.arguments = ["-e", script]
-        task.standardOutput = pipe
-        task.standardError = pipe
-
         do {
-            try task.run()
-            task.waitUntilExit()
-
-            if task.terminationStatus != 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
-                print("AWDLMonitor: Error unloading daemon: \(output)")
-                return false
-            }
-
-            print("AWDLMonitor: Successfully unloaded daemon with admin privileges")
+            // Use helper to unload daemon (no password prompt!)
+            try HelperAuthorization.shared.unloadDaemon()
+            print("AWDLMonitor: ✅ Successfully unloaded daemon via helper (no password prompt!)")
             return true
         } catch {
-            print("AWDLMonitor: Error unloading daemon: \(error)")
+            print("AWDLMonitor: ❌ Error unloading daemon: \(error)")
             return false
         }
     }
