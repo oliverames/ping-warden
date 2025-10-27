@@ -1,281 +1,169 @@
-# AWDL Control
+# AWDLControl
 
-A macOS Sequoia/Tahoe (15.0+/26.0+) app that provides a Control Center and menu bar toggle for controlling the AWDL (Apple Wireless Direct Link) interface.
+A macOS menu bar app that keeps AWDL (Apple Wireless Direct Link) disabled to eliminate network latency spikes and improve Wi-Fi performance.
 
-**Architecture**: Hybrid C daemon (AF_ROUTE monitoring like awdlkiller) + Swift/SwiftUI ControlWidget UI
+**Performance**: <1ms response time • 0% CPU when idle • Based on proven [awdlkiller](https://github.com/jamestut/awdlkiller) technology
 
-**Performance**: <1ms response time, 0% CPU when idle, zero network drops
-
----
-
-## Features
-
-- **Instant Response**: <1ms reaction time using AF_ROUTE sockets (same as awdlkiller)
-- **Zero CPU**: Event-driven monitoring uses 0% CPU when idle
-- **C Daemon**: Proven awdlkiller-based monitoring for reliability
-- **Swift UI**: Modern ControlWidget for Control Center and menu bar
-- **Control Center Integration**: Add toggle directly to your Control Center
-- **Menu Bar Support**: Drag control from Control Center to menu bar
-- **Simple Toggle**: One tap to enable/disable AWDL monitoring
-- **No Network Drops**: AWDL never stays up long enough to cause issues
-- **Background Operation**: Runs as LaunchDaemon (starts/stops on demand)
-- **Easy Installation**: One script installs everything
-- **Comprehensive Logging**: Syslog integration for debugging
+**Requirements**: macOS 15.0+ (Sequoia/Tahoe) • Xcode 16.0+ (for building)
 
 ---
 
-## What is AWDL?
+## What Does This Do?
 
-AWDL (Apple Wireless Direct Link) is the underlying technology that powers features like:
-- AirDrop
-- AirPlay
-- Handoff
-- Universal Control
+AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, Handoff, and Universal Control. While useful, AWDL can cause:
+- Network ping spikes (100-300ms)
+- Wi-Fi performance degradation
+- Increased battery usage
+- Connection instability during gaming or video calls
 
-Some users prefer to disable AWDL to:
-- Eliminate network ping spikes
-- Improve Wi-Fi performance
-- Reduce battery usage
-- Enhance network stability
+**AWDLControl** keeps AWDL disabled with instant (<1ms) response when macOS tries to re-enable it.
 
-**Note**: Disabling AWDL will prevent the above features from working until you re-enable it.
+> **Note**: While monitoring is enabled, AirDrop/AirPlay/Handoff will not work. Simply disable monitoring when you need these features.
 
 ---
 
 ## How It Works
 
-AWDLControl uses a **hybrid architecture** combining awdlkiller's proven monitoring with modern macOS UI:
+AWDLControl uses a **hybrid architecture**:
 
 ### C Daemon (`awdl_monitor_daemon`)
-- **AF_ROUTE Socket**: Receives real-time kernel notifications when interfaces change
-- **poll()**: Blocks until interface changes (0% CPU when idle)
-- **ioctl()**: Brings awdl0 down instantly when it comes up (<1ms)
-- **Based on awdlkiller**: Uses the same proven monitoring technology
+- Monitors interface changes via **AF_ROUTE sockets** (instant kernel notifications)
+- Uses **poll()** to wait for events (0% CPU when idle)
+- Brings AWDL down via **ioctl()** syscall (<1ms response)
+- Based on [awdlkiller](https://github.com/jamestut/awdlkiller) by jamestut
 
 ### Swift App (`AWDLControl.app`)
-- **ControlWidget**: Modern macOS UI for Control Center/menu bar
-- **AppIntents**: Handles toggle actions
-- **launchctl**: Starts/stops the C daemon via LaunchDaemon
-- **App Groups**: Manages shared state between app and widget
+- Provides clean menu bar interface
+- Controls daemon via `launchctl` (requires password each time)
+- Shows installation wizard on first run
 
-### Why This Matters
+### Why This Architecture?
 
-macOS services (AirDrop, AirPlay, etc.) will automatically re-enable AWDL within 1-2 seconds. Timer-based polling (checking every 500ms) isn't fast enough - you get network drops in that window. **AF_ROUTE sockets provide instant notification** from the kernel, allowing <1ms response time.
-
-**Architecture Details**: See [ARCHITECTURE.md](ARCHITECTURE.md) for complete technical documentation.
-
----
-
-## Requirements
-
-- macOS Sequoia (15.0) or macOS Tahoe (26.0) or later
-- Xcode 16.0+ (for building)
-- Xcode Command Line Tools (`xcode-select --install`)
-- Administrator privileges (for daemon installation)
+macOS services automatically re-enable AWDL every 1-2 seconds. Timer-based polling (checking every 500ms) isn't fast enough - you get latency spikes in that window. **AF_ROUTE sockets provide instant kernel notifications**, enabling <1ms response time.
 
 ---
 
 ## Installation
 
-### Step 1: Build the App
+### Quick Start
 
-```bash
-# Clone repository
-git clone https://github.com/yourusername/awdl0-down.git
-cd awdl0-down/AWDLControl
+1. **Build the app**:
+   ```bash
+   git clone https://github.com/yourusername/awdl0-down.git
+   cd awdl0-down
+   open AWDLControl/AWDLControl.xcodeproj
+   ```
 
-# Open in Xcode
-open AWDLControl.xcodeproj
+2. **In Xcode**: Product → Build (⌘B)
 
-# Build the app (⌘B)
-# Product → Build
+3. **Copy to Applications**:
+   ```bash
+   cp -r AWDLControl/build/Release/AWDLControl.app /Applications/
+   ```
 
-# Copy to Applications
-cp -r build/Release/AWDLControl.app /Applications/
-```
+4. **Launch AWDLControl.app** and follow the on-screen installation wizard
 
-### Step 2: Install the Daemon (REQUIRED)
+### First Launch Setup
 
-The C daemon provides the actual AWDL monitoring. This must be installed:
+When you first enable monitoring, AWDLControl will:
+1. Show a welcome dialog
+2. Copy the installation command to your clipboard
+3. Open Terminal
+4. Guide you through a one-time daemon installation (~30 seconds)
 
-```bash
-cd AWDLControl
-sudo ./install_daemon.sh
-```
+After this one-time setup, you can toggle monitoring from the menu bar (requires password each time).
 
-This script will:
-- Build `awdl_monitor_daemon` from source
-- Install to `/usr/local/bin` with setuid root permissions
-- Install LaunchDaemon plist to `/Library/LaunchDaemons`
+### What Gets Installed
 
-**Verification**:
-```bash
-# Check daemon binary exists and has setuid
-ls -la /usr/local/bin/awdl_monitor_daemon
-# Should show: -rwsr-xr-x ... (note the 's')
-
-# Check plist installed
-ls -la /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
-```
-
-### Step 3: Optional - App LaunchAgent
-
-To have the app start automatically at login:
-
-```bash
-cd AWDLControl
-./install_launchagent.sh
-```
+The installation script installs:
+- `/usr/local/bin/awdl_monitor_daemon` - C daemon binary (34KB, setuid root)
+- `/Library/LaunchDaemons/com.awdlcontrol.daemon.plist` - LaunchDaemon configuration
 
 ---
 
 ## Usage
 
-### Adding the Control
+### Enabling Monitoring
 
-#### To Control Center:
-1. Open Control Center (click switch icon in menu bar)
-2. Click "Edit Controls" at the bottom
-3. Find "AWDL Control" in the list
-4. Click the + button to add it
-5. Click "Done"
+1. Launch AWDLControl from Applications
+2. Click the menu bar icon
+3. Select "Enable Monitoring"
+4. If first time: Follow installation wizard
+5. If already installed: Enter password to start daemon
+6. AWDL is now kept disabled (<1ms response)
 
-#### To Menu Bar:
-1. Add to Control Center first (see above)
-2. Open Control Center
-3. Drag the "AWDL Control" item up to your menu bar
-4. Drop it where you want it to appear
+### Disabling Monitoring
 
-### Using the Control
-
-- **Tap to toggle** AWDL monitoring on/off
-- **When enabled (green)**: C daemon is running, AWDL stays down (<1ms response)
-- **When disabled (blue)**: Daemon stopped, AWDL operates normally
+1. Click the menu bar icon
+2. Select "Disable Monitoring"
+3. Enter password to stop daemon
+4. AWDL is now available for AirDrop/AirPlay/Handoff
 
 ### Checking Status
 
 ```bash
 # Check if daemon is running
-sudo launchctl list | grep awdlcontrol
+pgrep -x awdl_monitor_daemon
 
 # View daemon logs
 log show --predicate 'process == "awdl_monitor_daemon"' --last 1h
 
-# Or check the log file
-sudo tail -f /var/log/awdl_monitor_daemon.log
-
-# Check AWDL status
+# Check AWDL interface status
 ifconfig awdl0 | grep flags
+# When monitoring: should show DOWN (no UP flag)
+# When disabled: may show UP when needed by macOS
 ```
-
----
-
-## How the Daemon Works
-
-```
-User toggles control in Control Center
-           ↓
-AppIntent loads LaunchDaemon via launchctl
-           ↓
-awdl_monitor_daemon starts
-           ↓
-Creates AF_ROUTE socket
-           ↓
-poll() blocks waiting for routing messages (0% CPU)
-           ↓
-macOS tries to bring AWDL up
-           ↓
-Kernel sends RTM_IFINFO message
-           ↓
-poll() unblocks INSTANTLY (<1ms)
-           ↓
-ioctl() brings AWDL down
-           ↓
-Returns to poll() (0% CPU)
-```
-
-This is **exactly how awdlkiller works** - instant response with zero CPU usage.
-
----
-
-## Uninstallation
-
-### Remove Daemon
-```bash
-cd AWDLControl
-sudo ./uninstall_daemon.sh
-```
-
-### Remove App
-```bash
-rm -rf /Applications/AWDLControl.app
-```
-
-### Remove LaunchAgent (if installed)
-```bash
-cd AWDLControl
-./uninstall_launchagent.sh
-```
-
----
-
-## Technical Details
-
-### Components
-
-| Component | Purpose | Language | Location |
-|-----------|---------|----------|----------|
-| AWDLControl.app | UI and control | Swift/SwiftUI | /Applications |
-| awdl_monitor_daemon | AWDL monitoring | C | /usr/local/bin |
-| com.awdlcontrol.daemon.plist | Daemon config | XML | /Library/LaunchDaemons |
-
-### Architecture
-
-**AWDLControl.app** (Swift):
-- ControlWidget UI
-- AppIntents for toggle
-- Loads/unloads daemon via launchctl
-- State management via App Groups
-
-**awdl_monitor_daemon** (C):
-- AF_ROUTE socket monitoring
-- poll() for event-driven operation
-- ioctl() for interface control
-- Exactly like awdlkiller
-
-**Communication Flow**:
-```
-Swift App ← launchctl → LaunchDaemon → C Daemon
-                                          ↕
-                                    AF_ROUTE Socket
-                                          ↕
-                                    macOS Kernel
-```
-
-For complete architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
 ## Performance
 
-### Metrics
-- **Response Time**: <1ms (kernel notification to ioctl)
-- **CPU Usage (idle)**: 0.0%
-- **CPU Usage (active)**: <0.1%
-- **Memory**: ~2 MB (daemon) + ~40 MB (app)
-- **Battery Impact**: Negligible
+| Metric | Value |
+|--------|-------|
+| Response Time | <1ms (kernel notification → ioctl) |
+| CPU Usage (idle) | 0.0% |
+| CPU Usage (active) | <0.1% |
+| Memory (daemon) | ~2MB |
+| Memory (app) | ~40MB |
 
 ### Comparison with awdlkiller
 
-| Metric | awdlkiller | AWDLControl |
-|--------|-----------|-------------|
+| Feature | awdlkiller | AWDLControl |
+|---------|-----------|-------------|
 | Response Time | <1ms | <1ms ✅ |
 | CPU (idle) | 0% | 0% ✅ |
-| Monitoring | AF_ROUTE | AF_ROUTE ✅ |
+| Monitoring Method | AF_ROUTE | AF_ROUTE ✅ |
 | Interface Control | ioctl() | ioctl() ✅ |
-| User Interface | None | ControlWidget ✅ |
+| User Interface | None | Menu bar app ✅ |
 
-**Result**: Same performance, better UX!
+**Result**: Same performance as awdlkiller, with a modern macOS UI!
+
+---
+
+## Uninstallation
+
+### Remove Everything
+
+```bash
+# Stop and remove daemon
+sudo launchctl bootout system/com.awdlcontrol.daemon 2>/dev/null || true
+sudo rm -f /usr/local/bin/awdl_monitor_daemon
+sudo rm -f /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
+
+# Remove app
+rm -rf /Applications/AWDLControl.app
+
+# Clean up app data
+rm -rf ~/Library/Containers/com.awdlcontrol.app
+rm -rf ~/Library/Group\ Containers/group.com.awdlcontrol.app
+```
+
+Or use the included script:
+```bash
+cd awdl0-down
+sudo ./uninstall_daemon.sh
+rm -rf /Applications/AWDLControl.app
+```
 
 ---
 
@@ -283,89 +171,104 @@ For complete architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### Daemon Won't Start
 
-**Check installation**:
+**Check if daemon binary exists**:
 ```bash
 ls -la /usr/local/bin/awdl_monitor_daemon
-# Should show: -rwsr-xr-x (setuid bit set)
+# Should show: -rwsr-xr-x (note the 's' for setuid)
 ```
 
-**If missing setuid**:
+**If missing, run installation wizard again** or install manually:
 ```bash
-sudo chmod u+s /usr/local/bin/awdl_monitor_daemon
-```
-
-**Try loading manually**:
-```bash
-sudo launchctl load /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
+cd awdl0-down
+sudo ./install_daemon.sh
 ```
 
 ### AWDL Not Staying Down
 
-**Check if daemon is running**:
+**Verify daemon is running**:
 ```bash
-sudo launchctl list | grep awdlcontrol
-# Should show PID if running
+pgrep -x awdl_monitor_daemon
+# Should return a PID if running
 ```
 
-**View logs**:
+**Check logs for errors**:
 ```bash
 log show --predicate 'process == "awdl_monitor_daemon"' --last 1h
 ```
 
-### Toggle Doesn't Work
+### Password Prompts Every Time
 
-**Check app permissions**:
-- App needs to run launchctl (requires admin password)
-- First toggle will prompt for password
+This is expected behavior. AWDLControl uses `osascript` with administrator privileges to start/stop the daemon, which requires password authentication each time for security.
 
-**Check daemon plist exists**:
-```bash
-ls -la /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
+If you prefer one-time authorization, you would need SMJobBless (deprecated in macOS 13.0) or manual daemon configuration.
+
+---
+
+## Technical Details
+
+### Architecture Flow
+
+```
+User clicks "Enable Monitoring"
+           ↓
+AWDLControl.app prompts for password (osascript)
+           ↓
+launchctl bootstrap system /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
+           ↓
+awdl_monitor_daemon starts
+           ↓
+Creates AF_ROUTE socket (kernel notification channel)
+           ↓
+poll() blocks waiting for routing messages (0% CPU)
+           ↓
+[macOS service tries to enable AWDL]
+           ↓
+Kernel sends RTM_IFINFO message
+           ↓
+poll() unblocks (<1ms)
+           ↓
+ioctl(SIOCSIFFLAGS) brings awdl0 down instantly
+           ↓
+Returns to poll() (0% CPU)
 ```
 
-### Widget Not Appearing
+### Components
 
-**macOS Version**:
-- Requires macOS 15.0 (Sequoia) or later
-- ControlWidget API not available on older versions
+| Component | Language | Purpose |
+|-----------|----------|---------|
+| AWDLControl.app | Swift/SwiftUI | Menu bar UI, daemon control |
+| awdl_monitor_daemon | C | AF_ROUTE monitoring, ioctl() control |
+| install_daemon.sh | Bash | One-time daemon installation |
 
-**Restart App**:
-- Quit AWDLControl.app
-- Relaunch from Applications
+### Why Hybrid C + Swift?
+
+- **C daemon**: Swift cannot efficiently use AF_ROUTE sockets for sub-millisecond response. C provides direct kernel integration.
+- **Swift app**: Modern UI framework for menu bar integration and user experience.
+- **Best of both worlds**: awdlkiller's performance with macOS-native UX.
+
+For complete architecture details, see [CLAUDE.md](AWDLControl/CLAUDE.md).
 
 ---
 
 ## Security
 
 ### Daemon Security
-- **setuid root**: Required for network interface control (ioctl)
+- **setuid root**: Required for `ioctl()` network interface control
 - **No user input**: Only processes kernel routing messages
-- **Minimal attack surface**: Only responds to RTM_IFINFO for awdl0
-- **Open source**: All code reviewable
+- **Minimal attack surface**: Only responds to RTM_IFINFO for awdl0 interface
+- **Open source**: All code is reviewable
 
 ### App Security
-- **Sandbox disabled**: Required to run launchctl
-- **App Groups**: Secure state sharing between app and widget
+- **Sandbox disabled**: Required to execute `launchctl` and `osascript`
 - **Local only**: No network connections
-
----
-
-## Documentation
-
-- **README.md** (this file) - User guide and installation
-- **ARCHITECTURE.md** - Complete technical architecture
-- **PERFORMANCE.md** - Benchmarks and performance details
-- **IMPLEMENTATION_COMPARISON.md** - Design decisions and comparisons
-- **PROJECT_REVIEW.md** - Code review and testing guide
-- **TEST_SUMMARY.md** - Testing checklist
+- **Password required**: Each daemon start/stop requires administrator authentication
 
 ---
 
 ## Credits
 
-- **awdlkiller** by [jamestut](https://github.com/jamestut/awdlkiller) - Original C implementation
-- **AWDLControl** - Modern Swift/SwiftUI wrapper with ControlWidget
-- **Apple** - ControlWidget API, macOS frameworks
+- **[awdlkiller](https://github.com/jamestut/awdlkiller)** by jamestut - Original C daemon implementation
+- **AWDLControl** - Swift/SwiftUI menu bar wrapper
 
 ---
 
@@ -377,16 +280,44 @@ MIT License - See LICENSE file for details
 
 ## Contributing
 
-Contributions welcome! Please feel free to submit issues or pull requests.
+Contributions welcome! Please submit issues or pull requests.
+
+### Building from Source
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/awdl0-down.git
+cd awdl0-down
+
+# Build daemon
+cd AWDLMonitorDaemon
+make clean && make
+cd ..
+
+# Build app
+open AWDLControl/AWDLControl.xcodeproj
+# Xcode: Product → Build
+```
 
 ---
 
-## Summary
+## FAQ
 
-AWDLControl combines:
-- ✅ **awdlkiller's instant monitoring** (<1ms response, 0% CPU)
-- ✅ **Modern macOS UI** (ControlWidget for Control Center/menu bar)
-- ✅ **Easy installation** (one script)
-- ✅ **Bulletproof reliability** (proven AF_ROUTE technology)
+**Q: Why does it ask for my password every time?**
+A: For security, macOS requires administrator authentication each time a privileged daemon is started/stopped. This is by design.
 
-**Best of both worlds!** 🚀
+**Q: Is this safe?**
+A: Yes. The daemon only monitors and controls the AWDL interface. All code is open source and reviewable. The daemon uses the same proven technology as awdlkiller.
+
+**Q: Will this break AirDrop/AirPlay/Handoff?**
+A: Yes, while monitoring is enabled. Simply disable monitoring when you need these features.
+
+**Q: How is this different from awdlkiller?**
+A: Same core technology (AF_ROUTE sockets, ioctl() control), but with a native macOS menu bar app for easier control.
+
+**Q: Does this work on older macOS versions?**
+A: No, requires macOS 15.0+ (Sequoia/Tahoe) due to Swift/SwiftUI framework requirements. For older versions, use [awdlkiller](https://github.com/jamestut/awdlkiller) directly.
+
+---
+
+**AWDLControl** - Keep AWDL disabled with awdlkiller performance and macOS-native UX 🚀
