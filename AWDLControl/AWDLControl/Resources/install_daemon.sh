@@ -1,156 +1,124 @@
 #!/bin/bash
 
-# AWDLControl Daemon Installer
-# This script installs the AWDL monitoring daemon from the app bundle
-# Run with: sudo /Applications/AWDLControl.app/Contents/Resources/install_daemon.sh
+# Installation script for AWDL Monitor Daemon
+# This installs the C daemon that provides instant AWDL monitoring
+# using AF_ROUTE sockets (exactly like awdlkiller)
 
 set -e
 
-echo ""
-echo "╔══════════════════════════════════════════════════════════╗"
-echo "║         AWDLControl Daemon Installation                 ║"
-echo "╚══════════════════════════════════════════════════════════╝"
+DAEMON_NAME="awdl_monitor_daemon"
+DAEMON_LABEL="com.awdlcontrol.daemon"
+DAEMON_PLIST="$DAEMON_LABEL.plist"
+DAEMON_DEST="/usr/local/bin/$DAEMON_NAME"
+PLIST_DEST="/Library/LaunchDaemons/$DAEMON_PLIST"
+
+echo "============================================"
+echo "  AWDL Monitor Daemon Installation"
+echo "============================================"
 echo ""
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
-    echo "❌ This script must be run with sudo"
-    echo ""
-    echo "Usage:"
-    echo "  sudo $0"
-    echo ""
+    echo "Error: This script must be run with sudo"
+    echo "Usage: sudo ./install_daemon.sh"
     exit 1
 fi
 
-# Get the directory where this script is located (app Resources)
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-APP_BUNDLE="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
-
-echo "📦 Installing from: $APP_BUNDLE"
-echo ""
-
-# Paths
-DAEMON_SOURCE="$SCRIPT_DIR/awdl_monitor_daemon"
-PLIST_SOURCE="$SCRIPT_DIR/com.awdlcontrol.daemon.plist"
-DAEMON_DEST="/usr/local/bin/awdl_monitor_daemon"
-PLIST_DEST="/Library/LaunchDaemons/com.awdlcontrol.daemon.plist"
-
-# Check if source files exist
-if [ ! -f "$DAEMON_SOURCE" ]; then
-    echo "❌ Error: Daemon binary not found at:"
-    echo "   $DAEMON_SOURCE"
-    echo ""
-    echo "The app bundle may be corrupted. Please re-download AWDLControl."
+# Navigate to daemon directory
+cd "$(dirname "$0")/AWDLMonitorDaemon" || {
+    echo "Error: AWDLMonitorDaemon directory not found"
     exit 1
-fi
+}
 
-if [ ! -f "$PLIST_SOURCE" ]; then
-    echo "❌ Error: Daemon plist not found at:"
-    echo "   $PLIST_SOURCE"
-    echo ""
-    echo "The app bundle may be corrupted. Please re-download AWDLControl."
-    exit 1
-fi
+echo "Step 1: Building daemon from source..."
+echo "---------------------------------------"
 
-echo "✅ Source files found"
-echo ""
+# Build the daemon
+if [ -f "Makefile" ]; then
+    make clean
+    make
 
-# Step 1: Unload existing daemon if running
-echo "Step 1/4: Checking for existing daemon..."
-if launchctl list | grep -q com.awdlcontrol.daemon; then
-    echo "   Unloading existing daemon..."
-    launchctl bootout system/com.awdlcontrol.daemon 2>/dev/null || true
-    echo "   ✅ Existing daemon unloaded"
+    if [ ! -f "$DAEMON_NAME" ]; then
+        echo "Error: Build failed - $DAEMON_NAME not found"
+        exit 1
+    fi
+    echo "✅ Build successful"
 else
-    echo "   ℹ️  No existing daemon found"
+    echo "Error: Makefile not found"
+    exit 1
 fi
-echo ""
 
-# Step 2: Install daemon binary
-echo "Step 2/4: Installing daemon binary..."
+echo ""
+echo "Step 2: Installing daemon binary..."
+echo "---------------------------------------"
+
+# Create /usr/local/bin if it doesn't exist
 mkdir -p /usr/local/bin
-cp "$DAEMON_SOURCE" "$DAEMON_DEST"
-chown root:wheel "$DAEMON_DEST"
-chmod 4755 "$DAEMON_DEST"  # setuid root for network control
 
-if [ -f "$DAEMON_DEST" ]; then
-    echo "   ✅ Daemon installed to: $DAEMON_DEST"
-    ls -lh "$DAEMON_DEST"
-else
-    echo "   ❌ Failed to install daemon"
+# Install daemon with setuid root permissions
+install -m 4755 -o root -g wheel "$DAEMON_NAME" "$DAEMON_DEST"
+
+if [ ! -f "$DAEMON_DEST" ]; then
+    echo "Error: Failed to install daemon to $DAEMON_DEST"
     exit 1
 fi
-echo ""
 
-# Step 3: Install plist
-echo "Step 3/4: Installing LaunchDaemon plist..."
-cp "$PLIST_SOURCE" "$PLIST_DEST"
+# Verify setuid bit
+if [ ! -u "$DAEMON_DEST" ]; then
+    echo "Warning: setuid bit not set, setting it now..."
+    chmod u+s "$DAEMON_DEST"
+fi
+
+echo "✅ Daemon installed to $DAEMON_DEST"
+ls -la "$DAEMON_DEST"
+
+echo ""
+echo "Step 3: Installing LaunchDaemon plist..."
+echo "---------------------------------------"
+
+# Install plist
+if [ ! -f "$DAEMON_PLIST" ]; then
+    echo "Error: $DAEMON_PLIST not found"
+    exit 1
+fi
+
+cp "$DAEMON_PLIST" "$PLIST_DEST"
 chown root:wheel "$PLIST_DEST"
 chmod 644 "$PLIST_DEST"
 
-if [ -f "$PLIST_DEST" ]; then
-    echo "   ✅ Plist installed to: $PLIST_DEST"
-else
-    echo "   ❌ Failed to install plist"
-    exit 1
-fi
+echo "✅ Plist installed to $PLIST_DEST"
+
 echo ""
-
-# Step 4: Load and start daemon
-echo "Step 4/4: Loading daemon..."
-launchctl bootstrap system "$PLIST_DEST"
-
-# Wait a moment for daemon to start
-sleep 2
-
-# Verify daemon is running
-if launchctl list | grep -q com.awdlcontrol.daemon; then
-    PID=$(launchctl list | grep com.awdlcontrol.daemon | awk '{print $1}')
-    if [ "$PID" != "-" ] && [ "$PID" != "0" ]; then
-        echo "   ✅ Daemon is running (PID: $PID)"
-    else
-        echo "   ⚠️  Daemon loaded but not running (PID: $PID)"
-        echo ""
-        echo "Checking logs..."
-        tail -10 /var/log/awdl_monitor_daemon.log 2>/dev/null || echo "No logs yet"
-        exit 1
-    fi
-else
-    echo "   ❌ Failed to load daemon"
-    exit 1
-fi
+echo "============================================"
+echo "  Installation Complete!"
+echo "============================================"
 echo ""
-
-# Verify AWDL is down
-AWDL_STATUS=$(ifconfig awdl0 2>/dev/null | grep flags || echo "")
-if [ -n "$AWDL_STATUS" ]; then
-    if echo "$AWDL_STATUS" | grep -q "UP"; then
-        echo "⚠️  Warning: AWDL is still UP"
-        echo "   $AWDL_STATUS"
-    else
-        echo "✅ AWDL is DOWN - daemon is working!"
-        echo "   $AWDL_STATUS"
-    fi
-fi
-echo ""
-
-echo "╔══════════════════════════════════════════════════════════╗"
-echo "║              Installation Complete! ✅                   ║"
-echo "╚══════════════════════════════════════════════════════════╝"
-echo ""
-echo "The AWDL monitoring daemon is now installed and running."
+echo "The AWDL Monitor Daemon has been installed successfully."
 echo ""
 echo "What was installed:"
-echo "  • Daemon: $DAEMON_DEST"
-echo "  • Plist:  $PLIST_DEST"
-echo ""
-echo "Next steps:"
-echo "  1. Return to AWDLControl"
-echo "  2. Toggle monitoring from the menu bar"
-echo "  3. No more password prompts needed!"
+echo "  • Daemon binary: $DAEMON_DEST (setuid root)"
+echo "  • LaunchDaemon plist: $PLIST_DEST"
 echo ""
 echo "How it works:"
+echo "  • The daemon uses AF_ROUTE sockets for instant notifications"
 echo "  • Response time: <1ms when AWDL comes up"
 echo "  • CPU usage: 0% when idle (event-driven)"
-echo "  • Based on awdlkiller technology"
+echo "  • Same technology as awdlkiller"
+echo ""
+echo "Usage:"
+echo "  • Use the AWDLControl app to start/stop monitoring"
+echo "  • Toggle the control in Control Center or menu bar"
+echo ""
+echo "Manual control (if needed):"
+echo "  • Start: sudo launchctl load $PLIST_DEST"
+echo "  • Stop:  sudo launchctl unload $PLIST_DEST"
+echo "  • Check: sudo launchctl list | grep $DAEMON_LABEL"
+echo ""
+echo "Logs:"
+echo "  • Daemon logs to system log (syslog)"
+echo "  • View: log show --predicate 'process == \"$DAEMON_NAME\"' --last 1h"
+echo "  • Or: sudo tail -f /var/log/awdl_monitor_daemon.log"
+echo ""
+echo "To uninstall:"
+echo "  • Run: sudo ./uninstall_daemon.sh"
 echo ""
