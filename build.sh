@@ -1,0 +1,42 @@
+#!/bin/bash
+set -e
+
+echo "🔨 Building AWDLControl..."
+echo ""
+
+# Build C daemon
+echo "📦 Building C daemon..."
+cd AWDLControl/AWDLMonitorDaemon
+make clean > /dev/null 2>&1
+make
+cd ../..
+echo "✅ Daemon built successfully"
+echo ""
+
+# Build Swift app
+echo "📱 Building Swift app..."
+xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
+           -target AWDLControl \
+           -target AWDLControlWidget \
+           -configuration Release \
+           clean build \
+           CODE_SIGN_IDENTITY="" \
+           CODE_SIGNING_REQUIRED=NO \
+           CODE_SIGNING_ALLOWED=NO \
+           > /tmp/xcodebuild.log 2>&1
+
+if [ $? -eq 0 ]; then
+    echo "✅ App built successfully"
+    echo ""
+    echo "📍 Built app location:"
+    echo "   AWDLControl/build/Release/AWDLControl.app"
+    echo ""
+    echo "📋 Next steps:"
+    echo "   1. Copy to Applications: cp -r AWDLControl/build/Release/AWDLControl.app /Applications/"
+    echo "   2. Launch AWDLControl.app"
+    echo "   3. Follow the installation wizard"
+else
+    echo "❌ Build failed. Check /tmp/xcodebuild.log for details"
+    tail -50 /tmp/xcodebuild.log
+    exit 1
+fi

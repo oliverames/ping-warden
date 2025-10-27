@@ -10,21 +10,39 @@ AWDLControl is a hybrid C daemon + Swift/SwiftUI app that provides macOS Control
 
 ## Build Commands
 
-### Build C Daemon
+### Quick Build (Recommended)
+```bash
+# Build everything (C daemon + Swift app)
+./build.sh
+```
+
+This script:
+- Builds the C daemon with optimizations
+- Builds the Swift app and widget (skips obsolete helper targets)
+- Provides clear output and next steps
+- Works without opening Xcode GUI
+
+### Manual Build
+
+#### Build C Daemon
 ```bash
 cd AWDLControl/AWDLMonitorDaemon
 make clean
 make
+cd ../..
 ```
 
-### Build Swift App
+#### Build Swift App
 ```bash
-# Open Xcode project
-open AWDLControl/AWDLControl.xcodeproj
+# Via command line (targets only what's needed):
+xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
+           -target AWDLControl \
+           -target AWDLControlWidget \
+           -configuration Release
 
-# Build via Xcode (⌘B)
-# Or via command line:
-xcodebuild -project AWDLControl/AWDLControl.xcodeproj -scheme AWDLControl -configuration Release
+# Or open in Xcode:
+open AWDLControl/AWDLControl.xcodeproj
+# Then: Product → Build (⌘B)
 ```
 
 ### Install Daemon (Required for Functionality)

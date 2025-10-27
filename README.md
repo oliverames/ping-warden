@@ -45,23 +45,23 @@ macOS services automatically re-enable AWDL every 1-2 seconds. Timer-based polli
 
 ## Installation
 
-### Quick Start
+### Quick Start (Build from Source)
 
-1. **Build the app**:
+1. **Clone and build**:
    ```bash
-   git clone https://github.com/yourusername/awdl0-down.git
+   git clone https://github.com/oliverames/awdl0-down.git
    cd awdl0-down
-   open AWDLControl/AWDLControl.xcodeproj
+   ./build.sh
    ```
 
-2. **In Xcode**: Product → Build (⌘B)
-
-3. **Copy to Applications**:
+2. **Install to Applications**:
    ```bash
    cp -r AWDLControl/build/Release/AWDLControl.app /Applications/
    ```
 
-4. **Launch AWDLControl.app** and follow the on-screen installation wizard
+3. **Launch AWDLControl.app** and follow the on-screen installation wizard
+
+> **Note**: The `build.sh` script builds both the C daemon and Swift app without requiring Xcode GUI. Requires Xcode Command Line Tools.
 
 ### First Launch Setup
 
@@ -284,19 +284,28 @@ Contributions welcome! Please submit issues or pull requests.
 
 ### Building from Source
 
+**Easy method** (recommended):
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/awdl0-down.git
+git clone https://github.com/oliverames/awdl0-down.git
 cd awdl0-down
 
-# Build daemon
-cd AWDLMonitorDaemon
-make clean && make
-cd ..
+# Build everything (C daemon + Swift app)
+./build.sh
+```
 
-# Build app
-open AWDLControl/AWDLControl.xcodeproj
-# Xcode: Product → Build
+**Manual method** (if you prefer):
+```bash
+# Build C daemon
+cd AWDLControl/AWDLMonitorDaemon
+make clean && make
+cd ../..
+
+# Build Swift app
+xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
+           -target AWDLControl \
+           -target AWDLControlWidget \
+           -configuration Release
 ```
 
 ---
