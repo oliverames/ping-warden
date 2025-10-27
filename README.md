@@ -160,7 +160,7 @@ rm -rf ~/Library/Group\ Containers/group.com.awdlcontrol.app
 
 Or use the included script:
 ```bash
-cd awdl0-down
+cd awdl0-down/AWDLControl
 sudo ./uninstall_daemon.sh
 rm -rf /Applications/AWDLControl.app
 ```
@@ -179,7 +179,7 @@ ls -la /usr/local/bin/awdl_monitor_daemon
 
 **If missing, run installation wizard again** or install manually:
 ```bash
-cd awdl0-down
+cd awdl0-down/AWDLControl
 sudo ./install_daemon.sh
 ```
 
