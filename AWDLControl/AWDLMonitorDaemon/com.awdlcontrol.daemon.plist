@@ -7,9 +7,9 @@
     <key>Program</key>
     <string>/usr/local/bin/awdl_monitor_daemon</string>
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
     <key>KeepAlive</key>
-    <false/>
+    <true/>
     <key>StandardErrorPath</key>
     <string>/var/log/awdl_monitor_daemon.log</string>
     <key>StandardOutPath</key>

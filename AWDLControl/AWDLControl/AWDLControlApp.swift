@@ -126,18 +126,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleMonitoring() {
-        let isCurrentlyMonitoring = AWDLMonitor.shared.isMonitoringActive
+        NSLog("AWDLControlApp: ========== toggleMonitoring() CALLED ==========")
 
-        if isCurrentlyMonitoring {
+        // Use AWDLMonitor which actually controls the daemon
+        if AWDLMonitor.shared.isMonitoringActive {
+            NSLog("AWDLControlApp: Stopping monitoring")
             AWDLMonitor.shared.stopMonitoring()
-            AWDLPreferences.shared.isMonitoringEnabled = false
         } else {
+            NSLog("AWDLControlApp: Starting monitoring")
             AWDLMonitor.shared.startMonitoring()
-            AWDLPreferences.shared.isMonitoringEnabled = true
         }
 
-        updateMenuBarIcon()
-        updateMenuItem()
+        NSLog("AWDLControlApp: Updating UI")
+        // Give the daemon a moment to start/stop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            self.updateMenuBarIcon()
+            self.updateMenuItem()
+        }
+        NSLog("AWDLControlApp: ========== toggleMonitoring() COMPLETE ==========")
     }
 
     private func syncMonitoringState() {

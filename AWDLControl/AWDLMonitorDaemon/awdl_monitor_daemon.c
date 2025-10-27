@@ -50,7 +50,7 @@ void setup_signal_handlers() {
     sigaction(SIGHUP, &sa, NULL);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused))) {
     // Open syslog for logging
     openlog(DAEMON_NAME, LOG_PID | LOG_CONS, LOG_DAEMON);
     syslog(LOG_INFO, "Starting AWDL Monitor Daemon");
