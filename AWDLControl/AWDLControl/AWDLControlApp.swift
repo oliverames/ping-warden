@@ -116,7 +116,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Uninstall button
         let uninstallItem = NSMenuItem(
-            title: "Uninstall...",
+            title: "Uninstall Everything",
             action: #selector(uninstallEverything),
             keyEquivalent: ""
         )
