@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AWDLControl is a hybrid C daemon + Swift/SwiftUI app that provides macOS Control Center/menu bar toggle for controlling AWDL (Apple Wireless Direct Link). Uses AF_ROUTE socket monitoring (<1ms response, 0% CPU idle) based on awdlkiller's proven technology.
 
-**Requirements**: macOS 15.0+ (Sequoia/Tahoe), Xcode 16.0+
+**Requirements**: macOS 26.0+ (Tahoe), Xcode 16.0+
 
 ## Build Commands
 
@@ -151,7 +151,7 @@ Returns to poll() [0% CPU]
 **Swift App (UI and control)**:
 - `AWDLControl/AWDLControlApp.swift` - Main app entry point, menu bar UI, daemon control actions
 - `AWDLControl/AWDLMonitor.swift` - Loads/unloads daemon via launchctl with admin privileges
-- `AWDLControlWidget/AWDLControlWidget.swift` - ControlWidget implementation (macOS 26+)
+- `AWDLControlWidget/AWDLControlWidget.swift` - Control Center ControlWidget implementation
 - `AWDLControlWidget/AWDLToggleIntent.swift` - AppIntent for toggle action
 
 **State Management**:

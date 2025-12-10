@@ -4,7 +4,7 @@ A macOS menu bar app that keeps AWDL (Apple Wireless Direct Link) disabled to el
 
 **Performance**: <1ms response time • 0% CPU when idle • Based on proven [awdlkiller](https://github.com/jamestut/awdlkiller) technology
 
-**Requirements**: macOS 15.0+ (Sequoia/Tahoe) • Xcode 16.0+ (for building)
+**Requirements**: macOS 26.0+ (Tahoe) • Xcode 16.0+ (for building)
 
 ---
 
@@ -325,7 +325,7 @@ A: Yes, while monitoring is enabled. Simply disable monitoring when you need the
 A: Same core technology (AF_ROUTE sockets, ioctl() control), but with a native macOS menu bar app for easier control.
 
 **Q: Does this work on older macOS versions?**
-A: No, requires macOS 15.0+ (Sequoia/Tahoe) due to Swift/SwiftUI framework requirements. For older versions, use [awdlkiller](https://github.com/jamestut/awdlkiller) directly.
+A: No, requires macOS 26.0+ (Tahoe) for Control Center widget support. For older versions, use [awdlkiller](https://github.com/jamestut/awdlkiller) directly.
 
 ---
 
