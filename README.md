@@ -246,7 +246,7 @@ Returns to poll() (0% CPU)
 - **Swift app**: Modern UI framework for menu bar integration and user experience.
 - **Best of both worlds**: awdlkiller's performance with macOS-native UX.
 
-For complete architecture details, see [CLAUDE.md](AWDLControl/CLAUDE.md).
+For development details, see [CLAUDE.md](CLAUDE.md).
 
 ---
 

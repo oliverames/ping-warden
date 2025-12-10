@@ -149,10 +149,9 @@ Returns to poll() [0% CPU]
 - `AWDLMonitorDaemon/Makefile` - Builds daemon with `-O2` optimization
 
 **Swift App (UI and control)**:
-- `AWDLControl/AWDLMonitor.swift` - Loads/unloads daemon via launchctl
-- `AWDLControl/AWDLManager.swift` - ioctl() wrapper (via C bridge) for manual control
-- `AWDLControl/AWDLIOCtl.c` - C bridge providing ioctl() functions to Swift
-- `AWDLControlWidget/AWDLControlWidget.swift` - ControlWidget implementation
+- `AWDLControl/AWDLControlApp.swift` - Main app entry point, menu bar UI, daemon control actions
+- `AWDLControl/AWDLMonitor.swift` - Loads/unloads daemon via launchctl with admin privileges
+- `AWDLControlWidget/AWDLControlWidget.swift` - ControlWidget implementation (macOS 26+)
 - `AWDLControlWidget/AWDLToggleIntent.swift` - AppIntent for toggle action
 
 **State Management**:
@@ -161,19 +160,13 @@ Returns to poll() [0% CPU]
 
 **Critical**: The Swift app does NOT do monitoring itself - it only controls the C daemon via launchctl. All monitoring happens in the C daemon using AF_ROUTE.
 
-## Working with C and Swift Integration
+## Working with the C Daemon
 
-### C Bridge Pattern
-Swift calls C functions via bridging header:
-1. `AWDLControl-Bridging-Header.h` imports `AWDLIOCtl.h`
-2. Swift code calls C functions directly: `awdl_is_up()`, `awdl_bring_down()`
-3. C functions use ioctl() for fast interface control
-
-### Adding C Files to Xcode
-If C files are not compiling:
-1. Select C file in Xcode
-2. File Inspector → Target Membership
-3. Check "AWDLControl" target
+### Build and Test Cycle
+1. Modify `AWDLMonitorDaemon/awdl_monitor_daemon.c`
+2. Rebuild with `make clean && make`
+3. Reinstall with `sudo ./install_daemon.sh`
+4. Restart daemon: `sudo launchctl bootout system/com.awdlcontrol.daemon && sudo launchctl bootstrap system /Library/LaunchDaemons/com.awdlcontrol.daemon.plist`
 
 ### Debugging C Daemon
 ```bash
@@ -189,7 +182,7 @@ sudo ./awdl_monitor_daemon
 1. Edit `AWDLMonitorDaemon/awdl_monitor_daemon.c`
 2. `make clean && make` to rebuild
 3. `sudo ./install_daemon.sh` to reinstall
-4. `sudo launchctl unload` then `load` to restart
+4. Restart: `sudo launchctl bootout system/com.awdlcontrol.daemon` then `sudo launchctl bootstrap system /Library/LaunchDaemons/com.awdlcontrol.daemon.plist`
 
 ### Modify Widget UI
 1. Edit `AWDLControlWidget/AWDLControlWidget.swift`
@@ -222,12 +215,5 @@ If you need to test UI without the daemon:
 
 ## Documentation
 
-The project has extensive documentation:
 - `README.md` - Installation and usage guide
-- `ARCHITECTURE.md` - Complete technical architecture details
-- `PERFORMANCE.md` - Performance benchmarks
-- `IMPLEMENTATION_COMPARISON.md` - Design decisions (why hybrid C+Swift)
-- `PROJECT_REVIEW.md` - Code review and testing checklist
-- `TEST_SUMMARY.md` - Testing procedures
-
-When making changes, consult these docs to understand the reasoning behind architectural decisions.
+- `CLAUDE.md` (this file) - Development guide and architecture overview

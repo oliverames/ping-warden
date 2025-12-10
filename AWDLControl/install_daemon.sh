@@ -30,7 +30,13 @@ cd "$(dirname "$0")/AWDLMonitorDaemon" || {
     exit 1
 }
 
-echo "Step 1: Building daemon from source..."
+echo "Step 1: Stopping existing daemon if running..."
+echo "---------------------------------------"
+launchctl bootout system/"$DAEMON_LABEL" 2>/dev/null || true
+echo "Done"
+
+echo ""
+echo "Step 2: Building daemon from source..."
 echo "---------------------------------------"
 
 # Build the daemon
@@ -42,14 +48,14 @@ if [ -f "Makefile" ]; then
         echo "Error: Build failed - $DAEMON_NAME not found"
         exit 1
     fi
-    echo "✅ Build successful"
+    echo "Build successful"
 else
     echo "Error: Makefile not found"
     exit 1
 fi
 
 echo ""
-echo "Step 2: Installing daemon binary..."
+echo "Step 3: Installing daemon binary..."
 echo "---------------------------------------"
 
 # Create /usr/local/bin if it doesn't exist
@@ -65,15 +71,14 @@ fi
 
 # Verify setuid bit
 if [ ! -u "$DAEMON_DEST" ]; then
-    echo "Warning: setuid bit not set, setting it now..."
     chmod u+s "$DAEMON_DEST"
 fi
 
-echo "✅ Daemon installed to $DAEMON_DEST"
+echo "Installed to $DAEMON_DEST"
 ls -la "$DAEMON_DEST"
 
 echo ""
-echo "Step 3: Installing LaunchDaemon plist..."
+echo "Step 4: Installing LaunchDaemon plist..."
 echo "---------------------------------------"
 
 # Install plist
@@ -86,39 +91,32 @@ cp "$DAEMON_PLIST" "$PLIST_DEST"
 chown root:wheel "$PLIST_DEST"
 chmod 644 "$PLIST_DEST"
 
-echo "✅ Plist installed to $PLIST_DEST"
+echo "Installed to $PLIST_DEST"
 
 echo ""
 echo "============================================"
 echo "  Installation Complete!"
 echo "============================================"
 echo ""
-echo "The AWDL Monitor Daemon has been installed successfully."
+echo "The AWDL Monitor Daemon has been installed."
 echo ""
 echo "What was installed:"
-echo "  • Daemon binary: $DAEMON_DEST (setuid root)"
-echo "  • LaunchDaemon plist: $PLIST_DEST"
+echo "  - Daemon binary: $DAEMON_DEST (setuid root)"
+echo "  - LaunchDaemon plist: $PLIST_DEST"
 echo ""
 echo "How it works:"
-echo "  • The daemon uses AF_ROUTE sockets for instant notifications"
-echo "  • Response time: <1ms when AWDL comes up"
-echo "  • CPU usage: 0% when idle (event-driven)"
-echo "  • Same technology as awdlkiller"
+echo "  - AF_ROUTE sockets for instant kernel notifications"
+echo "  - Response time: <1ms"
+echo "  - CPU usage: 0% when idle"
 echo ""
 echo "Usage:"
-echo "  • Use the AWDLControl app to start/stop monitoring"
-echo "  • Toggle the control in Control Center or menu bar"
+echo "  - Use the AWDLControl app to start/stop monitoring"
 echo ""
 echo "Manual control (if needed):"
-echo "  • Start: sudo launchctl load $PLIST_DEST"
-echo "  • Stop:  sudo launchctl unload $PLIST_DEST"
-echo "  • Check: sudo launchctl list | grep $DAEMON_LABEL"
-echo ""
-echo "Logs:"
-echo "  • Daemon logs to system log (syslog)"
-echo "  • View: log show --predicate 'process == \"$DAEMON_NAME\"' --last 1h"
-echo "  • Or: sudo tail -f /var/log/awdl_monitor_daemon.log"
+echo "  - Start: sudo launchctl bootstrap system $PLIST_DEST"
+echo "  - Stop:  sudo launchctl bootout system/$DAEMON_LABEL"
+echo "  - Check: pgrep -x $DAEMON_NAME"
 echo ""
 echo "To uninstall:"
-echo "  • Run: sudo ./uninstall_daemon.sh"
+echo "  - Run: sudo ./uninstall_daemon.sh"
 echo ""

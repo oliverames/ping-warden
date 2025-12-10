@@ -25,14 +25,16 @@ fi
 echo "Stopping daemon if running..."
 echo "---------------------------------------"
 
-# Unload daemon if it's loaded
-if launchctl list | grep -q "$DAEMON_LABEL"; then
-    echo "Unloading daemon..."
-    launchctl unload "$PLIST_DEST" 2>/dev/null || true
-    echo "✅ Daemon unloaded"
-else
-    echo "Daemon not currently loaded"
+# Stop daemon using modern launchctl command
+launchctl bootout system/"$DAEMON_LABEL" 2>/dev/null || true
+
+# Verify daemon stopped
+if pgrep -x "$DAEMON_NAME" > /dev/null; then
+    echo "Warning: Daemon process still running, killing..."
+    pkill -x "$DAEMON_NAME" 2>/dev/null || true
 fi
+
+echo "Done"
 
 echo ""
 echo "Removing files..."
