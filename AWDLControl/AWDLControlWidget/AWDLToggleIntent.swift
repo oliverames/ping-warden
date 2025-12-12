@@ -1,9 +1,11 @@
 import AppIntents
 import Foundation
+import os.log
+
+private let log = Logger(subsystem: "com.awdlcontrol.widget", category: "Intent")
 
 /// App Intent to toggle AWDL monitoring (used by Control Widget button)
 /// When enabled, continuously monitors and keeps AWDL down
-@available(macOS 26.0, *)
 struct ToggleAWDLMonitoringIntent: AppIntent {
     static var title: LocalizedStringResource = "Toggle AWDL Monitoring"
     static var description = IntentDescription("Toggles AWDL monitoring on or off")
@@ -11,7 +13,7 @@ struct ToggleAWDLMonitoringIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         // Toggle the current state
         let newState = !AWDLPreferences.shared.isMonitoringEnabled
-        print("ToggleAWDLMonitoringIntent: Toggling monitoring to \(newState)")
+        log.info("Toggling monitoring to \(newState)")
 
         // Update shared preferences
         // The main app polls this and will start/stop the daemon accordingly

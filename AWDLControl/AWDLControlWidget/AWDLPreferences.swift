@@ -21,7 +21,6 @@ class AWDLPreferences {
         }
         set {
             defaults?.set(newValue, forKey: monitoringEnabledKey)
-            defaults?.synchronize()
 
             // Post notification for app to respond
             NotificationCenter.default.post(name: .awdlMonitoringStateChanged, object: nil)
@@ -35,7 +34,6 @@ class AWDLPreferences {
         }
         set {
             defaults?.set(newValue, forKey: lastStateKey)
-            defaults?.synchronize()
         }
     }
 }

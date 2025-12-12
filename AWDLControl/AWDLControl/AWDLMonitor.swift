@@ -1,5 +1,8 @@
 import Foundation
 import AppKit
+import os.log
+
+private let log = Logger(subsystem: "com.awdlcontrol.app", category: "Monitor")
 
 /// Controls the AWDL Monitor Daemon (C daemon using AF_ROUTE sockets)
 /// This provides instant response (<1ms) with 0% CPU when idle
@@ -26,23 +29,23 @@ class AWDLMonitor {
         let shouldMonitor = AWDLPreferences.shared.isMonitoringEnabled
 
         if !daemonIsInstalled {
-            print("AWDLMonitor: Daemon not installed yet - will show install instructions on first toggle")
+            log.info("Daemon not installed yet - will show install instructions on first toggle")
             isMonitoring = false
         } else if shouldMonitor && !daemonIsLoaded {
             // Preference says monitor, but daemon not running - start it
-            print("AWDLMonitor: Preference enabled but daemon not running")
+            log.info("Preference enabled but daemon not running")
             isMonitoring = false
         } else if !shouldMonitor && daemonIsLoaded {
             // Preference says don't monitor, but daemon is running
-            print("AWDLMonitor: Preference disabled but daemon running")
+            log.info("Preference disabled but daemon running")
             isMonitoring = true
         } else {
             // States match
             isMonitoring = daemonIsLoaded
             if isMonitoring {
-                print("AWDLMonitor: Daemon is loaded and running (matches preference)")
+                log.info("Daemon is loaded and running (matches preference)")
             } else {
-                print("AWDLMonitor: Daemon is not running (matches preference)")
+                log.info("Daemon is not running (matches preference)")
             }
         }
     }
@@ -95,7 +98,7 @@ class AWDLMonitor {
                 NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"),
                                                   configuration: NSWorkspace.OpenConfiguration()) { _, error in
                     if let error = error {
-                        print("Error opening Terminal: \(error)")
+                        log.error("Error opening Terminal: \(error.localizedDescription)")
                     }
                 }
 
@@ -139,27 +142,27 @@ class AWDLMonitor {
 
     /// Start monitoring by loading the LaunchDaemon
     func startMonitoring() {
-        NSLog("AWDLMonitor: startMonitoring() called")
+        log.debug("startMonitoring() called")
 
         // Check if daemon is installed
         if !isDaemonInstalled() {
-            NSLog("AWDLMonitor: Daemon not installed")
+            log.info("Daemon not installed")
             showInstallInstructions()
             return
         }
 
-        NSLog("AWDLMonitor: Daemon is installed, checking if loaded...")
+        log.debug("Daemon is installed, checking if loaded...")
 
         // Check if daemon is already loaded and running
         if isDaemonLoaded() {
-            NSLog("AWDLMonitor: ✅ Daemon is already running and controlling AWDL")
+            log.info("Daemon is already running and controlling AWDL")
             isMonitoring = true
             AWDLPreferences.shared.isMonitoringEnabled = true
             AWDLPreferences.shared.lastKnownState = "down"
 
             DispatchQueue.main.async {
                 let alert = NSAlert()
-                alert.messageText = "Monitoring Already Active ✅"
+                alert.messageText = "Monitoring Already Active"
                 alert.informativeText = "The AWDL monitoring daemon is already running and keeping AWDL down.\n\nNo action needed!"
                 alert.alertStyle = .informational
                 alert.addButton(withTitle: "OK")
@@ -168,7 +171,7 @@ class AWDLMonitor {
             return
         }
 
-        NSLog("AWDLMonitor: Daemon not loaded, attempting to load...")
+        log.debug("Daemon not loaded, attempting to load...")
 
         // Try to load the daemon using a simple shell script approach
         // This works because the daemon plist is already installed by the one-time setup
@@ -176,20 +179,20 @@ class AWDLMonitor {
             isMonitoring = true
             AWDLPreferences.shared.isMonitoringEnabled = true
             AWDLPreferences.shared.lastKnownState = "down"
-            NSLog("AWDLMonitor: ✅ Daemon loaded successfully")
+            log.info("Daemon loaded successfully")
         } else {
-            NSLog("AWDLMonitor: ❌ Failed to load daemon")
+            log.error("Failed to load daemon")
             showError("Failed to start monitoring.\n\nPlease run these commands in Terminal:\n\nsudo launchctl bootstrap system /Library/LaunchDaemons/com.awdlcontrol.daemon.plist")
         }
     }
 
     /// Stop monitoring by unloading the LaunchDaemon
     func stopMonitoring() {
-        NSLog("AWDLMonitor: Stopping monitoring daemon")
+        log.debug("Stopping monitoring daemon")
 
         // Check if daemon is actually loaded
         if !isDaemonLoaded() {
-            NSLog("AWDLMonitor: Daemon is not running")
+            log.info("Daemon is not running")
             isMonitoring = false
             AWDLPreferences.shared.isMonitoringEnabled = false
             AWDLPreferences.shared.lastKnownState = "up"
@@ -209,9 +212,9 @@ class AWDLMonitor {
             isMonitoring = false
             AWDLPreferences.shared.isMonitoringEnabled = false
             AWDLPreferences.shared.lastKnownState = "up"
-            NSLog("AWDLMonitor: ✅ Daemon unloaded - AWDL will be available for AirDrop/Handoff when needed")
+            log.info("Daemon unloaded - AWDL available for AirDrop/Handoff")
         } else {
-            NSLog("AWDLMonitor: ❌ Failed to unload daemon")
+            log.error("Failed to unload daemon")
             showError("Failed to stop monitoring.\n\nPlease run this command in Terminal:\n\nsudo launchctl bootout system/com.awdlcontrol.daemon")
         }
     }
@@ -232,10 +235,10 @@ class AWDLMonitor {
 
             // pgrep returns 0 if process is found, 1 if not found
             let isRunning = (task.terminationStatus == 0)
-            NSLog("AWDLMonitor: isDaemonLoaded() via pgrep = \(isRunning)")
+            log.debug("isDaemonLoaded() via pgrep = \(isRunning)")
             return isRunning
         } catch {
-            NSLog("AWDLMonitor: Error checking daemon process: \(error)")
+            log.error("Error checking daemon process: \(error.localizedDescription)")
             return false
         }
     }
@@ -243,7 +246,7 @@ class AWDLMonitor {
     /// Load the LaunchDaemon using osascript with administrator privileges
     /// This prompts for password each time but is reliable and works on all macOS versions
     private func loadDaemon() -> Bool {
-        NSLog("AWDLMonitor: Loading daemon (requires admin password)...")
+        log.debug("Loading daemon (requires admin password)...")
 
         let appleScript = """
         do shell script "launchctl bootstrap system \(daemonPlistPath)" with administrator privileges
@@ -265,15 +268,15 @@ class AWDLMonitor {
             let output = String(data: data, encoding: .utf8) ?? ""
 
             if task.terminationStatus == 0 || output.contains("Already loaded") {
-                NSLog("AWDLMonitor: ✅ Successfully loaded daemon")
+                log.info("Successfully loaded daemon")
                 sleep(1)
                 return true
             } else {
-                NSLog("AWDLMonitor: ❌ Error loading daemon: \(output)")
+                log.error("Error loading daemon: \(output)")
                 return false
             }
         } catch {
-            NSLog("AWDLMonitor: ❌ Exception: \(error)")
+            log.error("Exception loading daemon: \(error.localizedDescription)")
             return false
         }
     }
@@ -281,7 +284,7 @@ class AWDLMonitor {
     /// Unload the LaunchDaemon using osascript with administrator privileges
     /// This prompts for password each time but is reliable and works on all macOS versions
     private func unloadDaemon() -> Bool {
-        NSLog("AWDLMonitor: Unloading daemon (requires admin password)...")
+        log.debug("Unloading daemon (requires admin password)...")
 
         let appleScript = """
         do shell script "launchctl bootout system/\(daemonLabel)" with administrator privileges
@@ -303,14 +306,14 @@ class AWDLMonitor {
             let output = String(data: data, encoding: .utf8) ?? ""
 
             if task.terminationStatus == 0 || output.contains("not find") || output.contains("Could not find") {
-                NSLog("AWDLMonitor: ✅ Successfully unloaded daemon")
+                log.info("Successfully unloaded daemon")
                 return true
             } else {
-                NSLog("AWDLMonitor: ❌ Error unloading daemon: \(output)")
+                log.error("Error unloading daemon: \(output)")
                 return false
             }
         } catch {
-            NSLog("AWDLMonitor: ❌ Exception: \(error)")
+            log.error("Exception unloading daemon: \(error.localizedDescription)")
             return false
         }
     }

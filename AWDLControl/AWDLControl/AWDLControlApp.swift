@@ -1,4 +1,7 @@
 import SwiftUI
+import os.log
+
+private let log = Logger(subsystem: "com.awdlcontrol.app", category: "App")
 
 @main
 struct AWDLControlApp: App {
@@ -8,6 +11,10 @@ struct AWDLControlApp: App {
         Settings {
             SettingsView()
         }
+        Window("About AWDLControl", id: "about") {
+            AboutView()
+        }
+        .windowResizability(.contentSize)
     }
 }
 
@@ -16,6 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private var isSyncing = false  // Prevent duplicate syncs
+    private var aboutWindowController: NSWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide the app from the dock
@@ -24,7 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize monitoring
         _ = AWDLMonitor.shared
 
-        print("AWDLControl: App launched, monitoring state: \(AWDLMonitor.shared.isMonitoringActive)")
+        log.info("App launched, monitoring state: \(AWDLMonitor.shared.isMonitoringActive)")
 
         // Setup menu bar
         setupMenuBar()
@@ -50,7 +58,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Always stop the daemon when app quits
         // User can re-enable monitoring by launching the app again
-        print("AWDLControl: App terminating, stopping daemon...")
+        log.info("App terminating, stopping daemon...")
 
         if AWDLMonitor.shared.isMonitoringActive {
             AWDLMonitor.shared.stopMonitoring()
@@ -60,9 +68,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             sleep(1)  // Give launchctl time to unload
             let stillRunning = AWDLMonitor.shared.isMonitoringActive
             if stillRunning {
-                print("AWDLControl: ⚠️ WARNING: Daemon still running after unload!")
+                log.warning("Daemon still running after unload")
             } else {
-                print("AWDLControl: ✅ Verified daemon stopped, AWDL will be available for AirDrop/Handoff")
+                log.info("Daemon stopped, AWDL available for AirDrop/Handoff")
             }
         }
 
@@ -125,14 +133,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusMenu?.addItem(NSMenuItem.separator())
 
+        let aboutItem = NSMenuItem(
+            title: "About AWDLControl",
+            action: #selector(showAbout),
+            keyEquivalent: ""
+        )
+        aboutItem.target = self
+        statusMenu?.addItem(aboutItem)
+
+        statusMenu?.addItem(NSMenuItem.separator())
+
         let quitItem = NSMenuItem(
-            title: "Quit",
+            title: "Quit AWDLControl",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
         statusMenu?.addItem(quitItem)
 
         statusItem?.menu = statusMenu
+    }
+
+    @objc private func showAbout() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let window = NSApp.windows.first(where: { $0.title == "About AWDLControl" }) {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            NSApp.sendAction(Selector(("showAboutWindow:")), to: nil, from: nil)
+        }
+
+        // Return to accessory after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 
     private func updateMenuBarIcon() {
@@ -157,28 +191,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleMonitoring() {
-        NSLog("AWDLControlApp: ========== toggleMonitoring() CALLED ==========")
+        log.debug("Toggle monitoring requested")
 
         // Use AWDLMonitor which actually controls the daemon
         if AWDLMonitor.shared.isMonitoringActive {
-            NSLog("AWDLControlApp: Stopping monitoring")
+            log.info("Stopping monitoring")
             AWDLMonitor.shared.stopMonitoring()
         } else {
-            NSLog("AWDLControlApp: Starting monitoring")
+            log.info("Starting monitoring")
             AWDLMonitor.shared.startMonitoring()
         }
 
-        NSLog("AWDLControlApp: Updating UI")
         // Give the daemon a moment to start/stop
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             self.updateMenuBarIcon()
             self.updateMenuItem()
         }
-        NSLog("AWDLControlApp: ========== toggleMonitoring() COMPLETE ==========")
     }
 
     @objc private func testDaemon() {
-        NSLog("AWDLControlApp: Testing daemon...")
+        log.debug("Testing daemon...")
 
         // Check if daemon is running
         let daemonRunning = AWDLMonitor.shared.isMonitoringActive
@@ -280,7 +312,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 alert.runModal()
             }
         } catch {
-            NSLog("AWDLControlApp: Error running test: \(error)")
+            log.error("Error running test: \(error.localizedDescription)")
             DispatchQueue.main.async {
                 let alert = NSAlert()
                 alert.messageText = "Test Failed"
@@ -293,7 +325,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func reinstallDaemon() {
-        NSLog("AWDLControlApp: Reinstalling daemon...")
+        log.debug("Reinstalling daemon...")
 
         DispatchQueue.main.async {
             let alert = NSAlert()
@@ -359,7 +391,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.updateMenuItem()
                 }
             } else {
-                NSLog("AWDLControlApp: Reinstall failed: \(output)")
+                log.error("Reinstall failed: \(output)")
                 DispatchQueue.main.async {
                     let alert = NSAlert()
                     alert.messageText = "Reinstall Failed"
@@ -370,13 +402,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         } catch {
-            NSLog("AWDLControlApp: Error reinstalling daemon: \(error)")
+            log.error("Error reinstalling daemon: \(error.localizedDescription)")
             showError("Failed to reinstall daemon: \(error.localizedDescription)")
         }
     }
 
     @objc private func uninstallEverything() {
-        NSLog("AWDLControlApp: Uninstall requested...")
+        log.debug("Uninstall requested...")
 
         DispatchQueue.main.async {
             let alert = NSAlert()
@@ -406,7 +438,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func performUninstall() {
-        NSLog("AWDLControlApp: Performing uninstall...")
+        log.info("Performing uninstall...")
 
         let uninstallScript = """
         #!/bin/bash
@@ -462,7 +494,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8) ?? ""
 
-            NSLog("AWDLControlApp: Uninstall output: \(output)")
+            log.debug("Uninstall output: \(output)")
 
             // Remove app data
             let fileManager = FileManager.default
@@ -495,12 +527,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApplication.shared.terminate(nil)
             }
         } catch {
-            NSLog("AWDLControlApp: Error during uninstall: \(error)")
+            log.error("Error during uninstall: \(error.localizedDescription)")
             showError("Uninstall failed: \(error.localizedDescription)")
         }
     }
 
     private func showError(_ message: String) {
+        log.error("\(message)")
         DispatchQueue.main.async {
             let alert = NSAlert()
             alert.messageText = "Error"
@@ -514,7 +547,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func syncMonitoringState() {
         // Prevent duplicate syncs (e.g., multiple notification events)
         guard !isSyncing else {
-            print("AWDLControl: Sync already in progress, skipping")
+            log.debug("Sync already in progress, skipping")
             return
         }
 
@@ -524,20 +557,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let shouldMonitor = AWDLPreferences.shared.isMonitoringEnabled
         let isMonitoring = AWDLMonitor.shared.isMonitoringActive
 
-        print("AWDLControl: Syncing state - Preference: \(shouldMonitor), Daemon: \(isMonitoring)")
+        log.debug("Syncing state - Preference: \(shouldMonitor), Daemon: \(isMonitoring)")
 
         if shouldMonitor && !isMonitoring {
-            print("AWDLControl: Starting monitoring (triggered by preference change)")
+            log.info("Starting monitoring (triggered by preference change)")
             AWDLMonitor.shared.startMonitoring()
             updateMenuBarIcon()
             updateMenuItem()
         } else if !shouldMonitor && isMonitoring {
-            print("AWDLControl: Stopping monitoring (triggered by preference change)")
+            log.info("Stopping monitoring (triggered by preference change)")
             AWDLMonitor.shared.stopMonitoring()
             updateMenuBarIcon()
             updateMenuItem()
         } else {
-            print("AWDLControl: States already in sync, no action needed")
+            log.debug("States already in sync")
         }
     }
 
@@ -598,5 +631,61 @@ struct SettingsView: View {
         .onDisappear {
             timer?.invalidate()
         }
+    }
+}
+
+/// About window showing app info and version
+struct AboutView: View {
+    private var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.5.0"
+    }
+
+    private var build: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                .font(.system(size: 64))
+                .foregroundStyle(.blue)
+
+            Text("AWDLControl")
+                .font(.title)
+                .fontWeight(.bold)
+
+            Text("Version \(version)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Divider()
+                .padding(.horizontal, 40)
+
+            VStack(spacing: 8) {
+                Text("Keeps AWDL disabled to eliminate network latency spikes.")
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+
+                Text("<1ms response time • 0% CPU when idle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal)
+
+            Divider()
+                .padding(.horizontal, 40)
+
+            VStack(spacing: 4) {
+                Text("Based on [awdlkiller](https://github.com/jamestut/awdlkiller)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("© 2024 Oliver Ames")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(30)
+        .frame(width: 320, height: 340)
     }
 }
