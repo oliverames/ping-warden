@@ -22,14 +22,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var observer: NSObjectProtocol?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
-    private var aboutWindowController: NSWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         log.info("AWDLControl App launching...")
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-        // Hide the app from the dock
+        // Hide the app from the dock - menu bar only
         NSApp.setActivationPolicy(.accessory)
 
         // Initialize monitoring
@@ -75,6 +74,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         log.info("App launch complete")
+    }
+
+    /// CRITICAL: Prevent app from quitting when windows close
+    /// The menu bar item must persist
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -519,7 +524,7 @@ struct SettingsView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.blue)
 
-            Text("AWDL Control")
+            Text("AWDLControl")
                 .font(.title)
                 .fontWeight(.bold)
 
@@ -531,26 +536,31 @@ struct SettingsView: View {
                         .foregroundColor(isMonitoring ? .green : .secondary)
                 }
 
-                Text("Use the menu bar to toggle AWDL monitoring.")
-                    .font(.caption)
+                Text("Use the menu bar icon to toggle AWDL monitoring.")
+                    .font(.callout)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("About")
+            VStack(alignment: .leading, spacing: 8) {
+                Text("What This Does")
                     .font(.headline)
-                Text("Keeps the AWDL interface down to prevent network ping spikes.")
-                    .font(.caption)
+
+                Text("Keeps AWDL (Apple Wireless Direct Link) disabled to prevent network latency spikes during gaming or video calls.")
+                    .font(.callout)
                     .foregroundColor(.secondary)
-                Text("Disabling AWDL prevents AirDrop, AirPlay, Handoff, and Universal Control.")
-                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("While active, AirDrop, AirPlay, Handoff, and Universal Control will not work.")
+                    .font(.callout)
                     .foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(30)
-        .frame(width: 400, height: 300)
+        .frame(width: 450, height: 350)
         .onAppear {
             timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 isMonitoring = AWDLMonitor.shared.isMonitoringActive
@@ -566,7 +576,7 @@ struct SettingsView: View {
 
 struct AboutView: View {
     private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.6.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
 
     var body: some View {
@@ -600,17 +610,21 @@ struct AboutView: View {
             Divider()
                 .padding(.horizontal, 40)
 
-            VStack(spacing: 4) {
-                Text("Based on [awdlkiller](https://github.com/jamestut/awdlkiller)")
+            VStack(spacing: 8) {
+                Text("Daemon based on awdlkiller by jamestut")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .fontWeight(.medium)
 
-                Text("© 2024 Oliver Ames")
+                Link("github.com/jamestut/awdlkiller", destination: URL(string: "https://github.com/jamestut/awdlkiller")!)
+                    .font(.caption)
+
+                Text("© 2025 Oliver Ames")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
             }
         }
         .padding(30)
-        .frame(width: 320, height: 340)
+        .frame(width: 360, height: 380)
     }
 }

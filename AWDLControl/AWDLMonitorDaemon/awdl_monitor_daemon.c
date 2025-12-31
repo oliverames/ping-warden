@@ -28,7 +28,7 @@
 
 #define TARGETIFNAM "awdl0"
 #define DAEMON_NAME "com.awdlcontrol.daemon"
-#define DAEMON_VERSION "1.6.0"
+#define DAEMON_VERSION "1.0.0"
 
 // Buffer for routing messages
 uint8_t rtmsgbuff[sizeof(struct rt_msghdr) + sizeof(struct if_msghdr)];

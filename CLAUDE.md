@@ -98,8 +98,8 @@ sudo ifconfig awdl0 up && sleep 0.01 && ifconfig awdl0 | grep flags
 ## Version Sync
 
 Keep versions in sync:
-- `AWDLMonitorDaemon/awdl_monitor_daemon.c`: `DAEMON_VERSION "1.6.0"`
-- `AWDLControl/AWDLMonitor.swift`: `expectedDaemonVersion = "1.6.0"`
+- `AWDLMonitorDaemon/awdl_monitor_daemon.c`: `DAEMON_VERSION "1.0.0"`
+- `AWDLControl/AWDLMonitor.swift`: `expectedDaemonVersion = "1.0.0"`
 - `AWDLControl/Info.plist`: `CFBundleVersion` and `CFBundleShortVersionString`
 
 ## Entitlements

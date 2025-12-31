@@ -21,7 +21,7 @@ class AWDLMonitor {
     private let daemonBinaryPath = "/usr/local/bin/awdl_monitor_daemon"
 
     /// Expected daemon version - should match DAEMON_VERSION in awdl_monitor_daemon.c
-    static let expectedDaemonVersion = "1.6.0"
+    static let expectedDaemonVersion = "1.0.0"
 
     private var isMonitoring = false
 
