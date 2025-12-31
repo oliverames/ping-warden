@@ -10,13 +10,10 @@ struct AWDLControlWidget: ControlWidget {
 
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
-            ControlWidgetToggle(
-                "AWDL Block",
-                isOn: AWDLPreferences.shared.isMonitoringEnabled,
-                action: ToggleAWDLMonitoringIntent()
-            ) { isOn in
+            ControlWidgetButton(action: ToggleAWDLMonitoringIntent()) {
+                let isOn = AWDLPreferences.shared.isMonitoringEnabled
                 Label(
-                    isOn ? "Blocking" : "Allowed",
+                    isOn ? "AWDL Blocked" : "AWDL Allowed",
                     systemImage: isOn ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
                 )
             }

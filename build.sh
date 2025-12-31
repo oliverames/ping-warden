@@ -7,7 +7,7 @@ echo ""
 # Build C daemon
 echo "📦 Building C daemon..."
 cd AWDLControl/AWDLMonitorDaemon
-make clean > /dev/null 2>&1
+make clean > /dev/null 2>&1 || true
 make
 cd ../..
 echo "✅ Daemon built successfully"
@@ -28,13 +28,27 @@ xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
 if [ $? -eq 0 ]; then
     echo "✅ App built successfully"
     echo ""
+
+    # Copy daemon binary to app bundle Resources
+    echo "📦 Bundling daemon binary..."
+    RESOURCES_DIR="AWDLControl/build/Release/AWDLControl.app/Contents/Resources"
+    cp AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon "$RESOURCES_DIR/"
+    chmod 755 "$RESOURCES_DIR/awdl_monitor_daemon"
+    echo "✅ Daemon binary bundled"
+    echo ""
+
+    # Verify bundle contents
+    echo "📋 Bundle contents:"
+    ls -la "$RESOURCES_DIR/"
+    echo ""
+
     echo "📍 Built app location:"
     echo "   AWDLControl/build/Release/AWDLControl.app"
     echo ""
     echo "📋 Next steps:"
     echo "   1. Copy to Applications: cp -r AWDLControl/build/Release/AWDLControl.app /Applications/"
     echo "   2. Launch AWDLControl.app"
-    echo "   3. Follow the installation wizard"
+    echo "   3. Click 'Set Up Now' when prompted"
 else
     echo "❌ Build failed. Check /tmp/xcodebuild.log for details"
     tail -50 /tmp/xcodebuild.log

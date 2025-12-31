@@ -2,13 +2,17 @@ import Foundation
 import AppKit
 import os.log
 
+/// Unified logger for AWDLMonitor - logs to both Console.app and file
 private let log = Logger(subsystem: "com.awdlcontrol.app", category: "Monitor")
+
+/// Signpost for performance measurement
+private let signposter = OSSignposter(subsystem: "com.awdlcontrol.app", category: "Performance")
 
 /// Controls the AWDL Monitor Daemon (C daemon using AF_ROUTE sockets)
 /// This provides instant response (<1ms) with 0% CPU when idle
 ///
 /// The daemon is a separate C process that monitors interface changes via AF_ROUTE sockets
-/// exactly like awdlkiller. This version uses a simple one-time installer approach.
+/// exactly like awdlkiller. On first launch, the app automatically installs the daemon.
 class AWDLMonitor {
     static let shared = AWDLMonitor()
 
@@ -21,48 +25,66 @@ class AWDLMonitor {
 
     private var isMonitoring = false
 
+    /// Callback for UI updates
+    var onStateChange: (() -> Void)?
+
     private init() {
-        // Check if daemon is currently loaded
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        log.info("AWDLMonitor initializing...")
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        // Check current state
+        let daemonIsInstalled = isDaemonInstalled()
         let daemonIsLoaded = isDaemonLoaded()
 
-        // Check if daemon is installed
-        let daemonIsInstalled = isDaemonInstalled()
+        log.info("  Daemon installed: \(daemonIsInstalled)")
+        log.info("  Daemon running: \(daemonIsLoaded)")
+        log.info("  Daemon binary path: \(self.daemonBinaryPath)")
+        log.info("  Daemon plist path: \(self.daemonPlistPath)")
 
-        // Preference is the source of truth - sync daemon state to match preference
-        let shouldMonitor = AWDLPreferences.shared.isMonitoringEnabled
-
-        if !daemonIsInstalled {
-            log.info("Daemon not installed yet - will show install instructions on first toggle")
-            isMonitoring = false
-        } else if shouldMonitor && !daemonIsLoaded {
-            // Preference says monitor, but daemon not running - start it
-            log.info("Preference enabled but daemon not running")
-            isMonitoring = false
-        } else if !shouldMonitor && daemonIsLoaded {
-            // Preference says don't monitor, but daemon is running
-            log.info("Preference disabled but daemon running")
-            isMonitoring = true
-        } else {
-            // States match
-            isMonitoring = daemonIsLoaded
-            if isMonitoring {
-                log.info("Daemon is loaded and running (matches preference)")
-            } else {
-                log.info("Daemon is not running (matches preference)")
+        if daemonIsInstalled {
+            if let version = getDaemonVersion() {
+                log.info("  Daemon version: \(version)")
+                log.info("  Expected version: \(Self.expectedDaemonVersion)")
+                log.info("  Version compatible: \(version == Self.expectedDaemonVersion)")
             }
         }
+
+        isMonitoring = daemonIsLoaded
+
+        log.info("  Initial monitoring state: \(self.isMonitoring)")
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     }
 
-    /// Check if daemon binary and plist are installed
-    private func isDaemonInstalled() -> Bool {
+    // MARK: - Public API
+
+    /// Check if daemon is installed (binary and plist exist)
+    func isDaemonInstalled() -> Bool {
         let fileManager = FileManager.default
-        return fileManager.fileExists(atPath: daemonBinaryPath) &&
-               fileManager.fileExists(atPath: daemonPlistPath)
+        let binaryExists = fileManager.fileExists(atPath: daemonBinaryPath)
+        let plistExists = fileManager.fileExists(atPath: daemonPlistPath)
+
+        log.debug("isDaemonInstalled: binary=\(binaryExists), plist=\(plistExists)")
+        return binaryExists && plistExists
+    }
+
+    /// Check if monitoring is currently active
+    var isMonitoringActive: Bool {
+        // Always check actual daemon state
+        let running = isDaemonLoaded()
+        if running != isMonitoring {
+            log.debug("State mismatch detected: cached=\(self.isMonitoring), actual=\(running)")
+            isMonitoring = running
+        }
+        return isMonitoring
     }
 
     /// Get the installed daemon version
     func getDaemonVersion() -> String? {
-        guard isDaemonInstalled() else { return nil }
+        guard FileManager.default.fileExists(atPath: daemonBinaryPath) else {
+            log.debug("getDaemonVersion: binary not found")
+            return nil
+        }
 
         let task = Process()
         task.executableURL = URL(fileURLWithPath: daemonBinaryPath)
@@ -78,9 +100,10 @@ class AWDLMonitor {
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let version = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            log.debug("getDaemonVersion: \(version ?? "nil")")
             return version
         } catch {
-            log.error("Error getting daemon version: \(error.localizedDescription)")
+            log.error("getDaemonVersion error: \(error.localizedDescription)")
             return nil
         }
     }
@@ -93,198 +116,213 @@ class AWDLMonitor {
         return installedVersion == Self.expectedDaemonVersion
     }
 
-    /// Show installation instructions to user
-    private func showInstallInstructions() {
-        // Get path to installer script in app bundle
+    /// Install daemon and start monitoring - ONE password prompt
+    /// This is the main entry point for first-time setup
+    func installAndStartMonitoring() {
+        log.info("┌─────────────────────────────────────────────────────┐")
+        log.info("│ installAndStartMonitoring() called                  │")
+        log.info("└─────────────────────────────────────────────────────┘")
+
+        let signpostID = signposter.makeSignpostID()
+        let state = signposter.beginInterval("InstallAndStart", id: signpostID)
+
+        // Get bundled daemon resources
         guard let bundlePath = Bundle.main.resourcePath else {
-            showError("Could not find app bundle resources")
+            log.error("Could not find app bundle resources")
+            showError("Could not find app bundle resources. Please reinstall the app.")
+            signposter.endInterval("InstallAndStart", state)
             return
         }
 
+        let bundledDaemonSource = "\(bundlePath)/AWDLMonitorDaemon"
+        let bundledPlistSource = "\(bundlePath)/com.awdlcontrol.daemon.plist"
         let installerScript = "\(bundlePath)/install_daemon.sh"
 
-        // Build the install command
-        let installCommand = "sudo '\(installerScript)'"
+        log.info("Bundle path: \(bundlePath)")
+        log.info("Looking for installer script: \(installerScript)")
 
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Welcome to AWDLControl! 👋"
-            alert.informativeText = """
-            One-time setup required (30 seconds):
+        // Check if installer script exists
+        guard FileManager.default.fileExists(atPath: installerScript) else {
+            log.error("Installer script not found at: \(installerScript)")
+            showError("Installer script not found. Please reinstall the app.")
+            signposter.endInterval("InstallAndStart", state)
+            return
+        }
 
-            AWDLControl needs to install a system daemon that keeps AWDL down with <1ms response time and 0% CPU when idle.
+        log.info("Installer script found, requesting admin privileges...")
 
-            This is a ONE-TIME setup. After this, you can toggle monitoring instantly from the menu bar with no password prompts!
+        // Run installation + start in ONE operation with ONE password
+        let installAndStartScript = """
+        # Run the installer script
+        '\(installerScript)'
 
-            Ready? Click "Install Daemon" and I'll guide you through it.
-            """
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "Install Daemon")
-            alert.addButton(withTitle: "Not Now")
+        # Start the daemon immediately after installation
+        launchctl bootstrap system '\(self.daemonPlistPath)' 2>/dev/null || true
 
-            let response = alert.runModal()
+        echo "Installation and startup complete"
+        """
 
-            if response == .alertFirstButtonReturn {
-                // Copy install command to clipboard
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(installCommand, forType: .string)
+        let success = runPrivilegedScript(installAndStartScript, description: "Install and start daemon")
 
-                // Open Terminal
-                NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"),
-                                                  configuration: NSWorkspace.OpenConfiguration()) { _, error in
-                    if let error = error {
-                        log.error("Error opening Terminal: \(error.localizedDescription)")
-                    }
+        signposter.endInterval("InstallAndStart", state)
+
+        if success {
+            log.info("✅ Installation and startup successful")
+
+            // Wait for daemon to actually start
+            if waitForDaemonState(running: true, timeout: 5.0) {
+                isMonitoring = true
+                AWDLPreferences.shared.isMonitoringEnabled = true
+                AWDLPreferences.shared.lastKnownState = "down"
+                onStateChange?()
+
+                log.info("✅ Daemon is running, AWDL monitoring active")
+
+                DispatchQueue.main.async {
+                    let alert = NSAlert()
+                    alert.messageText = "Setup Complete!"
+                    alert.informativeText = "AWDLControl is now running.\n\nAWDL is being kept disabled to prevent network latency spikes.\n\nYou can toggle monitoring from the menu bar."
+                    alert.alertStyle = .informational
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
                 }
-
-                // Show follow-up instructions
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    let followUp = NSAlert()
-                    followUp.messageText = "Installation Command Copied! 📋"
-                    followUp.informativeText = """
-                    Perfect! The installation command is on your clipboard.
-
-                    In the Terminal window that just opened:
-
-                    1️⃣ Paste the command (⌘V or right-click → Paste)
-                    2️⃣ Press Enter
-                    3️⃣ Enter your password when prompted
-                    4️⃣ Wait for "Installation Complete! ✅"
-                    5️⃣ Come back here and toggle monitoring!
-
-                    The command:
-                    \(installCommand)
-                    """
-                    followUp.alertStyle = .informational
-                    followUp.addButton(withTitle: "Got It!")
-                    followUp.runModal()
-                }
+            } else {
+                log.error("❌ Daemon failed to start after installation")
+                showError("Installation completed but daemon failed to start.\n\nTry clicking 'Enable AWDL Monitoring' again.")
             }
-        }
-    }
-
-
-    private func showError(_ message: String) {
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Error"
-            alert.informativeText = message
-            alert.alertStyle = .critical
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-    }
-
-    /// Show version mismatch warning and offer to reinstall
-    private func showVersionMismatchWarning(installedVersion: String) {
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Daemon Update Required"
-            alert.informativeText = """
-            The installed daemon version (\(installedVersion)) doesn't match the expected version (\(Self.expectedDaemonVersion)).
-
-            Please reinstall the daemon to ensure compatibility and get the latest fixes.
-
-            Use "Reinstall Daemon" from the menu bar to update.
-            """
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
+        } else {
+            log.error("❌ Installation failed or was cancelled")
         }
     }
 
     /// Start monitoring by loading the LaunchDaemon
     func startMonitoring() {
-        log.debug("startMonitoring() called")
+        log.info("┌─────────────────────────────────────────────────────┐")
+        log.info("│ startMonitoring() called                            │")
+        log.info("└─────────────────────────────────────────────────────┘")
 
         // Check if daemon is installed
         if !isDaemonInstalled() {
-            log.info("Daemon not installed")
-            showInstallInstructions()
+            log.info("Daemon not installed - starting installation flow")
+            installAndStartMonitoring()
             return
         }
 
         // Check daemon version compatibility
         if !isDaemonVersionCompatible() {
             let installedVersion = getDaemonVersion() ?? "unknown"
-            log.warning("Daemon version mismatch: installed=\(installedVersion), expected=\(Self.expectedDaemonVersion)")
-            showVersionMismatchWarning(installedVersion: installedVersion)
-            return
-        }
-
-        log.debug("Daemon is installed, checking if loaded...")
-
-        // Check if daemon is already loaded and running
-        if isDaemonLoaded() {
-            log.info("Daemon is already running and controlling AWDL")
-            isMonitoring = true
-            AWDLPreferences.shared.isMonitoringEnabled = true
-            AWDLPreferences.shared.lastKnownState = "down"
+            log.warning("Version mismatch: installed=\(installedVersion), expected=\(Self.expectedDaemonVersion)")
 
             DispatchQueue.main.async {
                 let alert = NSAlert()
-                alert.messageText = "Monitoring Already Active"
-                alert.informativeText = "The AWDL monitoring daemon is already running and keeping AWDL down.\n\nNo action needed!"
-                alert.alertStyle = .informational
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
+                alert.messageText = "Daemon Update Required"
+                alert.informativeText = "The installed daemon (v\(installedVersion)) needs to be updated to v\(Self.expectedDaemonVersion).\n\nWould you like to update now?"
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "Update Now")
+                alert.addButton(withTitle: "Not Now")
+
+                if alert.runModal() == .alertFirstButtonReturn {
+                    self.installAndStartMonitoring()
+                }
             }
             return
         }
 
-        log.debug("Daemon not loaded, attempting to load...")
+        // Check if daemon is already loaded and running
+        if isDaemonLoaded() {
+            log.info("Daemon is already running")
+            isMonitoring = true
+            AWDLPreferences.shared.isMonitoringEnabled = true
+            onStateChange?()
+            return
+        }
 
-        // Try to load the daemon using a simple shell script approach
-        // This works because the daemon plist is already installed by the one-time setup
+        log.info("Loading daemon...")
+
+        // Load the daemon (requires password)
         if loadDaemon() {
             isMonitoring = true
             AWDLPreferences.shared.isMonitoringEnabled = true
             AWDLPreferences.shared.lastKnownState = "down"
-            log.info("Daemon loaded successfully")
+            onStateChange?()
+            log.info("✅ Daemon loaded successfully")
         } else {
-            log.error("Failed to load daemon")
-            showError("Failed to start monitoring.\n\nPlease run these commands in Terminal:\n\nsudo launchctl bootstrap system /Library/LaunchDaemons/com.awdlcontrol.daemon.plist")
+            log.error("❌ Failed to load daemon")
+            showError("Failed to start monitoring.\n\nPlease try again or reinstall the daemon.")
         }
     }
 
     /// Stop monitoring by unloading the LaunchDaemon
     func stopMonitoring() {
-        log.debug("Stopping monitoring daemon")
+        log.info("┌─────────────────────────────────────────────────────┐")
+        log.info("│ stopMonitoring() called                             │")
+        log.info("└─────────────────────────────────────────────────────┘")
 
         // Check if daemon is actually loaded
         if !isDaemonLoaded() {
-            log.info("Daemon is not running")
+            log.info("Daemon is not running - nothing to stop")
             isMonitoring = false
             AWDLPreferences.shared.isMonitoringEnabled = false
             AWDLPreferences.shared.lastKnownState = "up"
-
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Monitoring Already Stopped"
-                alert.informativeText = "The AWDL monitoring daemon is not running.\n\nAWDL is available for AirDrop/Handoff."
-                alert.alertStyle = .informational
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-            }
+            onStateChange?()
             return
         }
+
+        log.info("Unloading daemon...")
 
         if unloadDaemon() {
             isMonitoring = false
             AWDLPreferences.shared.isMonitoringEnabled = false
             AWDLPreferences.shared.lastKnownState = "up"
-            log.info("Daemon unloaded - AWDL available for AirDrop/Handoff")
+            onStateChange?()
+            log.info("✅ Daemon unloaded - AWDL available for AirDrop/Handoff")
         } else {
-            log.error("Failed to unload daemon")
-            showError("Failed to stop monitoring.\n\nPlease run this command in Terminal:\n\nsudo launchctl bootout system/com.awdlcontrol.daemon")
+            log.error("❌ Failed to unload daemon")
+            showError("Failed to stop monitoring.\n\nPlease try again.")
         }
     }
 
+    /// Perform a health check on the daemon
+    func performHealthCheck() -> (isHealthy: Bool, message: String) {
+        log.info("Performing health check...")
+
+        // Check 1: Is daemon installed?
+        guard isDaemonInstalled() else {
+            log.info("Health check: Daemon not installed")
+            return (false, "Daemon not installed")
+        }
+
+        // Check 2: Is version compatible?
+        guard isDaemonVersionCompatible() else {
+            let version = getDaemonVersion() ?? "unknown"
+            log.info("Health check: Version mismatch (\(version) vs \(Self.expectedDaemonVersion))")
+            return (false, "Version mismatch: installed \(version), expected \(Self.expectedDaemonVersion)")
+        }
+
+        // Check 3: Is daemon process running?
+        guard isDaemonLoaded() else {
+            log.info("Health check: Daemon not running")
+            return (false, "Daemon process not running")
+        }
+
+        // Check 4: Check if AWDL is actually down (the daemon's job)
+        let awdlStatus = getAWDLStatus()
+        log.debug("AWDL status: \(awdlStatus)")
+
+        if awdlStatus.contains("UP") {
+            log.warning("Health check: AWDL is UP despite daemon running")
+            return (false, "Daemon running but AWDL is UP - daemon may not be functioning")
+        }
+
+        let message = "Daemon healthy: v\(getDaemonVersion() ?? "?"), AWDL kept down"
+        log.info("Health check: \(message)")
+        return (true, message)
+    }
+
+    // MARK: - Private Methods
+
     /// Check if daemon is currently loaded - Check for actual running process
     private func isDaemonLoaded() -> Bool {
-        // System daemons aren't visible via launchctl list from user processes
-        // So instead, check if the daemon process is actually running using pgrep
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
         task.arguments = ["-x", "awdl_monitor_daemon"]
@@ -295,9 +333,8 @@ class AWDLMonitor {
             try task.run()
             task.waitUntilExit()
 
-            // pgrep returns 0 if process is found, 1 if not found
             let isRunning = (task.terminationStatus == 0)
-            log.debug("isDaemonLoaded() via pgrep = \(isRunning)")
+            log.debug("isDaemonLoaded: \(isRunning)")
             return isRunning
         } catch {
             log.error("Error checking daemon process: \(error.localizedDescription)")
@@ -305,13 +342,13 @@ class AWDLMonitor {
         }
     }
 
-    /// Load the LaunchDaemon using osascript with administrator privileges
-    /// This prompts for password each time but is reliable and works on all macOS versions
-    private func loadDaemon() -> Bool {
-        log.debug("Loading daemon (requires admin password)...")
+    /// Run a shell script with administrator privileges
+    private func runPrivilegedScript(_ script: String, description: String) -> Bool {
+        log.info("Running privileged script: \(description)")
+        log.debug("Script content:\n\(script)")
 
         let appleScript = """
-        do shell script "launchctl bootstrap system \(daemonPlistPath)" with administrator privileges
+        do shell script "\(script.replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\n", with: "\n"))" with administrator privileges
         """
 
         let task = Process()
@@ -329,28 +366,55 @@ class AWDLMonitor {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8) ?? ""
 
-            if task.terminationStatus == 0 || output.contains("Already loaded") {
-                log.info("Successfully loaded daemon")
-                // Wait for daemon to actually start and verify
-                return waitForDaemonState(running: true, timeout: 3.0)
-            } else {
-                log.error("Error loading daemon: \(output)")
-                return false
+            log.debug("Script exit code: \(task.terminationStatus)")
+            if !output.isEmpty {
+                log.debug("Script output: \(output)")
             }
+
+            return task.terminationStatus == 0
         } catch {
-            log.error("Exception loading daemon: \(error.localizedDescription)")
+            log.error("Script execution error: \(error.localizedDescription)")
             return false
         }
     }
 
+    /// Load the LaunchDaemon
+    private func loadDaemon() -> Bool {
+        log.info("Loading daemon (requires admin password)...")
+
+        let script = "launchctl bootstrap system '\(daemonPlistPath)'"
+        let success = runPrivilegedScript(script, description: "Load daemon")
+
+        if success {
+            return waitForDaemonState(running: true, timeout: 3.0)
+        }
+        return false
+    }
+
+    /// Unload the LaunchDaemon
+    private func unloadDaemon() -> Bool {
+        log.info("Unloading daemon (requires admin password)...")
+
+        let script = "launchctl bootout system/\(daemonLabel)"
+        let success = runPrivilegedScript(script, description: "Unload daemon")
+
+        if success {
+            return waitForDaemonState(running: false, timeout: 3.0)
+        }
+        return false
+    }
+
     /// Wait for daemon to reach expected state with timeout
     private func waitForDaemonState(running: Bool, timeout: TimeInterval) -> Bool {
+        log.debug("Waiting for daemon state: running=\(running), timeout=\(timeout)s")
+
         let startTime = Date()
         let checkInterval: TimeInterval = 0.1
 
         while Date().timeIntervalSince(startTime) < timeout {
             if isDaemonLoaded() == running {
-                log.debug("Daemon reached expected state (running=\(running)) in \(String(format: "%.1f", Date().timeIntervalSince(startTime)))s")
+                let elapsed = Date().timeIntervalSince(startTime)
+                log.debug("Daemon reached expected state in \(String(format: "%.2f", elapsed))s")
                 return true
             }
             Thread.sleep(forTimeInterval: checkInterval)
@@ -358,77 +422,6 @@ class AWDLMonitor {
 
         log.warning("Timeout waiting for daemon state (expected running=\(running))")
         return isDaemonLoaded() == running
-    }
-
-    /// Unload the LaunchDaemon using osascript with administrator privileges
-    /// This prompts for password each time but is reliable and works on all macOS versions
-    private func unloadDaemon() -> Bool {
-        log.debug("Unloading daemon (requires admin password)...")
-
-        let appleScript = """
-        do shell script "launchctl bootout system/\(daemonLabel)" with administrator privileges
-        """
-
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        task.arguments = ["-e", appleScript]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-
-            if task.terminationStatus == 0 || output.contains("not find") || output.contains("Could not find") {
-                log.info("Successfully unloaded daemon")
-                // Wait for daemon to actually stop and verify
-                return waitForDaemonState(running: false, timeout: 3.0)
-            } else {
-                log.error("Error unloading daemon: \(output)")
-                return false
-            }
-        } catch {
-            log.error("Exception unloading daemon: \(error.localizedDescription)")
-            return false
-        }
-    }
-
-    /// Check if monitoring is currently active
-    var isMonitoringActive: Bool {
-        return isMonitoring
-    }
-
-    /// Perform a health check on the daemon
-    /// Returns a tuple of (isHealthy, statusMessage)
-    func performHealthCheck() -> (isHealthy: Bool, message: String) {
-        // Check 1: Is daemon installed?
-        guard isDaemonInstalled() else {
-            return (false, "Daemon not installed")
-        }
-
-        // Check 2: Is version compatible?
-        guard isDaemonVersionCompatible() else {
-            let version = getDaemonVersion() ?? "unknown"
-            return (false, "Version mismatch: installed \(version), expected \(Self.expectedDaemonVersion)")
-        }
-
-        // Check 3: Is daemon process running?
-        guard isDaemonLoaded() else {
-            return (false, "Daemon process not running")
-        }
-
-        // Check 4: Check if AWDL is actually down (the daemon's job)
-        let awdlStatus = getAWDLStatus()
-        if awdlStatus.contains("UP") {
-            return (false, "Daemon running but AWDL is UP - daemon may not be functioning")
-        }
-
-        return (true, "Daemon healthy: v\(getDaemonVersion() ?? "?"), AWDL kept down")
     }
 
     /// Get current AWDL interface status
@@ -448,7 +441,6 @@ class AWDLMonitor {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8) ?? ""
 
-            // Extract flags line
             if let flagsLine = output.components(separatedBy: "\n").first(where: { $0.contains("flags=") }) {
                 return flagsLine
             }
@@ -456,6 +448,19 @@ class AWDLMonitor {
         } catch {
             log.error("Error getting AWDL status: \(error.localizedDescription)")
             return "Error: \(error.localizedDescription)"
+        }
+    }
+
+    /// Show error alert
+    private func showError(_ message: String) {
+        log.error("Showing error: \(message)")
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Error"
+            alert.informativeText = message
+            alert.alertStyle = .critical
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
         }
     }
 }

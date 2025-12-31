@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # Installation script for AWDL Monitor Daemon
-# This installs the C daemon that provides instant AWDL monitoring
-# using AF_ROUTE sockets (exactly like awdlkiller)
+# Works in two modes:
+# 1. From app bundle: Uses pre-built daemon binary
+# 2. From source: Builds daemon from source
 
 set -e
 
@@ -12,45 +13,63 @@ DAEMON_PLIST="$DAEMON_LABEL.plist"
 DAEMON_DEST="/usr/local/bin/$DAEMON_NAME"
 PLIST_DEST="/Library/LaunchDaemons/$DAEMON_PLIST"
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 echo "============================================"
 echo "  AWDL Monitor Daemon Installation"
 echo "============================================"
 echo ""
+echo "Script location: $SCRIPT_DIR"
+echo ""
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
-    echo "Error: This script must be run with sudo"
-    echo "Usage: sudo ./install_daemon.sh"
+    echo "Error: This script must be run with sudo/admin privileges"
     exit 1
 fi
-
-# Navigate to daemon directory
-cd "$(dirname "$0")/AWDLMonitorDaemon" || {
-    echo "Error: AWDLMonitorDaemon directory not found"
-    exit 1
-}
 
 echo "Step 1: Stopping existing daemon if running..."
 echo "---------------------------------------"
 launchctl bootout system/"$DAEMON_LABEL" 2>/dev/null || true
 echo "Done"
-
 echo ""
-echo "Step 2: Building daemon from source..."
-echo "---------------------------------------"
 
-# Build the daemon
-if [ -f "Makefile" ]; then
-    make clean
-    make
+# Determine installation mode
+if [ -f "$SCRIPT_DIR/$DAEMON_NAME" ]; then
+    # App bundle mode - pre-built binary exists
+    echo "Step 2: Using pre-built daemon binary..."
+    echo "---------------------------------------"
+    DAEMON_SOURCE="$SCRIPT_DIR/$DAEMON_NAME"
+    PLIST_SOURCE="$SCRIPT_DIR/$DAEMON_PLIST"
+    echo "Found pre-built binary at $DAEMON_SOURCE"
 
-    if [ ! -f "$DAEMON_NAME" ]; then
-        echo "Error: Build failed - $DAEMON_NAME not found"
+elif [ -d "$SCRIPT_DIR/AWDLMonitorDaemon" ]; then
+    # Source mode - build from source
+    echo "Step 2: Building daemon from source..."
+    echo "---------------------------------------"
+    cd "$SCRIPT_DIR/AWDLMonitorDaemon"
+
+    if [ -f "Makefile" ]; then
+        make clean 2>/dev/null || true
+        make
+
+        if [ ! -f "$DAEMON_NAME" ]; then
+            echo "Error: Build failed - $DAEMON_NAME not found"
+            exit 1
+        fi
+        echo "Build successful"
+        DAEMON_SOURCE="$SCRIPT_DIR/AWDLMonitorDaemon/$DAEMON_NAME"
+        PLIST_SOURCE="$SCRIPT_DIR/AWDLMonitorDaemon/$DAEMON_PLIST"
+    else
+        echo "Error: Makefile not found"
         exit 1
     fi
-    echo "Build successful"
 else
-    echo "Error: Makefile not found"
+    echo "Error: Could not find daemon binary or source"
+    echo "Expected either:"
+    echo "  - Pre-built binary at: $SCRIPT_DIR/$DAEMON_NAME"
+    echo "  - Source directory at: $SCRIPT_DIR/AWDLMonitorDaemon"
     exit 1
 fi
 
@@ -62,7 +81,7 @@ echo "---------------------------------------"
 mkdir -p /usr/local/bin
 
 # Install daemon with setuid root permissions
-install -m 4755 -o root -g wheel "$DAEMON_NAME" "$DAEMON_DEST"
+install -m 4755 -o root -g wheel "$DAEMON_SOURCE" "$DAEMON_DEST"
 
 if [ ! -f "$DAEMON_DEST" ]; then
     echo "Error: Failed to install daemon to $DAEMON_DEST"
@@ -82,12 +101,12 @@ echo "Step 4: Installing LaunchDaemon plist..."
 echo "---------------------------------------"
 
 # Install plist
-if [ ! -f "$DAEMON_PLIST" ]; then
-    echo "Error: $DAEMON_PLIST not found"
+if [ ! -f "$PLIST_SOURCE" ]; then
+    echo "Error: $DAEMON_PLIST not found at $PLIST_SOURCE"
     exit 1
 fi
 
-cp "$DAEMON_PLIST" "$PLIST_DEST"
+cp "$PLIST_SOURCE" "$PLIST_DEST"
 chown root:wheel "$PLIST_DEST"
 chmod 644 "$PLIST_DEST"
 
@@ -103,20 +122,4 @@ echo ""
 echo "What was installed:"
 echo "  - Daemon binary: $DAEMON_DEST (setuid root)"
 echo "  - LaunchDaemon plist: $PLIST_DEST"
-echo ""
-echo "How it works:"
-echo "  - AF_ROUTE sockets for instant kernel notifications"
-echo "  - Response time: <1ms"
-echo "  - CPU usage: 0% when idle"
-echo ""
-echo "Usage:"
-echo "  - Use the AWDLControl app to start/stop monitoring"
-echo ""
-echo "Manual control (if needed):"
-echo "  - Start: sudo launchctl bootstrap system $PLIST_DEST"
-echo "  - Stop:  sudo launchctl bootout system/$DAEMON_LABEL"
-echo "  - Check: pgrep -x $DAEMON_NAME"
-echo ""
-echo "To uninstall:"
-echo "  - Run: sudo ./uninstall_daemon.sh"
 echo ""
