@@ -11,10 +11,6 @@ struct AWDLControlApp: App {
         Settings {
             SettingsView()
         }
-        Window("About AWDLControl", id: "about") {
-            AboutView()
-        }
-        .windowResizability(.contentSize)
     }
 }
 
@@ -22,6 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var observer: NSObjectProtocol?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
+    private var aboutWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -228,18 +225,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showAbout() {
         log.debug("Showing about window")
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
 
-        if let window = NSApp.windows.first(where: { $0.title == "About AWDLControl" }) {
+        // Reuse existing window if available
+        if let window = aboutWindow, window.isVisible {
             window.makeKeyAndOrderFront(nil)
-        } else {
-            NSApp.sendAction(Selector(("showAboutWindow:")), to: nil, from: nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NSApp.setActivationPolicy(.accessory)
-        }
+        // Create new About window
+        let aboutView = AboutView()
+        let hostingController = NSHostingController(rootView: aboutView)
+
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "About AWDLControl"
+        window.styleMask = [.titled, .closable]
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        aboutWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func openConsoleApp() {
