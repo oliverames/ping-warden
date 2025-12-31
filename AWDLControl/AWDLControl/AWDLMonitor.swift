@@ -16,6 +16,9 @@ class AWDLMonitor {
     private let daemonPlistPath = "/Library/LaunchDaemons/com.awdlcontrol.daemon.plist"
     private let daemonBinaryPath = "/usr/local/bin/awdl_monitor_daemon"
 
+    /// Expected daemon version - should match DAEMON_VERSION in awdl_monitor_daemon.c
+    static let expectedDaemonVersion = "1.6.0"
+
     private var isMonitoring = false
 
     private init() {
@@ -55,6 +58,39 @@ class AWDLMonitor {
         let fileManager = FileManager.default
         return fileManager.fileExists(atPath: daemonBinaryPath) &&
                fileManager.fileExists(atPath: daemonPlistPath)
+    }
+
+    /// Get the installed daemon version
+    func getDaemonVersion() -> String? {
+        guard isDaemonInstalled() else { return nil }
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: daemonBinaryPath)
+        task.arguments = ["--version"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let version = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return version
+        } catch {
+            log.error("Error getting daemon version: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Check if installed daemon version matches expected version
+    func isDaemonVersionCompatible() -> Bool {
+        guard let installedVersion = getDaemonVersion() else {
+            return false
+        }
+        return installedVersion == Self.expectedDaemonVersion
     }
 
     /// Show installation instructions to user
@@ -140,6 +176,24 @@ class AWDLMonitor {
         }
     }
 
+    /// Show version mismatch warning and offer to reinstall
+    private func showVersionMismatchWarning(installedVersion: String) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Daemon Update Required"
+            alert.informativeText = """
+            The installed daemon version (\(installedVersion)) doesn't match the expected version (\(Self.expectedDaemonVersion)).
+
+            Please reinstall the daemon to ensure compatibility and get the latest fixes.
+
+            Use "Reinstall Daemon" from the menu bar to update.
+            """
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
     /// Start monitoring by loading the LaunchDaemon
     func startMonitoring() {
         log.debug("startMonitoring() called")
@@ -148,6 +202,14 @@ class AWDLMonitor {
         if !isDaemonInstalled() {
             log.info("Daemon not installed")
             showInstallInstructions()
+            return
+        }
+
+        // Check daemon version compatibility
+        if !isDaemonVersionCompatible() {
+            let installedVersion = getDaemonVersion() ?? "unknown"
+            log.warning("Daemon version mismatch: installed=\(installedVersion), expected=\(Self.expectedDaemonVersion)")
+            showVersionMismatchWarning(installedVersion: installedVersion)
             return
         }
 
@@ -269,8 +331,8 @@ class AWDLMonitor {
 
             if task.terminationStatus == 0 || output.contains("Already loaded") {
                 log.info("Successfully loaded daemon")
-                sleep(1)
-                return true
+                // Wait for daemon to actually start and verify
+                return waitForDaemonState(running: true, timeout: 3.0)
             } else {
                 log.error("Error loading daemon: \(output)")
                 return false
@@ -279,6 +341,23 @@ class AWDLMonitor {
             log.error("Exception loading daemon: \(error.localizedDescription)")
             return false
         }
+    }
+
+    /// Wait for daemon to reach expected state with timeout
+    private func waitForDaemonState(running: Bool, timeout: TimeInterval) -> Bool {
+        let startTime = Date()
+        let checkInterval: TimeInterval = 0.1
+
+        while Date().timeIntervalSince(startTime) < timeout {
+            if isDaemonLoaded() == running {
+                log.debug("Daemon reached expected state (running=\(running)) in \(String(format: "%.1f", Date().timeIntervalSince(startTime)))s")
+                return true
+            }
+            Thread.sleep(forTimeInterval: checkInterval)
+        }
+
+        log.warning("Timeout waiting for daemon state (expected running=\(running))")
+        return isDaemonLoaded() == running
     }
 
     /// Unload the LaunchDaemon using osascript with administrator privileges
@@ -307,7 +386,8 @@ class AWDLMonitor {
 
             if task.terminationStatus == 0 || output.contains("not find") || output.contains("Could not find") {
                 log.info("Successfully unloaded daemon")
-                return true
+                // Wait for daemon to actually stop and verify
+                return waitForDaemonState(running: false, timeout: 3.0)
             } else {
                 log.error("Error unloading daemon: \(output)")
                 return false
@@ -321,5 +401,61 @@ class AWDLMonitor {
     /// Check if monitoring is currently active
     var isMonitoringActive: Bool {
         return isMonitoring
+    }
+
+    /// Perform a health check on the daemon
+    /// Returns a tuple of (isHealthy, statusMessage)
+    func performHealthCheck() -> (isHealthy: Bool, message: String) {
+        // Check 1: Is daemon installed?
+        guard isDaemonInstalled() else {
+            return (false, "Daemon not installed")
+        }
+
+        // Check 2: Is version compatible?
+        guard isDaemonVersionCompatible() else {
+            let version = getDaemonVersion() ?? "unknown"
+            return (false, "Version mismatch: installed \(version), expected \(Self.expectedDaemonVersion)")
+        }
+
+        // Check 3: Is daemon process running?
+        guard isDaemonLoaded() else {
+            return (false, "Daemon process not running")
+        }
+
+        // Check 4: Check if AWDL is actually down (the daemon's job)
+        let awdlStatus = getAWDLStatus()
+        if awdlStatus.contains("UP") {
+            return (false, "Daemon running but AWDL is UP - daemon may not be functioning")
+        }
+
+        return (true, "Daemon healthy: v\(getDaemonVersion() ?? "?"), AWDL kept down")
+    }
+
+    /// Get current AWDL interface status
+    private func getAWDLStatus() -> String {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/sbin/ifconfig")
+        task.arguments = ["awdl0"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+
+            // Extract flags line
+            if let flagsLine = output.components(separatedBy: "\n").first(where: { $0.contains("flags=") }) {
+                return flagsLine
+            }
+            return output
+        } catch {
+            log.error("Error getting AWDL status: \(error.localizedDescription)")
+            return "Error: \(error.localizedDescription)"
+        }
     }
 }

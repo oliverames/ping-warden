@@ -3,19 +3,26 @@ import WidgetKit
 import AppIntents
 
 /// Control Widget for managing AWDL interface from Control Center
-/// Tap to toggle AWDL monitoring on/off
+/// Shows current state and allows toggling AWDL monitoring on/off
 @main
 struct AWDLControlWidget: ControlWidget {
     static let kind: String = "AWDLControlWidget"
 
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
-            ControlWidgetButton(action: ToggleAWDLMonitoringIntent()) {
-                Label("Toggle AWDL", systemImage: "antenna.radiowaves.left.and.right.slash")
+            ControlWidgetToggle(
+                "AWDL Block",
+                isOn: AWDLPreferences.shared.isMonitoringEnabled,
+                action: ToggleAWDLMonitoringIntent()
+            ) { isOn in
+                Label(
+                    isOn ? "Blocking" : "Allowed",
+                    systemImage: isOn ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
+                )
             }
             .tint(.blue)
         }
         .displayName("AWDL Control")
-        .description("Tap to toggle AWDL monitoring")
+        .description("Toggle AWDL blocking to reduce network latency")
     }
 }

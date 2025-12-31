@@ -9,6 +9,7 @@
  */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
@@ -27,6 +28,7 @@
 
 #define TARGETIFNAM "awdl0"
 #define DAEMON_NAME "com.awdlcontrol.daemon"
+#define DAEMON_VERSION "1.6.0"
 
 // Buffer for routing messages
 uint8_t rtmsgbuff[sizeof(struct rt_msghdr) + sizeof(struct if_msghdr)];
@@ -50,10 +52,27 @@ void setup_signal_handlers() {
     sigaction(SIGHUP, &sa, NULL);
 }
 
-int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused))) {
+int main(int argc, char *argv[]) {
+    // Handle --version flag
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+            printf("%s\n", DAEMON_VERSION);
+            return 0;
+        }
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printf("awdl_monitor_daemon %s\n", DAEMON_VERSION);
+            printf("Usage: %s [OPTIONS]\n\n", argv[0]);
+            printf("Options:\n");
+            printf("  -v, --version    Print version and exit\n");
+            printf("  -h, --help       Print this help and exit\n\n");
+            printf("Monitors and keeps the AWDL interface disabled.\n");
+            return 0;
+        }
+    }
+
     // Open syslog for logging
     openlog(DAEMON_NAME, LOG_PID | LOG_CONS, LOG_DAEMON);
-    syslog(LOG_INFO, "Starting AWDL Monitor Daemon");
+    syslog(LOG_INFO, "Starting AWDL Monitor Daemon v%s", DAEMON_VERSION);
 
     // Set up signal handlers for graceful shutdown
     setup_signal_handlers();

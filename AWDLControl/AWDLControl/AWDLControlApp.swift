@@ -64,10 +64,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             AWDLMonitor.shared.stopMonitoring()
             AWDLPreferences.shared.isMonitoringEnabled = false  // Save disabled state
 
-            // Verify daemon actually stopped
-            sleep(1)  // Give launchctl time to unload
-            let stillRunning = AWDLMonitor.shared.isMonitoringActive
-            if stillRunning {
+            // Verification happens in stopMonitoring() via waitForDaemonState
+            if AWDLMonitor.shared.isMonitoringActive {
                 log.warning("Daemon still running after unload")
             } else {
                 log.info("Daemon stopped, AWDL available for AirDrop/Handoff")
@@ -202,24 +200,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             AWDLMonitor.shared.startMonitoring()
         }
 
-        // Give the daemon a moment to start/stop
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            self.updateMenuBarIcon()
-            self.updateMenuItem()
-        }
+        // Update UI immediately - the daemon state verification happens in AWDLMonitor
+        updateMenuBarIcon()
+        updateMenuItem()
     }
 
     @objc private func testDaemon() {
         log.debug("Testing daemon...")
 
-        // Check if daemon is running
-        let daemonRunning = AWDLMonitor.shared.isMonitoringActive
+        // First perform a quick health check
+        let healthCheck = AWDLMonitor.shared.performHealthCheck()
 
-        if !daemonRunning {
+        if !healthCheck.isHealthy {
             DispatchQueue.main.async {
                 let alert = NSAlert()
-                alert.messageText = "Daemon Not Running"
-                alert.informativeText = "The AWDL monitoring daemon is not currently running.\n\nPlease enable monitoring first, then run the test."
+                alert.messageText = "Daemon Health Check Failed"
+                alert.informativeText = "Status: \(healthCheck.message)\n\nPlease enable monitoring or reinstall the daemon to fix this issue."
                 alert.alertStyle = .warning
                 alert.addButton(withTitle: "OK")
                 alert.runModal()

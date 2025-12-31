@@ -1,0 +1,52 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Select Xcode
+      run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+    - name: Show Xcode version
+      run: xcodebuild -version
+
+    - name: Build C Daemon
+      run: |
+        cd AWDLControl/AWDLMonitorDaemon
+        make clean
+        make
+        # Verify binary was created
+        ls -la awdl_monitor_daemon
+        # Check version
+        ./awdl_monitor_daemon --version
+
+    - name: Build Swift App
+      run: |
+        xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
+                   -target AWDLControl \
+                   -target AWDLControlWidget \
+                   -configuration Release \
+                   CODE_SIGN_IDENTITY="" \
+                   CODE_SIGNING_REQUIRED=NO \
+                   CODE_SIGNING_ALLOWED=NO \
+                   -quiet
+
+    - name: Verify Build Artifacts
+      run: |
+        echo "Checking daemon binary..."
+        ls -la AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon
+
+        echo "Checking app bundle..."
+        ls -la AWDLControl/build/Release/AWDLControl.app || ls -la build/Release/AWDLControl.app || echo "App location may vary"
+
+        echo "Build completed successfully!"
