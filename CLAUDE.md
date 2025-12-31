@@ -1,219 +1,116 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Development guide for Claude Code when working with this repository.
 
 ## Project Overview
 
-AWDLControl is a hybrid C daemon + Swift/SwiftUI app that provides macOS Control Center/menu bar toggle for controlling AWDL (Apple Wireless Direct Link). Uses AF_ROUTE socket monitoring (<1ms response, 0% CPU idle) based on awdlkiller's proven technology.
+**AWDLControl** is a macOS menu bar app that keeps AWDL disabled using a hybrid C daemon + Swift UI architecture. Uses AF_ROUTE socket monitoring for <1ms response time with 0% CPU when idle.
 
 **Requirements**: macOS 26.0+ (Tahoe), Xcode 16.0+
 
-## Build Commands
+## Quick Build
 
-### Quick Build (Recommended)
 ```bash
-# Build everything (C daemon + Swift app)
 ./build.sh
 ```
 
-This script:
-- Builds the C daemon with optimizations
-- Builds the Swift app and widget (skips obsolete helper targets)
-- Provides clear output and next steps
-- Works without opening Xcode GUI
+This builds the C daemon, Swift app, widget, and bundles everything together.
 
-### Manual Build
+## Architecture
 
-#### Build C Daemon
+### Components
+
+| Component | Language | Purpose |
+|-----------|----------|---------|
+| `awdl_monitor_daemon` | C | AF_ROUTE socket monitoring, ioctl() control |
+| `AWDLControl.app` | Swift/SwiftUI | Menu bar UI, daemon lifecycle management |
+| `AWDLControlWidget` | Swift | Control Center widget |
+
+### Critical Design Decision
+
+The C daemon handles all monitoring because Swift cannot efficiently use AF_ROUTE sockets for sub-millisecond response. The Swift app only controls the daemon via `launchctl`.
+
+### Key Files
+
+**C Daemon**:
+- `AWDLMonitorDaemon/awdl_monitor_daemon.c` - Core monitoring logic
+- `AWDLMonitorDaemon/com.awdlcontrol.daemon.plist` - LaunchDaemon config
+
+**Swift App**:
+- `AWDLControl/AWDLControlApp.swift` - App entry point, menu bar UI
+- `AWDLControl/AWDLMonitor.swift` - Daemon control (install, start, stop)
+- `AWDLControl/AWDLPreferences.swift` - Shared state via App Groups
+
+**Widget**:
+- `AWDLControlWidget/AWDLControlWidget.swift` - Control Center widget
+- `AWDLControlWidget/AWDLToggleIntent.swift` - Toggle action
+
+## Installation Flow
+
+On first launch:
+1. App detects daemon not installed
+2. Shows welcome dialog
+3. User clicks "Set Up Now"
+4. `installAndStartMonitoring()` runs install script with admin privileges
+5. Daemon binary + plist copied to system locations
+6. Daemon started via launchctl
+
+## Common Tasks
+
+### Modify Daemon
+
 ```bash
-cd AWDLControl/AWDLMonitorDaemon
-make clean
-make
-cd ../..
+# Edit source
+vim AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon.c
+
+# Rebuild and reinstall
+./build.sh
+sudo ./AWDLControl/install_daemon.sh
+
+# Restart daemon
+sudo launchctl bootout system/com.awdlcontrol.daemon
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
 ```
 
-#### Build Swift App
+### View Logs
+
 ```bash
-# Via command line (targets only what's needed):
-xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
-           -target AWDLControl \
-           -target AWDLControlWidget \
-           -configuration Release
+# App logs (realtime)
+log stream --predicate 'subsystem == "com.awdlcontrol.app"' --level debug
 
-# Or open in Xcode:
-open AWDLControl/AWDLControl.xcodeproj
-# Then: Product → Build (⌘B)
-```
-
-### Install Daemon (Required for Functionality)
-```bash
-cd AWDLControl
-sudo ./install_daemon.sh
-```
-
-This installs:
-- `/usr/local/bin/awdl_monitor_daemon` (setuid root)
-- `/Library/LaunchDaemons/com.awdlcontrol.daemon.plist`
-
-## Testing
-
-### Test Daemon Standalone
-```bash
-cd AWDLControl/AWDLMonitorDaemon
-make clean && make
-sudo ./awdl_monitor_daemon
-
-# In another terminal, try to bring AWDL up:
-sudo ifconfig awdl0 up
-
-# Verify daemon brings it back down within 1ms:
-ifconfig awdl0 | grep flags
-# Should show DOWN (no UP flag)
-```
-
-### Test Response Time
-```bash
-# While daemon is running, measure response:
-time (sudo ifconfig awdl0 up && sleep 0.001 && ifconfig awdl0 | grep UP)
-# Should show AWDL is down (no output from grep = success)
-```
-
-### Check Daemon Status
-```bash
-# Is daemon running?
-sudo launchctl list | grep awdlcontrol
-
-# View daemon logs:
+# Daemon logs
 log show --predicate 'process == "awdl_monitor_daemon"' --last 1h
-# Or:
-sudo tail -f /var/log/awdl_monitor_daemon.log
+```
 
-# Check AWDL interface status:
+### Test Daemon
+
+```bash
+# Check if running
+pgrep -x awdl_monitor_daemon
+
+# Check AWDL status (should show DOWN when daemon active)
 ifconfig awdl0 | grep flags
+
+# Test response time
+sudo ifconfig awdl0 up && sleep 0.01 && ifconfig awdl0 | grep flags
 ```
 
-### Uninstall
-```bash
-cd AWDLControl
-sudo ./uninstall_daemon.sh
-```
+## Version Sync
 
-## Architecture (Big Picture)
+Keep versions in sync:
+- `AWDLMonitorDaemon/awdl_monitor_daemon.c`: `DAEMON_VERSION "1.6.0"`
+- `AWDLControl/AWDLMonitor.swift`: `expectedDaemonVersion = "1.6.0"`
+- `AWDLControl/Info.plist`: `CFBundleVersion` and `CFBundleShortVersionString`
 
-### Hybrid Design: C Daemon + Swift UI
+## Entitlements
 
-**Critical architectural decision**: Swift cannot efficiently use AF_ROUTE sockets for sub-millisecond response times. Therefore, the project uses a **hybrid architecture** where the C daemon provides instant monitoring and the Swift app provides modern UI.
+- **App Groups**: `group.com.awdlcontrol.app` (widget/app state sharing)
+- **Sandbox**: Disabled (needed for launchctl)
+- **Daemon setuid**: Required for ioctl() network control
 
-### Component Interaction Flow
+## Performance Targets
 
-```
-User toggles Control Center widget
-    ↓
-AWDLToggleIntent.perform() [Swift]
-    ↓
-AWDLPreferences.isMonitoringEnabled = true [App Groups shared state]
-    ↓
-AWDLMonitor.startMonitoring() [Swift]
-    ↓
-launchctl load /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
-    ↓
-awdl_monitor_daemon starts [C]
-    ↓
-socket(AF_ROUTE, SOCK_RAW, 0) creates kernel notification channel
-    ↓
-poll() blocks until interface change [0% CPU]
-    ↓
-[macOS service tries to enable AWDL]
-    ↓
-Kernel sends RTM_IFINFO message
-    ↓
-poll() unblocks (<1ms)
-    ↓
-ioctl(SIOCSIFFLAGS) brings awdl0 down instantly
-    ↓
-Returns to poll() [0% CPU]
-```
-
-### Why This Architecture?
-
-1. **Event-driven monitoring**: AF_ROUTE provides instant kernel notifications (no polling overhead)
-2. **Direct control**: ioctl() syscall is ~1000x faster than spawning `ifconfig` processes
-3. **Zero CPU idle**: poll() blocks in kernel space, consuming 0% CPU when no changes occur
-4. **Modern UI**: Swift/SwiftUI provides ControlWidget for Control Center integration
-5. **Based on proven code**: C daemon logic directly from awdlkiller (battle-tested)
-
-### Key Files and Their Roles
-
-**C Daemon (instant monitoring)**:
-- `AWDLMonitorDaemon/awdl_monitor_daemon.c` - AF_ROUTE socket monitoring, ioctl() control
-- `AWDLMonitorDaemon/Makefile` - Builds daemon with `-O2` optimization
-
-**Swift App (UI and control)**:
-- `AWDLControl/AWDLControlApp.swift` - Main app entry point, menu bar UI, daemon control actions
-- `AWDLControl/AWDLMonitor.swift` - Loads/unloads daemon via launchctl with admin privileges
-- `AWDLControlWidget/AWDLControlWidget.swift` - Control Center ControlWidget implementation
-- `AWDLControlWidget/AWDLToggleIntent.swift` - AppIntent for toggle action
-
-**State Management**:
-- `AWDLControl/AWDLPreferences.swift` - App Groups (`group.com.awdlcontrol.app`) for shared state between app and widget
-- Widget and app must share the same state; changes propagate via NotificationCenter
-
-**Critical**: The Swift app does NOT do monitoring itself - it only controls the C daemon via launchctl. All monitoring happens in the C daemon using AF_ROUTE.
-
-## Working with the C Daemon
-
-### Build and Test Cycle
-1. Modify `AWDLMonitorDaemon/awdl_monitor_daemon.c`
-2. Rebuild with `make clean && make`
-3. Reinstall with `sudo ./install_daemon.sh`
-4. Restart daemon: `sudo launchctl bootout system/com.awdlcontrol.daemon && sudo launchctl bootstrap system /Library/LaunchDaemons/com.awdlcontrol.daemon.plist`
-
-### Debugging C Daemon
-```bash
-# Run daemon in foreground with logging:
-sudo ./awdl_monitor_daemon
-
-# Add LOG_DEBUG statements in C code and rebuild
-```
-
-## Common Development Tasks
-
-### Modify Daemon Behavior
-1. Edit `AWDLMonitorDaemon/awdl_monitor_daemon.c`
-2. `make clean && make` to rebuild
-3. `sudo ./install_daemon.sh` to reinstall
-4. Restart: `sudo launchctl bootout system/com.awdlcontrol.daemon` then `sudo launchctl bootstrap system /Library/LaunchDaemons/com.awdlcontrol.daemon.plist`
-
-### Modify Widget UI
-1. Edit `AWDLControlWidget/AWDLControlWidget.swift`
-2. Build in Xcode (⌘B)
-3. Quit and relaunch app to see changes
-4. Widget updates on next system refresh cycle
-
-### Change Monitoring Logic
-**Important**: Do NOT add polling or timers to Swift code. Monitoring efficiency depends on AF_ROUTE event-driven architecture in C daemon. If you need to change monitoring behavior, modify the C daemon, not the Swift app.
-
-### Testing Without Daemon
-If you need to test UI without the daemon:
-```swift
-// AWDLMonitor.swift - comment out launchctl calls for UI-only testing
-// But remember: actual monitoring requires the daemon
-```
-
-## Entitlements and Permissions
-
-- **App Groups**: Required for widget/app state sharing (`group.com.awdlcontrol.app`)
-- **Sandbox**: Disabled - app needs to run launchctl
-- **Daemon setuid**: Required - daemon needs root for ioctl() network control
-
-## Performance Expectations
-
-- Daemon CPU (idle): 0.0%
-- Daemon CPU (active): <0.1%
-- Response time: <1ms from interface change to ioctl()
-- Memory: ~2MB (daemon) + ~40MB (app)
-
-## Documentation
-
-- `README.md` - Installation and usage guide
-- `CLAUDE.md` (this file) - Development guide and architecture overview
+- Response time: <1ms
+- CPU (idle): 0%
+- CPU (active): <0.1%
+- Memory: ~2MB daemon, ~40MB app
