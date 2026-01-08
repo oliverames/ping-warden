@@ -66,8 +66,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             setupGameModeDetector()
         }
 
-        // Observe preference changes from widget
-        monitoringObserver = NotificationCenter.default.addObserver(
+        // Observe preference changes from widget (uses distributed notifications for cross-process)
+        monitoringObserver = DistributedNotificationCenter.default().addObserver(
             forName: .awdlMonitoringStateChanged,
             object: nil,
             queue: .main
@@ -117,7 +117,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if let observer = monitoringObserver {
-            NotificationCenter.default.removeObserver(observer)
+            DistributedNotificationCenter.default().removeObserver(observer)
         }
         if let observer = controlCenterObserver {
             NotificationCenter.default.removeObserver(observer)
@@ -886,6 +886,10 @@ class GameModeDetector {
     private let log = Logger(subsystem: "com.awdlcontrol.app", category: "GameMode")
 
     var onGameModeChange: ((Bool) -> Void)?
+
+    deinit {
+        timer?.invalidate()
+    }
 
     func start() {
         // Check immediately

@@ -23,7 +23,23 @@ class AWDLMonitor {
     /// Expected daemon version - should match DAEMON_VERSION in awdl_monitor_daemon.c
     static let expectedDaemonVersion = "1.0.0"
 
-    private var isMonitoring = false
+    /// Lock for thread-safe access to isMonitoring flag
+    private let stateLock = NSLock()
+    private var _isMonitoring = false
+
+    /// Thread-safe access to monitoring state
+    private var isMonitoring: Bool {
+        get {
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return _isMonitoring
+        }
+        set {
+            stateLock.lock()
+            _isMonitoring = newValue
+            stateLock.unlock()
+        }
+    }
 
     /// Callback for UI updates
     var onStateChange: (() -> Void)?
@@ -134,8 +150,6 @@ class AWDLMonitor {
             return
         }
 
-        let bundledDaemonSource = "\(bundlePath)/AWDLMonitorDaemon"
-        let bundledPlistSource = "\(bundlePath)/com.awdlcontrol.daemon.plist"
         let installerScript = "\(bundlePath)/install_daemon.sh"
 
         log.info("Bundle path: \(bundlePath)")
@@ -405,6 +419,7 @@ class AWDLMonitor {
     }
 
     /// Wait for daemon to reach expected state with timeout
+    /// Uses RunLoop to avoid completely blocking the main thread
     private func waitForDaemonState(running: Bool, timeout: TimeInterval) -> Bool {
         log.debug("Waiting for daemon state: running=\(running), timeout=\(timeout)s")
 
@@ -417,7 +432,8 @@ class AWDLMonitor {
                 log.debug("Daemon reached expected state in \(String(format: "%.2f", elapsed))s")
                 return true
             }
-            Thread.sleep(forTimeInterval: checkInterval)
+            // Use RunLoop instead of Thread.sleep to allow event processing
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: checkInterval))
         }
 
         log.warning("Timeout waiting for daemon state (expected running=\(running))")

@@ -15,6 +15,8 @@ echo ""
 
 # Build Swift app
 echo "📱 Building Swift app..."
+# Temporarily disable set -e to handle xcodebuild failure gracefully
+set +e
 xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
            -target AWDLControl \
            -target AWDLControlWidget \
@@ -24,8 +26,10 @@ xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
            CODE_SIGNING_REQUIRED=NO \
            CODE_SIGNING_ALLOWED=NO \
            > /tmp/xcodebuild.log 2>&1
+XCODE_EXIT=$?
+set -e
 
-if [ $? -eq 0 ]; then
+if [ $XCODE_EXIT -eq 0 ]; then
     echo "✅ App built successfully"
     echo ""
 
