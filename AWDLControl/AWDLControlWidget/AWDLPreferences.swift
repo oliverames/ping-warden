@@ -7,6 +7,7 @@ class AWDLPreferences {
     private let appGroupID = "group.com.awdlcontrol.app"
     private let monitoringEnabledKey = "AWDLMonitoringEnabled"
     private let lastStateKey = "AWDLLastState"
+    private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
 
     private var defaults: UserDefaults? {
         return UserDefaults(suiteName: appGroupID)
@@ -34,6 +35,16 @@ class AWDLPreferences {
         }
         set {
             defaults?.set(newValue, forKey: lastStateKey)
+        }
+    }
+
+    /// Whether Control Center widget mode is enabled
+    var controlCenterWidgetEnabled: Bool {
+        get {
+            return defaults?.bool(forKey: controlCenterEnabledKey) ?? false
+        }
+        set {
+            defaults?.set(newValue, forKey: controlCenterEnabledKey)
         }
     }
 }

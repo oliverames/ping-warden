@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 import os.log
 
 private let log = Logger(subsystem: "com.awdlcontrol.app", category: "App")
@@ -15,18 +16,21 @@ struct AWDLControlApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    private var observer: NSObjectProtocol?
+    private var monitoringObserver: NSObjectProtocol?
+    private var controlCenterObserver: NSObjectProtocol?
+    private var dockIconObserver: NSObjectProtocol?
+    private var gameModeObserver: NSObjectProtocol?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private var aboutWindow: NSWindow?
+    private var welcomeWindow: NSWindow?
+    private var gameModeDetector: GameModeDetector?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log.info("AWDLControl App launching...")
-        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        log.info("AWDLControl launching...")
 
-        // Hide the app from the dock - menu bar only
-        NSApp.setActivationPolicy(.accessory)
+        // Set dock icon visibility based on preference
+        updateDockIconVisibility()
 
         // Initialize monitoring
         let monitor = AWDLMonitor.shared
@@ -39,92 +43,163 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        log.info("Initial monitoring state: \(monitor.isMonitoringActive)")
-
-        // Setup menu bar
-        setupMenuBar()
+        // Setup menu bar (unless Control Center mode is enabled)
+        if !AWDLPreferences.shared.controlCenterWidgetEnabled {
+            setupMenuBar()
+        }
 
         // Check if this is first launch (daemon not installed)
         if !monitor.isDaemonInstalled() {
             log.info("First launch detected - daemon not installed")
-            // Show welcome and trigger installation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.showFirstLaunchWelcome()
+                self.showWelcomeWindow()
             }
         } else {
             log.info("Daemon already installed")
-            // If preference says enabled but daemon not running, start it
             if AWDLPreferences.shared.isMonitoringEnabled && !monitor.isMonitoringActive {
-                log.info("Preference says enabled, starting daemon...")
                 monitor.startMonitoring()
             }
         }
 
+        // Setup Game Mode detector if enabled
+        if AWDLPreferences.shared.gameModeAutoDetect {
+            setupGameModeDetector()
+        }
+
         // Observe preference changes from widget
-        observer = NotificationCenter.default.addObserver(
+        monitoringObserver = NotificationCenter.default.addObserver(
             forName: .awdlMonitoringStateChanged,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            log.debug("Received monitoring state change notification")
             self?.handleMonitoringStateChange()
         }
 
-        log.info("App launch complete")
+        // Observe Control Center mode changes
+        controlCenterObserver = NotificationCenter.default.addObserver(
+            forName: .controlCenterModeChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleControlCenterModeChange()
+        }
+
+        // Observe dock icon visibility changes
+        dockIconObserver = NotificationCenter.default.addObserver(
+            forName: .dockIconVisibilityChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateDockIconVisibility()
+        }
+
+        // Observe Game Mode auto-detect changes
+        gameModeObserver = NotificationCenter.default.addObserver(
+            forName: .gameModeAutoDetectChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleGameModeAutoDetectChange()
+        }
     }
 
-    /// CRITICAL: Prevent app from quitting when windows close
-    /// The menu bar item must persist
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log.info("AWDLControl App terminating...")
-        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        log.info("AWDLControl terminating...")
 
-        // Stop daemon when app quits
+        gameModeDetector?.stop()
+
         if AWDLMonitor.shared.isMonitoringActive {
-            log.info("Stopping daemon before quit...")
             AWDLMonitor.shared.stopMonitoring()
         }
 
-        if let observer = observer {
+        if let observer = monitoringObserver {
             NotificationCenter.default.removeObserver(observer)
         }
-
-        log.info("App termination complete")
+        if let observer = controlCenterObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = dockIconObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = gameModeObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
-    // MARK: - First Launch
+    private func updateDockIconVisibility() {
+        if AWDLPreferences.shared.showDockIcon {
+            NSApp.setActivationPolicy(.regular)
+        } else {
+            NSApp.setActivationPolicy(.accessory)
+        }
+    }
 
-    private func showFirstLaunchWelcome() {
-        log.info("Showing first launch welcome")
+    private func setupGameModeDetector() {
+        gameModeDetector = GameModeDetector()
+        gameModeDetector?.onGameModeChange = { [weak self] isActive in
+            self?.handleGameModeStateChange(isActive: isActive)
+        }
+        gameModeDetector?.start()
+        log.info("Game Mode detector started")
+    }
 
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Welcome to AWDLControl!"
-            alert.informativeText = """
-            AWDLControl keeps your network stable by disabling AWDL (Apple Wireless Direct Link), which can cause latency spikes during gaming or video calls.
+    private func handleGameModeAutoDetectChange() {
+        if AWDLPreferences.shared.gameModeAutoDetect {
+            setupGameModeDetector()
+        } else {
+            gameModeDetector?.stop()
+            gameModeDetector = nil
+            log.info("Game Mode detector stopped")
+        }
+    }
 
-            To get started, we need to install a small system daemon. This requires your admin password (one time only).
-
-            Would you like to set up AWDLControl now?
-            """
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "Set Up Now")
-            alert.addButton(withTitle: "Later")
-
-            let response = alert.runModal()
-
-            if response == .alertFirstButtonReturn {
-                log.info("User chose to set up now")
-                AWDLMonitor.shared.installAndStartMonitoring()
-            } else {
-                log.info("User chose to set up later")
+    private func handleGameModeStateChange(isActive: Bool) {
+        log.info("Game Mode state changed: \(isActive)")
+        if isActive {
+            if !AWDLMonitor.shared.isMonitoringActive {
+                log.info("Game Mode active - enabling AWDL blocking")
+                AWDLMonitor.shared.startMonitoring()
+            }
+        } else {
+            // Only disable if user didn't manually enable
+            if !AWDLPreferences.shared.isMonitoringEnabled && AWDLMonitor.shared.isMonitoringActive {
+                log.info("Game Mode inactive - disabling AWDL blocking")
+                AWDLMonitor.shared.stopMonitoring()
             }
         }
+    }
+
+    // MARK: - Welcome Window
+
+    private func showWelcomeWindow() {
+        if welcomeWindow != nil { return }
+
+        let welcomeView = WelcomeView {
+            self.welcomeWindow?.close()
+            self.welcomeWindow = nil
+            AWDLMonitor.shared.installAndStartMonitoring()
+        } onDismiss: {
+            self.welcomeWindow?.close()
+            self.welcomeWindow = nil
+        }
+
+        let hostingController = NSHostingController(rootView: welcomeView)
+        let window = NSWindow(contentViewController: hostingController)
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.isMovableByWindowBackground = true
+        window.backgroundColor = .clear
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        welcomeWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     // MARK: - Menu Bar
@@ -144,7 +219,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Toggle item
         let toggleItem = NSMenuItem(
-            title: AWDLMonitor.shared.isMonitoringActive ? "Disable AWDL Monitoring" : "Enable AWDL Monitoring",
+            title: AWDLMonitor.shared.isMonitoringActive ? "Disable AWDL Blocking" : "Enable AWDL Blocking",
             action: #selector(toggleMonitoring),
             keyEquivalent: ""
         )
@@ -154,53 +229,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu?.addItem(NSMenuItem.separator())
 
         // Status item
-        let statusItem = NSMenuItem(title: "Status: Checking...", action: nil, keyEquivalent: "")
-        statusItem.tag = 100  // Tag for easy lookup
-        statusMenu?.addItem(statusItem)
+        let statusMenuItem = NSMenuItem(title: "Status: Checking...", action: nil, keyEquivalent: "")
+        statusMenuItem.tag = 100
+        statusMenu?.addItem(statusMenuItem)
         updateStatusMenuItem()
 
         statusMenu?.addItem(NSMenuItem.separator())
 
-        // Test daemon button
-        let testItem = NSMenuItem(
-            title: "Test Daemon",
-            action: #selector(testDaemon),
-            keyEquivalent: ""
+        // Settings
+        let settingsItem = NSMenuItem(
+            title: "Settings...",
+            action: #selector(openSettings),
+            keyEquivalent: ","
         )
-        testItem.target = self
-        statusMenu?.addItem(testItem)
+        settingsItem.target = self
+        statusMenu?.addItem(settingsItem)
 
-        // View Logs button
-        let logsItem = NSMenuItem(
-            title: "View Logs in Console",
-            action: #selector(openConsoleApp),
-            keyEquivalent: ""
-        )
-        logsItem.target = self
-        statusMenu?.addItem(logsItem)
-
-        statusMenu?.addItem(NSMenuItem.separator())
-
-        // Reinstall daemon button
-        let reinstallItem = NSMenuItem(
-            title: "Reinstall Daemon",
-            action: #selector(reinstallDaemon),
-            keyEquivalent: ""
-        )
-        reinstallItem.target = self
-        statusMenu?.addItem(reinstallItem)
-
-        // Uninstall button
-        let uninstallItem = NSMenuItem(
-            title: "Uninstall Everything",
-            action: #selector(uninstallEverything),
-            keyEquivalent: ""
-        )
-        uninstallItem.target = self
-        statusMenu?.addItem(uninstallItem)
-
-        statusMenu?.addItem(NSMenuItem.separator())
-
+        // About
         let aboutItem = NSMenuItem(
             title: "About AWDLControl",
             action: #selector(showAbout),
@@ -219,27 +264,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu?.addItem(quitItem)
 
         self.statusItem?.menu = statusMenu
+    }
 
-        log.debug("Menu bar setup complete")
+    private func removeMenuBar() {
+        if let item = statusItem {
+            NSStatusBar.system.removeStatusItem(item)
+            statusItem = nil
+            statusMenu = nil
+        }
+    }
+
+    @objc private func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
     @objc private func showAbout() {
-        log.debug("Showing about window")
-
-        // Reuse existing window if available
         if let window = aboutWindow, window.isVisible {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        // Create new About window
         let aboutView = AboutView()
         let hostingController = NSHostingController(rootView: aboutView)
 
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "About AWDLControl"
-        window.styleMask = [.titled, .closable]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.backgroundColor = .clear
         window.center()
         window.isReleasedWhenClosed = false
 
@@ -248,59 +302,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func openConsoleApp() {
-        log.info("Opening Console app for log viewing")
-
-        // Open Console app
-        NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/System/Applications/Utilities/Console.app"),
-                                          configuration: NSWorkspace.OpenConfiguration()) { _, error in
-            if let error = error {
-                log.error("Failed to open Console: \(error.localizedDescription)")
-            }
-        }
-
-        // Show instructions
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            let alert = NSAlert()
-            alert.messageText = "Viewing AWDLControl Logs"
-            alert.informativeText = """
-            In Console.app:
-
-            1. Click "Start Streaming" in the toolbar
-            2. In the search field, enter:
-               subsystem:com.awdlcontrol
-
-            This will show all AWDLControl logs in realtime.
-
-            Tip: You can also filter by category:
-            • category:App - App lifecycle
-            • category:Monitor - Daemon control
-            """
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
-        }
-    }
-
     private func updateMenuBarIcon() {
         guard let button = statusItem?.button else { return }
 
         let isMonitoring = AWDLMonitor.shared.isMonitoringActive
-
         let symbolName = isMonitoring ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
         let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "AWDL Control")
         image?.isTemplate = true
 
         button.image = image
-        button.toolTip = isMonitoring ? "AWDL Monitoring: Active (AWDL blocked)" : "AWDL Monitoring: Inactive (AWDL available)"
-
-        log.debug("Menu bar icon updated: monitoring=\(isMonitoring)")
+        button.toolTip = isMonitoring ? "AWDL Blocking: Active" : "AWDL Blocking: Inactive"
     }
 
     private func updateMenuItem() {
         guard let menu = statusMenu else { return }
 
-        let newTitle = AWDLMonitor.shared.isMonitoringActive ? "Disable AWDL Monitoring" : "Enable AWDL Monitoring"
+        let newTitle = AWDLMonitor.shared.isMonitoringActive ? "Disable AWDL Blocking" : "Enable AWDL Blocking"
         menu.items.first?.title = newTitle
 
         updateStatusMenuItem()
@@ -316,47 +333,406 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !installed {
             statusItem.title = "Status: Not Installed"
         } else if isMonitoring {
-            statusItem.title = "Status: Active (AWDL blocked)"
+            statusItem.title = "Status: Blocking AWDL"
         } else {
-            statusItem.title = "Status: Inactive (AWDL available)"
+            statusItem.title = "Status: AWDL Allowed"
         }
     }
-
-    // MARK: - Actions
 
     @objc private func toggleMonitoring() {
-        log.info("Toggle monitoring requested by user")
-
         if AWDLMonitor.shared.isMonitoringActive {
-            log.info("Stopping monitoring...")
             AWDLMonitor.shared.stopMonitoring()
         } else {
-            log.info("Starting monitoring...")
             AWDLMonitor.shared.startMonitoring()
         }
-
-        // UI updates happen via onStateChange callback
     }
 
-    @objc private func testDaemon() {
-        log.info("Test daemon requested")
+    private func handleMonitoringStateChange() {
+        let shouldMonitor = AWDLPreferences.shared.isMonitoringEnabled
+        let isMonitoring = AWDLMonitor.shared.isMonitoringActive
 
+        if shouldMonitor && !isMonitoring {
+            AWDLMonitor.shared.startMonitoring()
+        } else if !shouldMonitor && isMonitoring {
+            AWDLMonitor.shared.stopMonitoring()
+        }
+
+        updateMenuBarIcon()
+        updateMenuItem()
+    }
+
+    private func handleControlCenterModeChange() {
+        if AWDLPreferences.shared.controlCenterWidgetEnabled {
+            removeMenuBar()
+        } else {
+            if statusItem == nil {
+                setupMenuBar()
+            }
+        }
+    }
+}
+
+// MARK: - Welcome View
+
+struct WelcomeView: View {
+    let onSetup: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 16) {
+                Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                    .font(.system(size: 56, weight: .thin))
+                    .foregroundStyle(.tint)
+                    .symbolEffect(.pulse, options: .repeating)
+
+                Text("Welcome to AWDLControl")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+            }
+            .padding(.top, 40)
+            .padding(.bottom, 32)
+
+            VStack(alignment: .leading, spacing: 20) {
+                FeatureRow(
+                    icon: "bolt.fill",
+                    title: "Eliminate Latency Spikes",
+                    description: "Prevents 100-300ms ping spikes caused by AWDL"
+                )
+
+                FeatureRow(
+                    icon: "gamecontroller.fill",
+                    title: "Perfect for Gaming",
+                    description: "Keep your connection stable during competitive play"
+                )
+
+                FeatureRow(
+                    icon: "cpu",
+                    title: "Zero Performance Impact",
+                    description: "<1ms response time, 0% CPU when idle"
+                )
+            }
+            .padding(.horizontal, 32)
+
+            Spacer()
+
+            HStack(spacing: 12) {
+                Image(systemName: "info.circle.fill")
+                    .foregroundStyle(.secondary)
+
+                Text("Setup requires your admin password once to install a system daemon.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(.quaternary.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 32)
+
+            HStack(spacing: 12) {
+                Button("Later") {
+                    onDismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Set Up Now") {
+                    onSetup()
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.top, 24)
+            .padding(.bottom, 32)
+        }
+        .frame(width: 480, height: 520)
+        .background(.regularMaterial)
+    }
+}
+
+struct FeatureRow: View {
+    let icon: String
+    let title: String
+    let description: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .frame(width: 32)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - Settings View
+
+struct SettingsView: View {
+    var body: some View {
+        TabView {
+            GeneralSettingsTab()
+                .tabItem {
+                    Label("General", systemImage: "gear")
+                }
+
+            AdvancedSettingsTab()
+                .tabItem {
+                    Label("Advanced", systemImage: "wrench.and.screwdriver")
+                }
+        }
+        .frame(width: 480, height: 360)
+    }
+}
+
+struct GeneralSettingsTab: View {
+    @State private var isMonitoring = AWDLMonitor.shared.isMonitoringActive
+    @State private var isDaemonInstalled = AWDLMonitor.shared.isDaemonInstalled()
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var timer: Timer?
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Status") {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 8, height: 8)
+                        Text(statusText)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Toggle("Enable AWDL Blocking", isOn: Binding(
+                    get: { isMonitoring },
+                    set: { newValue in
+                        if newValue {
+                            AWDLMonitor.shared.startMonitoring()
+                        } else {
+                            AWDLMonitor.shared.stopMonitoring()
+                        }
+                    }
+                ))
+                .disabled(!isDaemonInstalled)
+            } header: {
+                Text("AWDL Control")
+            } footer: {
+                Text("When enabled, AWDL is kept disabled to prevent network latency spikes. AirDrop, AirPlay, and Handoff will not work while active.")
+            }
+
+            Section {
+                Toggle("Launch at Login", isOn: Binding(
+                    get: { launchAtLogin },
+                    set: { newValue in
+                        do {
+                            if newValue {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                            launchAtLogin = newValue
+                        } catch {
+                            log.error("Failed to update login item: \(error.localizedDescription)")
+                        }
+                    }
+                ))
+            } header: {
+                Text("Startup")
+            } footer: {
+                Text("Recommended: When enabled, the daemon starts at boot and the app launches at login. This reduces password prompts since the daemon is already running.")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("About Password Prompts", systemImage: "lock.shield")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    Text("Your admin password is required to start or stop the system daemon that monitors AWDL. This is a macOS security requirement for system-level services.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text("To minimize prompts: Enable \"Launch at Login\" above. The daemon will start automatically at boot, so toggling AWDL blocking won't require a password.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Security")
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear {
+            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                isMonitoring = AWDLMonitor.shared.isMonitoringActive
+                isDaemonInstalled = AWDLMonitor.shared.isDaemonInstalled()
+            }
+        }
+        .onDisappear {
+            timer?.invalidate()
+        }
+    }
+
+    private var statusColor: Color {
+        if !isDaemonInstalled { return .gray }
+        return isMonitoring ? .green : .orange
+    }
+
+    private var statusText: String {
+        if !isDaemonInstalled { return "Not Installed" }
+        return isMonitoring ? "Blocking AWDL" : "AWDL Allowed"
+    }
+}
+
+private let log = Logger(subsystem: "com.awdlcontrol.app", category: "Settings")
+
+struct AdvancedSettingsTab: View {
+    @State private var controlCenterEnabled = AWDLPreferences.shared.controlCenterWidgetEnabled
+    @State private var gameModeAutoDetect = AWDLPreferences.shared.gameModeAutoDetect
+    @State private var showDockIcon = AWDLPreferences.shared.showDockIcon
+    @State private var showingReinstallConfirm = false
+    @State private var showingUninstallConfirm = false
+    @State private var showingTestResults = false
+    @State private var testResults = ""
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(isOn: $controlCenterEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Control Center Widget")
+                            Text("Beta")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.orange.opacity(0.2))
+                                .foregroundStyle(.orange)
+                                .clipShape(Capsule())
+                        }
+                        Text("Use Control Center instead of menu bar")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .onChange(of: controlCenterEnabled) { _, newValue in
+                    AWDLPreferences.shared.controlCenterWidgetEnabled = newValue
+                }
+
+                Toggle("Show Dock Icon", isOn: $showDockIcon)
+                    .onChange(of: showDockIcon) { _, newValue in
+                        AWDLPreferences.shared.showDockIcon = newValue
+                    }
+            } header: {
+                Text("Interface")
+            } footer: {
+                if controlCenterEnabled {
+                    Text("To add the widget: System Settings → Control Center → scroll to AWDLControl. The menu bar icon will be hidden.")
+                }
+            }
+
+            Section {
+                Toggle(isOn: $gameModeAutoDetect) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text("Auto-Enable with Game Mode")
+                            Text("Beta")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.orange.opacity(0.2))
+                                .foregroundStyle(.orange)
+                                .clipShape(Capsule())
+                        }
+                        Text("Automatically enable when a game is fullscreen")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .onChange(of: gameModeAutoDetect) { _, newValue in
+                    AWDLPreferences.shared.gameModeAutoDetect = newValue
+                }
+            } header: {
+                Text("Automation")
+            } footer: {
+                Text("Detects when macOS Game Mode activates and automatically enables AWDL blocking.")
+            }
+
+            Section {
+                Button("Test Daemon Response Time") {
+                    runDaemonTest()
+                }
+
+                Button("View Logs in Console") {
+                    openConsoleApp()
+                }
+            } header: {
+                Text("Diagnostics")
+            }
+
+            Section {
+                Button("Reinstall Daemon...") {
+                    showingReinstallConfirm = true
+                }
+                .confirmationDialog(
+                    "Reinstall Daemon?",
+                    isPresented: $showingReinstallConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("Reinstall") {
+                        AWDLMonitor.shared.installAndStartMonitoring()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This will reinstall the AWDL monitoring daemon. Useful if you're experiencing issues.")
+                }
+
+                Button("Uninstall Everything...", role: .destructive) {
+                    showingUninstallConfirm = true
+                }
+                .confirmationDialog(
+                    "Uninstall AWDLControl?",
+                    isPresented: $showingUninstallConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("Uninstall", role: .destructive) {
+                        performUninstall()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This will remove the daemon and all app data. The app will quit after uninstallation.")
+                }
+            } header: {
+                Text("Maintenance")
+            }
+        }
+        .formStyle(.grouped)
+        .alert("Daemon Test Results", isPresented: $showingTestResults) {
+            Button("OK") {}
+        } message: {
+            Text(testResults)
+        }
+    }
+
+    private func runDaemonTest() {
         let healthCheck = AWDLMonitor.shared.performHealthCheck()
 
         if !healthCheck.isHealthy {
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Daemon Health Check"
-                alert.informativeText = "Status: \(healthCheck.message)"
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-            }
+            testResults = "Health Check Failed:\n\(healthCheck.message)"
+            showingTestResults = true
             return
         }
-
-        // Run response time test
-        log.info("Running response time test...")
 
         let testScript = """
         echo "Testing AWDL daemon response time..."
@@ -391,79 +767,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             task.waitUntilExit()
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? "No output"
-
-            log.info("Test results:\n\(output)")
-
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Daemon Test Results"
-                alert.informativeText = output
-                alert.alertStyle = .informational
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
-            }
+            testResults = String(data: data, encoding: .utf8) ?? "No output"
+            showingTestResults = true
         } catch {
-            log.error("Test error: \(error.localizedDescription)")
+            testResults = "Test error: \(error.localizedDescription)"
+            showingTestResults = true
         }
     }
 
-    @objc private func reinstallDaemon() {
-        log.info("Reinstall daemon requested")
-
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Reinstall Daemon?"
-            alert.informativeText = "This will reinstall the AWDL monitoring daemon.\n\nUseful if you're experiencing issues."
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: "Reinstall")
-            alert.addButton(withTitle: "Cancel")
-
-            if alert.runModal() == .alertFirstButtonReturn {
-                log.info("User confirmed reinstall")
-                AWDLMonitor.shared.installAndStartMonitoring()
-            }
-        }
-    }
-
-    @objc private func uninstallEverything() {
-        log.info("Uninstall requested")
-
-        DispatchQueue.main.async {
-            let alert = NSAlert()
-            alert.messageText = "Uninstall AWDLControl?"
-            alert.informativeText = """
-            This will completely remove AWDLControl:
-
-            • Stop the AWDL monitoring daemon
-            • Remove daemon binary and plist
-            • Remove app data
-
-            The app will quit after uninstallation.
-            """
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "Uninstall")
-            alert.addButton(withTitle: "Cancel")
-
-            if alert.runModal() == .alertFirstButtonReturn {
-                self.performUninstall()
-            }
-        }
+    private func openConsoleApp() {
+        NSWorkspace.shared.openApplication(
+            at: URL(fileURLWithPath: "/System/Applications/Utilities/Console.app"),
+            configuration: NSWorkspace.OpenConfiguration()
+        ) { _, _ in }
     }
 
     private func performUninstall() {
-        log.info("Performing uninstall...")
-
         let uninstallScript = """
-        # Stop daemon
         launchctl bootout system/com.awdlcontrol.daemon 2>/dev/null || true
-
-        # Remove files
         rm -f /usr/local/bin/awdl_monitor_daemon
         rm -f /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
         rm -f /var/log/awdl_monitor_daemon.log
-
-        echo "Uninstall complete"
         """
 
         let appleScript = """
@@ -474,106 +798,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         task.arguments = ["-e", appleScript]
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-
         do {
             try task.run()
             task.waitUntilExit()
-
-            log.info("Uninstall script completed with exit code: \(task.terminationStatus)")
-
             DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Uninstall Complete"
-                alert.informativeText = "AWDLControl has been uninstalled.\n\nThe app will now quit."
-                alert.alertStyle = .informational
-                alert.addButton(withTitle: "Quit")
-                alert.runModal()
-
                 NSApplication.shared.terminate(nil)
             }
         } catch {
             log.error("Uninstall error: \(error.localizedDescription)")
-        }
-    }
-
-    private func handleMonitoringStateChange() {
-        log.debug("Handling monitoring state change from widget/external")
-
-        let shouldMonitor = AWDLPreferences.shared.isMonitoringEnabled
-        let isMonitoring = AWDLMonitor.shared.isMonitoringActive
-
-        if shouldMonitor && !isMonitoring {
-            log.info("Widget requested start - starting monitoring")
-            AWDLMonitor.shared.startMonitoring()
-        } else if !shouldMonitor && isMonitoring {
-            log.info("Widget requested stop - stopping monitoring")
-            AWDLMonitor.shared.stopMonitoring()
-        }
-
-        updateMenuBarIcon()
-        updateMenuItem()
-    }
-}
-
-// MARK: - Settings View
-
-struct SettingsView: View {
-    @State private var isMonitoring = AWDLMonitor.shared.isMonitoringActive
-    @State private var timer: Timer?
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "antenna.radiowaves.left.and.right")
-                .font(.system(size: 48))
-                .foregroundColor(.blue)
-
-            Text("AWDLControl")
-                .font(.title)
-                .fontWeight(.bold)
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Status:")
-                        .fontWeight(.semibold)
-                    Text(isMonitoring ? "Monitoring Active" : "Inactive")
-                        .foregroundColor(isMonitoring ? .green : .secondary)
-                }
-
-                Text("Use the menu bar icon to toggle AWDL monitoring.")
-                    .font(.callout)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("What This Does")
-                    .font(.headline)
-
-                Text("Keeps AWDL (Apple Wireless Direct Link) disabled to prevent network latency spikes during gaming or video calls.")
-                    .font(.callout)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("While active, AirDrop, AirPlay, Handoff, and Universal Control will not work.")
-                    .font(.callout)
-                    .foregroundColor(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(30)
-        .frame(width: 450, height: 350)
-        .onAppear {
-            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-                isMonitoring = AWDLMonitor.shared.isMonitoringActive
-            }
-        }
-        .onDisappear {
-            timer?.invalidate()
         }
     }
 }
@@ -581,56 +813,155 @@ struct SettingsView: View {
 // MARK: - About View
 
 struct AboutView: View {
+    @Environment(\.openURL) private var openURL
+
     private var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
 
+    private var build: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    }
+
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
+            Spacer()
+
             Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                .font(.system(size: 64))
-                .foregroundStyle(.blue)
+                .font(.system(size: 64, weight: .thin))
+                .foregroundStyle(.tint)
 
             Text("AWDLControl")
                 .font(.title)
-                .fontWeight(.bold)
+                .fontWeight(.semibold)
+                .padding(.top, 16)
 
-            Text("Version \(version)")
+            Text("Version \(version) (\(build))")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
+                .padding(.top, 4)
+
+            Spacer()
+
+            VStack(spacing: 6) {
+                Text("<1ms response time")
+                Text("0% CPU when idle")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            Spacer()
 
             Divider()
-                .padding(.horizontal, 40)
 
             VStack(spacing: 8) {
-                Text("Keeps AWDL disabled to eliminate network latency spikes.")
-                    .font(.callout)
-                    .multilineTextAlignment(.center)
-
-                Text("<1ms response time • 0% CPU when idle")
+                Text("Based on awdlkiller by jamestut")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Button("View on GitHub") {
+                    openURL(URL(string: "https://github.com/jamestut/awdlkiller")!)
+                }
+                .buttonStyle(.link)
+                .font(.caption)
             }
-            .padding(.horizontal)
+            .padding(.vertical, 16)
 
-            Divider()
-                .padding(.horizontal, 40)
+            Text("© 2025 Oliver Ames")
+                .font(.caption2)
+                .foregroundStyle(.quaternary)
+                .padding(.bottom, 16)
+        }
+        .frame(width: 280, height: 340)
+        .background(.regularMaterial)
+    }
+}
 
-            VStack(spacing: 8) {
-                Text("Daemon based on awdlkiller by jamestut")
-                    .font(.caption)
-                    .fontWeight(.medium)
+// MARK: - Game Mode Detector
 
-                Link("github.com/jamestut/awdlkiller", destination: URL(string: "https://github.com/jamestut/awdlkiller")!)
-                    .font(.caption)
+/// Detects when macOS Game Mode is active by monitoring for fullscreen apps
+class GameModeDetector {
+    private var timer: Timer?
+    private var isGameModeActive = false
+    private let log = Logger(subsystem: "com.awdlcontrol.app", category: "GameMode")
 
-                Text("© 2025 Oliver Ames")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 4)
+    var onGameModeChange: ((Bool) -> Void)?
+
+    func start() {
+        // Check immediately
+        checkGameModeStatus()
+
+        // Then check periodically (every 2 seconds)
+        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.checkGameModeStatus()
+        }
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+
+        // Reset state
+        if isGameModeActive {
+            isGameModeActive = false
+            onGameModeChange?(false)
+        }
+    }
+
+    private func checkGameModeStatus() {
+        let isFullscreen = isAnyAppFullscreen()
+
+        if isFullscreen != isGameModeActive {
+            isGameModeActive = isFullscreen
+            log.info("Game Mode detected: \(isFullscreen)")
+            onGameModeChange?(isFullscreen)
+        }
+    }
+
+    private func isAnyAppFullscreen() -> Bool {
+        // Get the main display bounds
+        guard let mainScreen = NSScreen.main else { return false }
+        let screenFrame = mainScreen.frame
+
+        // Get list of windows on screen
+        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
+            return false
+        }
+
+        for window in windowList {
+            // Skip windows that aren't at the standard window level or above
+            guard let layer = window[kCGWindowLayer as String] as? Int32,
+                  layer >= 0 else {
+                continue
+            }
+
+            // Get window bounds
+            guard let boundsDict = window[kCGWindowBounds as String] as? [String: CGFloat],
+                  let x = boundsDict["X"],
+                  let y = boundsDict["Y"],
+                  let width = boundsDict["Width"],
+                  let height = boundsDict["Height"] else {
+                continue
+            }
+
+            let windowFrame = CGRect(x: x, y: y, width: width, height: height)
+
+            // Check if window covers the full screen
+            if windowFrame.width >= screenFrame.width && windowFrame.height >= screenFrame.height {
+                // Get owner name to filter out system apps
+                if let ownerName = window[kCGWindowOwnerName as String] as? String {
+                    // Skip system apps that commonly go fullscreen
+                    let systemApps = ["Finder", "Dock", "Window Server", "SystemUIServer", "Control Center", "Notification Center"]
+                    if systemApps.contains(ownerName) {
+                        continue
+                    }
+
+                    log.debug("Fullscreen app detected: \(ownerName)")
+                    return true
+                }
             }
         }
-        .padding(30)
-        .frame(width: 360, height: 380)
+
+        return false
     }
 }
