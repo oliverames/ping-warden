@@ -30,10 +30,8 @@
 #define DAEMON_NAME "com.awdlcontrol.daemon"
 #define DAEMON_VERSION "1.0.0"
 
-// Buffer for routing messages - needs to be large enough for RTM_IFINFO
-// messages which can include sockaddr_dl and other variable-length data
-#define RT_MSG_BUFFER_SIZE 1024
-uint8_t rtmsgbuff[RT_MSG_BUFFER_SIZE];
+// Buffer for routing messages
+uint8_t rtmsgbuff[sizeof(struct rt_msghdr) + sizeof(struct if_msghdr)];
 
 // Signal handling for graceful shutdown
 volatile sig_atomic_t should_exit = 0;
