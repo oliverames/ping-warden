@@ -15,6 +15,12 @@ echo ""
 
 # Build Swift app
 echo "📱 Building Swift app..."
+
+# Note: Building without code signing. Control Center widget requires code signing
+# to work. To enable signing, open the project in Xcode and configure signing there.
+echo "⚠️  Building without code signing (Control Center widget will not be available)"
+echo "   To enable: Open project in Xcode → Signing & Capabilities → Select your team"
+
 # Temporarily disable set -e to handle xcodebuild failure gracefully
 set +e
 xcodebuild -project AWDLControl/AWDLControl.xcodeproj \

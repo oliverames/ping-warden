@@ -43,8 +43,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Setup menu bar (unless Control Center mode is enabled)
-        if !AWDLPreferences.shared.controlCenterWidgetEnabled {
+        // Setup menu bar (unless Control Center mode is enabled AND widget is available)
+        // Always check if widget is actually available before hiding menu bar
+        let widgetAvailable = checkControlCenterWidgetAvailable()
+        if AWDLPreferences.shared.controlCenterWidgetEnabled && !widgetAvailable {
+            log.warning("Control Center widget enabled but not available (requires code signing). Resetting to menu bar.")
+            AWDLPreferences.shared.controlCenterWidgetEnabled = false
+        }
+        if !AWDLPreferences.shared.controlCenterWidgetEnabled || !widgetAvailable {
             setupMenuBar()
         }
 
@@ -274,9 +280,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private var settingsWindow: NSWindow?
+
     @objc private func openSettings() {
+        log.info("openSettings called")
+
+        // If settings window already exists, just bring it to front
+        if let window = settingsWindow {
+            log.info("Existing settings window found, bringing to front")
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        log.info("Creating new settings window")
+
+        // Create settings window with SwiftUI view
+        let settingsView = SettingsView()
+        let hostingController = NSHostingController(rootView: settingsView)
+
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Settings"
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.backgroundColor = .clear
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        settingsWindow = window
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+
+        log.info("Settings window created and shown")
     }
 
     @objc private func showAbout() {
@@ -290,6 +325,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let hostingController = NSHostingController(rootView: aboutView)
 
         let window = NSWindow(contentViewController: hostingController)
+        window.title = "About AWDLControl"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.styleMask = [.titled, .closable, .fullSizeContentView]
@@ -362,13 +398,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleControlCenterModeChange() {
-        if AWDLPreferences.shared.controlCenterWidgetEnabled {
+        // Control Center widgets require proper code signing to work
+        // For unsigned/ad-hoc signed apps, always keep menu bar visible
+        let isProperlySignedForControlCenter = checkControlCenterWidgetAvailable()
+
+        if AWDLPreferences.shared.controlCenterWidgetEnabled && isProperlySignedForControlCenter {
             removeMenuBar()
         } else {
+            // Reset preference if widget isn't available
+            if AWDLPreferences.shared.controlCenterWidgetEnabled && !isProperlySignedForControlCenter {
+                log.warning("Control Center widget not available (requires code signing). Reverting to menu bar.")
+                AWDLPreferences.shared.controlCenterWidgetEnabled = false
+            }
             if statusItem == nil {
                 setupMenuBar()
             }
         }
+    }
+
+    /// Check if Control Center widget is available (requires proper code signing)
+    private func checkControlCenterWidgetAvailable() -> Bool {
+        // Control Center widgets require the app to be properly signed with a Developer ID
+        // Ad-hoc signed apps won't have their widgets appear in Control Center
+        guard let bundleURL = Bundle.main.bundleURL as CFURL? else { return false }
+
+        var staticCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(bundleURL, [], &staticCode) == errSecSuccess,
+              let code = staticCode else { return false }
+
+        var requirement: SecRequirement?
+        // Check for Developer ID or Apple signature (not ad-hoc)
+        let requirementString = "anchor apple generic and certificate leaf[subject.OU] exists"
+        guard SecRequirementCreateWithString(requirementString as CFString, [], &requirement) == errSecSuccess,
+              let req = requirement else { return false }
+
+        return SecStaticCodeCheckValidity(code, [], req) == errSecSuccess
     }
 }
 
@@ -489,7 +553,8 @@ struct SettingsView: View {
                     Label("Advanced", systemImage: "wrench.and.screwdriver")
                 }
         }
-        .frame(width: 480, height: 360)
+        .frame(width: 480, height: 400)
+        .background(.regularMaterial)
     }
 }
 
@@ -541,7 +606,7 @@ struct GeneralSettingsTab: View {
                             }
                             launchAtLogin = newValue
                         } catch {
-                            log.error("Failed to update login item: \(error.localizedDescription)")
+                            settingsLog.error("Failed to update login item: \(error.localizedDescription)")
                         }
                     }
                 ))
@@ -571,6 +636,7 @@ struct GeneralSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .onAppear {
             timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 isMonitoring = AWDLMonitor.shared.isMonitoringActive
@@ -593,7 +659,7 @@ struct GeneralSettingsTab: View {
     }
 }
 
-private let log = Logger(subsystem: "com.awdlcontrol.app", category: "Settings")
+private let settingsLog = Logger(subsystem: "com.awdlcontrol.app", category: "Settings")
 
 struct AdvancedSettingsTab: View {
     @State private var controlCenterEnabled = AWDLPreferences.shared.controlCenterWidgetEnabled
@@ -604,6 +670,19 @@ struct AdvancedSettingsTab: View {
     @State private var showingTestResults = false
     @State private var testResults = ""
 
+    /// Check if Control Center widget is available (requires proper code signing)
+    private var isControlCenterAvailable: Bool {
+        guard let bundleURL = Bundle.main.bundleURL as CFURL? else { return false }
+        var staticCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(bundleURL, [], &staticCode) == errSecSuccess,
+              let code = staticCode else { return false }
+        var requirement: SecRequirement?
+        let requirementString = "anchor apple generic and certificate leaf[subject.OU] exists"
+        guard SecRequirementCreateWithString(requirementString as CFString, [], &requirement) == errSecSuccess,
+              let req = requirement else { return false }
+        return SecStaticCodeCheckValidity(code, [], req) == errSecSuccess
+    }
+
     var body: some View {
         Form {
             Section {
@@ -611,16 +690,27 @@ struct AdvancedSettingsTab: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text("Control Center Widget")
-                            Text("Beta")
-                                .font(.caption2)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.orange.opacity(0.2))
-                                .foregroundStyle(.orange)
-                                .clipShape(Capsule())
+                            if isControlCenterAvailable {
+                                Text("Beta")
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(.orange.opacity(0.2))
+                                    .foregroundStyle(.orange)
+                                    .clipShape(Capsule())
+                            } else {
+                                Text("Unavailable")
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(.gray.opacity(0.2))
+                                    .foregroundStyle(.gray)
+                                    .clipShape(Capsule())
+                            }
                         }
-                        Text("Use Control Center instead of menu bar")
+                        Text(isControlCenterAvailable ? "Use Control Center instead of menu bar" : "Requires code-signed app (Developer ID)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -628,6 +718,7 @@ struct AdvancedSettingsTab: View {
                 .onChange(of: controlCenterEnabled) { _, newValue in
                     AWDLPreferences.shared.controlCenterWidgetEnabled = newValue
                 }
+                .disabled(!isControlCenterAvailable)
 
                 Toggle("Show Dock Icon", isOn: $showDockIcon)
                     .onChange(of: showDockIcon) { _, newValue in
@@ -636,7 +727,9 @@ struct AdvancedSettingsTab: View {
             } header: {
                 Text("Interface")
             } footer: {
-                if controlCenterEnabled {
+                if !isControlCenterAvailable {
+                    Text("Control Center widgets require the app to be signed with a Developer ID certificate. Build with code signing enabled to use this feature.")
+                } else if controlCenterEnabled {
                     Text("To add the widget: System Settings → Control Center → scroll to AWDLControl. The menu bar icon will be hidden.")
                 }
             }
@@ -718,6 +811,7 @@ struct AdvancedSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .alert("Daemon Test Results", isPresented: $showingTestResults) {
             Button("OK") {}
         } message: {
@@ -805,7 +899,7 @@ struct AdvancedSettingsTab: View {
                 NSApplication.shared.terminate(nil)
             }
         } catch {
-            log.error("Uninstall error: \(error.localizedDescription)")
+            settingsLog.error("Uninstall error: \(error.localizedDescription)")
         }
     }
 }

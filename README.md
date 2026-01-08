@@ -2,6 +2,8 @@
 
 A macOS menu bar app that disables AWDL to eliminate network latency spikes during gaming and video calls.
 
+<a href="https://www.buymeacoffee.com/oliverames" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
 ## The Problem
 
 AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff. It also causes:
@@ -56,6 +58,8 @@ Access Settings from the menu bar to configure:
 ### Control Center Widget (Beta)
 
 Enable in Settings to add an AWDL toggle to the macOS Control Center. When enabled, the menu bar icon is hidden.
+
+> **Note**: The Control Center widget requires the app to be code-signed with a Developer ID certificate. When building from source without code signing, this feature is disabled and the menu bar icon remains visible. To enable, open the project in Xcode, configure signing with your Apple Developer account, and rebuild.
 
 ### Game Mode Auto-Detect (Beta)
 
