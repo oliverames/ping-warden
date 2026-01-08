@@ -282,6 +282,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var settingsWindow: NSWindow?
 
+    private var settingsSplitVC: SettingsSplitViewController?
+
     @objc private func openSettings() {
         log.info("openSettings called")
 
@@ -293,19 +295,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        log.info("Creating new settings window")
+        log.info("Creating new settings window with NSSplitViewController")
 
-        // Create settings window with SwiftUI view
-        let settingsView = SettingsView()
-        let hostingController = NSHostingController(rootView: settingsView)
+        // Create the split view controller
+        let splitVC = SettingsSplitViewController()
+        settingsSplitVC = splitVC
 
-        let window = NSWindow(contentViewController: hostingController)
+        let window = NSWindow(contentViewController: splitVC)
         window.title = "Settings"
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
-        window.backgroundColor = .clear
+        window.titleVisibility = .hidden
+        window.toolbarStyle = .unified
+        window.setContentSize(NSSize(width: 650, height: 500))
         window.center()
         window.isReleasedWhenClosed = false
+
+        // Add an empty toolbar to enable the unified toolbar style
+        // This is what allows the sidebar to extend under the titlebar
+        let toolbar = NSToolbar(identifier: "SettingsToolbar")
+        toolbar.displayMode = .iconOnly
+        toolbar.showsBaselineSeparator = false
+        window.toolbar = toolbar
 
         settingsWindow = window
         window.makeKeyAndOrderFront(nil)
@@ -540,35 +551,274 @@ struct FeatureRow: View {
 
 // MARK: - Settings View
 
-struct SettingsView: View {
-    var body: some View {
-        TabView {
-            GeneralSettingsTab()
-                .tabItem {
-                    Label("General", systemImage: "gear")
-                }
+enum SettingsSection: String, CaseIterable, Identifiable {
+    case general = "General"
+    case automation = "Automation"
+    case advanced = "Advanced"
 
-            AdvancedSettingsTab()
-                .tabItem {
-                    Label("Advanced", systemImage: "wrench.and.screwdriver")
-                }
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .general: return "gearshape"
+        case .automation: return "sparkles"
+        case .advanced: return "wrench.and.screwdriver"
         }
-        .frame(width: 480, height: 400)
-        .background(.regularMaterial)
     }
 }
 
-struct GeneralSettingsTab: View {
+// MARK: - AppKit Split View Controller for Finder-style Sidebar
+
+class SettingsSplitViewController: NSSplitViewController {
+    private var sidebarVC: NSViewController!
+    private var detailVC: NSViewController!
+    private var selectedSection: SettingsSection = .general
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        // Create sidebar
+        let sidebarView = SettingsSidebarView(
+            selectedSection: Binding(
+                get: { self.selectedSection },
+                set: { newValue in
+                    self.selectedSection = newValue
+                    self.updateDetailView()
+                }
+            )
+        )
+        sidebarVC = NSHostingController(rootView: sidebarView)
+
+        // Create detail view
+        let detailView = SettingsDetailView(section: selectedSection)
+        detailVC = NSHostingController(rootView: detailView)
+
+        // Create split view items
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
+        sidebarItem.canCollapse = false
+        sidebarItem.minimumThickness = 180
+        sidebarItem.maximumThickness = 220
+        sidebarItem.allowsFullHeightLayout = true
+
+        let detailItem = NSSplitViewItem(viewController: detailVC)
+        detailItem.minimumThickness = 400
+
+        addSplitViewItem(sidebarItem)
+        addSplitViewItem(detailItem)
+
+        splitView.dividerStyle = .thin
+    }
+
+    private func updateDetailView() {
+        let newDetailView = SettingsDetailView(section: selectedSection)
+        detailVC = NSHostingController(rootView: newDetailView)
+
+        // Replace the detail split view item
+        if splitViewItems.count > 1 {
+            removeSplitViewItem(splitViewItems[1])
+        }
+
+        let detailItem = NSSplitViewItem(viewController: detailVC)
+        detailItem.minimumThickness = 400
+        addSplitViewItem(detailItem)
+    }
+}
+
+// MARK: - Sidebar View
+
+struct SettingsSidebarView: View {
+    @Binding var selectedSection: SettingsSection
+
+    var body: some View {
+        List(selection: $selectedSection) {
+            ForEach(SettingsSection.allCases) { section in
+                Label(section.rawValue, systemImage: section.icon)
+                    .tag(section)
+            }
+        }
+        .listStyle(.sidebar)
+    }
+}
+
+// MARK: - Detail View
+
+struct SettingsDetailView: View {
+    let section: SettingsSection
+
+    var body: some View {
+        SettingsContentView(section: section)
+    }
+}
+
+// Legacy SettingsView kept for reference but not used
+struct SettingsView: View {
+    @State private var selectedSection: SettingsSection = .general
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: .constant(.all)) {
+            List(selection: $selectedSection) {
+                ForEach(SettingsSection.allCases) { section in
+                    Label(section.rawValue, systemImage: section.icon)
+                        .tag(section)
+                }
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
+        } detail: {
+            SettingsContentView(section: selectedSection)
+        }
+        .toolbar(removing: .sidebarToggle)
+        .frame(width: 650, height: 500)
+    }
+}
+
+struct SettingsContentView: View {
+    let section: SettingsSection
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Section title with divider
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(section.rawValue)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 6)
+
+                    Divider()
+                        .padding(.horizontal, 20)
+                }
+
+                // Content with top spacing
+                VStack(alignment: .leading, spacing: 0) {
+                    switch section {
+                    case .general:
+                        GeneralSettingsContent()
+                    case .automation:
+                        AutomationSettingsContent()
+                    case .advanced:
+                        AdvancedSettingsContent()
+                    }
+                }
+                .padding(.top, 12)
+
+                Spacer(minLength: 20)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .ignoresSafeArea(.all, edges: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.clear)
+    }
+}
+
+// MARK: - Settings Components
+
+private let settingsLog = Logger(subsystem: "com.awdlcontrol.app", category: "Settings")
+
+struct SettingsGroup<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .background(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 20)
+    }
+}
+
+struct SettingsRow<Content: View>: View {
+    let title: String
+    let description: String?
+    let content: Content
+
+    init(_ title: String, description: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.description = description
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body)
+                if let description = description {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            content
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+}
+
+struct SettingsDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.leading, 12)
+    }
+}
+
+struct SettingsSectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.caption)
+            .fontWeight(.medium)
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 6)
+    }
+}
+
+// MARK: - General Settings Content
+
+struct GeneralSettingsContent: View {
     @State private var isMonitoring = AWDLMonitor.shared.isMonitoringActive
     @State private var isDaemonInstalled = AWDLMonitor.shared.isDaemonInstalled()
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var showDockIcon = AWDLPreferences.shared.showDockIcon
     @State private var timer: Timer?
 
     var body: some View {
-        Form {
-            Section {
-                LabeledContent("Status") {
-                    HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
+            // AWDL Status Group
+            SettingsGroup {
+                SettingsRow("AWDL Blocking", description: "Prevent network latency spikes from AWDL") {
+                    Toggle("", isOn: Binding(
+                        get: { isMonitoring },
+                        set: { newValue in
+                            if newValue {
+                                AWDLMonitor.shared.startMonitoring()
+                            } else {
+                                AWDLMonitor.shared.stopMonitoring()
+                            }
+                        }
+                    ))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .disabled(!isDaemonInstalled)
+                }
+
+                SettingsDivider()
+
+                SettingsRow("Status") {
+                    HStack(spacing: 6) {
                         Circle()
                             .fill(statusColor)
                             .frame(width: 8, height: 8)
@@ -576,67 +826,59 @@ struct GeneralSettingsTab: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-
-                Toggle("Enable AWDL Blocking", isOn: Binding(
-                    get: { isMonitoring },
-                    set: { newValue in
-                        if newValue {
-                            AWDLMonitor.shared.startMonitoring()
-                        } else {
-                            AWDLMonitor.shared.stopMonitoring()
-                        }
-                    }
-                ))
-                .disabled(!isDaemonInstalled)
-            } header: {
-                Text("AWDL Control")
-            } footer: {
-                Text("When enabled, AWDL is kept disabled to prevent network latency spikes. AirDrop, AirPlay, and Handoff will not work while active.")
             }
 
-            Section {
-                Toggle("Launch at Login", isOn: Binding(
-                    get: { launchAtLogin },
-                    set: { newValue in
-                        do {
-                            if newValue {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
+            SettingsSectionHeader(title: "APP")
+
+            SettingsGroup {
+                SettingsRow("Launch at Login", description: "Start AWDLControl when you log in") {
+                    Toggle("", isOn: Binding(
+                        get: { launchAtLogin },
+                        set: { newValue in
+                            do {
+                                if newValue {
+                                    try SMAppService.mainApp.register()
+                                } else {
+                                    try SMAppService.mainApp.unregister()
+                                }
+                                launchAtLogin = newValue
+                            } catch {
+                                settingsLog.error("Failed to update login item: \(error.localizedDescription)")
                             }
-                            launchAtLogin = newValue
-                        } catch {
-                            settingsLog.error("Failed to update login item: \(error.localizedDescription)")
                         }
-                    }
-                ))
-            } header: {
-                Text("Startup")
-            } footer: {
-                Text("Recommended: When enabled, the daemon starts at boot and the app launches at login. This reduces password prompts since the daemon is already running.")
+                    ))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+
+                SettingsDivider()
+
+                SettingsRow("Show Dock Icon", description: "Display app icon in the Dock") {
+                    Toggle("", isOn: $showDockIcon)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .onChange(of: showDockIcon) { _, newValue in
+                            AWDLPreferences.shared.showDockIcon = newValue
+                        }
+                }
             }
 
-            Section {
+            SettingsSectionHeader(title: "SECURITY")
+
+            SettingsGroup {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("About Password Prompts", systemImage: "lock.shield")
                         .font(.subheadline)
                         .fontWeight(.medium)
 
-                    Text("Your admin password is required to start or stop the system daemon that monitors AWDL. This is a macOS security requirement for system-level services.")
+                    Text("Your admin password is required to start or stop the system daemon. Enable \"Launch at Login\" to minimize prompts - the daemon will start automatically at boot.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    Text("To minimize prompts: Enable \"Launch at Login\" above. The daemon will start automatically at boot, so toggling AWDL blocking won't require a password.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.vertical, 4)
-            } header: {
-                Text("Security")
+                .padding(12)
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
         .onAppear {
             timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 isMonitoring = AWDLMonitor.shared.isMonitoringActive
@@ -659,18 +901,12 @@ struct GeneralSettingsTab: View {
     }
 }
 
-private let settingsLog = Logger(subsystem: "com.awdlcontrol.app", category: "Settings")
+// MARK: - Automation Settings Content
 
-struct AdvancedSettingsTab: View {
-    @State private var controlCenterEnabled = AWDLPreferences.shared.controlCenterWidgetEnabled
+struct AutomationSettingsContent: View {
     @State private var gameModeAutoDetect = AWDLPreferences.shared.gameModeAutoDetect
-    @State private var showDockIcon = AWDLPreferences.shared.showDockIcon
-    @State private var showingReinstallConfirm = false
-    @State private var showingUninstallConfirm = false
-    @State private var showingTestResults = false
-    @State private var testResults = ""
+    @State private var controlCenterEnabled = AWDLPreferences.shared.controlCenterWidgetEnabled
 
-    /// Check if Control Center widget is available (requires proper code signing)
     private var isControlCenterAvailable: Bool {
         guard let bundleURL = Bundle.main.bundleURL as CFURL? else { return false }
         var staticCode: SecStaticCode?
@@ -684,61 +920,34 @@ struct AdvancedSettingsTab: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                Toggle(isOn: $controlCenterEnabled) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text("Control Center Widget")
-                            if isControlCenterAvailable {
-                                Text("Beta")
-                                    .font(.caption2)
-                                    .fontWeight(.medium)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(.orange.opacity(0.2))
-                                    .foregroundStyle(.orange)
-                                    .clipShape(Capsule())
-                            } else {
-                                Text("Unavailable")
-                                    .font(.caption2)
-                                    .fontWeight(.medium)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(.gray.opacity(0.2))
-                                    .foregroundStyle(.gray)
-                                    .clipShape(Capsule())
+        VStack(alignment: .leading, spacing: 0) {
+            SettingsGroup {
+                SettingsRow("Game Mode Auto-Detect", description: "Automatically enable blocking when a game is fullscreen") {
+                    HStack(spacing: 8) {
+                        Text("Beta")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.orange.opacity(0.2))
+                            .foregroundStyle(.orange)
+                            .clipShape(Capsule())
+                        Toggle("", isOn: $gameModeAutoDetect)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .onChange(of: gameModeAutoDetect) { _, newValue in
+                                AWDLPreferences.shared.gameModeAutoDetect = newValue
                             }
-                        }
-                        Text(isControlCenterAvailable ? "Use Control Center instead of menu bar" : "Requires code-signed app (Developer ID)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
-                }
-                .onChange(of: controlCenterEnabled) { _, newValue in
-                    AWDLPreferences.shared.controlCenterWidgetEnabled = newValue
-                }
-                .disabled(!isControlCenterAvailable)
-
-                Toggle("Show Dock Icon", isOn: $showDockIcon)
-                    .onChange(of: showDockIcon) { _, newValue in
-                        AWDLPreferences.shared.showDockIcon = newValue
-                    }
-            } header: {
-                Text("Interface")
-            } footer: {
-                if !isControlCenterAvailable {
-                    Text("Control Center widgets require the app to be signed with a Developer ID certificate. Build with code signing enabled to use this feature.")
-                } else if controlCenterEnabled {
-                    Text("To add the widget: System Settings → Control Center → scroll to AWDLControl. The menu bar icon will be hidden.")
                 }
             }
 
-            Section {
-                Toggle(isOn: $gameModeAutoDetect) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text("Auto-Enable with Game Mode")
+            SettingsSectionHeader(title: "INTERFACE")
+
+            SettingsGroup {
+                SettingsRow("Control Center Widget", description: isControlCenterAvailable ? "Use Control Center instead of menu bar" : "Requires code-signed app (Developer ID)") {
+                    HStack(spacing: 8) {
+                        if isControlCenterAvailable {
                             Text("Beta")
                                 .font(.caption2)
                                 .fontWeight(.medium)
@@ -747,71 +956,119 @@ struct AdvancedSettingsTab: View {
                                 .background(.orange.opacity(0.2))
                                 .foregroundStyle(.orange)
                                 .clipShape(Capsule())
+                        } else {
+                            Text("Unavailable")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.gray.opacity(0.2))
+                                .foregroundStyle(.gray)
+                                .clipShape(Capsule())
                         }
-                        Text("Automatically enable when a game is fullscreen")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Toggle("", isOn: $controlCenterEnabled)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .disabled(!isControlCenterAvailable)
+                            .onChange(of: controlCenterEnabled) { _, newValue in
+                                AWDLPreferences.shared.controlCenterWidgetEnabled = newValue
+                            }
                     }
                 }
-                .onChange(of: gameModeAutoDetect) { _, newValue in
-                    AWDLPreferences.shared.gameModeAutoDetect = newValue
-                }
-            } header: {
-                Text("Automation")
-            } footer: {
-                Text("Detects when macOS Game Mode activates and automatically enables AWDL blocking.")
             }
 
-            Section {
-                Button("Test Daemon Response Time") {
-                    runDaemonTest()
-                }
-
-                Button("View Logs in Console") {
-                    openConsoleApp()
-                }
-            } header: {
-                Text("Diagnostics")
-            }
-
-            Section {
-                Button("Reinstall Daemon...") {
-                    showingReinstallConfirm = true
-                }
-                .confirmationDialog(
-                    "Reinstall Daemon?",
-                    isPresented: $showingReinstallConfirm,
-                    titleVisibility: .visible
-                ) {
-                    Button("Reinstall") {
-                        AWDLMonitor.shared.installAndStartMonitoring()
-                    }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("This will reinstall the AWDL monitoring daemon. Useful if you're experiencing issues.")
-                }
-
-                Button("Uninstall Everything...", role: .destructive) {
-                    showingUninstallConfirm = true
-                }
-                .confirmationDialog(
-                    "Uninstall AWDLControl?",
-                    isPresented: $showingUninstallConfirm,
-                    titleVisibility: .visible
-                ) {
-                    Button("Uninstall", role: .destructive) {
-                        performUninstall()
-                    }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("This will remove the daemon and all app data. The app will quit after uninstallation.")
-                }
-            } header: {
-                Text("Maintenance")
+            if isControlCenterAvailable && controlCenterEnabled {
+                Text("To add the widget: System Settings → Control Center → scroll to AWDLControl")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+            } else if !isControlCenterAvailable {
+                Text("Control Center widgets require the app to be signed with a Developer ID certificate.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)
+    }
+}
+
+// MARK: - Advanced Settings Content
+
+struct AdvancedSettingsContent: View {
+    @State private var showingReinstallConfirm = false
+    @State private var showingUninstallConfirm = false
+    @State private var showingTestResults = false
+    @State private var testResults = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingsSectionHeader(title: "DIAGNOSTICS")
+
+            SettingsGroup {
+                SettingsRow("Test Daemon Response Time", description: "Verify the daemon is responding quickly") {
+                    Button("Run Test") {
+                        runDaemonTest()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                SettingsDivider()
+
+                SettingsRow("View Logs", description: "Open Console.app to view logs") {
+                    Button("Open Console") {
+                        openConsoleApp()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            SettingsSectionHeader(title: "MAINTENANCE")
+
+            SettingsGroup {
+                SettingsRow("Reinstall Daemon", description: "Reinstall if experiencing issues") {
+                    Button("Reinstall...") {
+                        showingReinstallConfirm = true
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                SettingsDivider()
+
+                SettingsRow("Uninstall", description: "Remove daemon and all app data") {
+                    Button("Uninstall...") {
+                        showingUninstallConfirm = true
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                }
+            }
+        }
+        .confirmationDialog(
+            "Reinstall Daemon?",
+            isPresented: $showingReinstallConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Reinstall") {
+                AWDLMonitor.shared.installAndStartMonitoring()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will reinstall the AWDL monitoring daemon. Useful if you're experiencing issues.")
+        }
+        .confirmationDialog(
+            "Uninstall AWDLControl?",
+            isPresented: $showingUninstallConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Uninstall", role: .destructive) {
+                performUninstall()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will remove the daemon and all app data. The app will quit after uninstallation.")
+        }
         .alert("Daemon Test Results", isPresented: $showingTestResults) {
             Button("OK") {}
         } message: {
