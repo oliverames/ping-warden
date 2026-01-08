@@ -23,8 +23,14 @@ class AWDLPreferences {
         set {
             defaults?.set(newValue, forKey: monitoringEnabledKey)
 
-            // Post notification for app to respond
-            NotificationCenter.default.post(name: .awdlMonitoringStateChanged, object: nil)
+            // Use distributed notification for cross-process communication
+            // NotificationCenter.default only works within the same process
+            DistributedNotificationCenter.default().postNotificationName(
+                .awdlMonitoringStateChanged,
+                object: nil,
+                userInfo: nil,
+                deliverImmediately: true
+            )
         }
     }
 
