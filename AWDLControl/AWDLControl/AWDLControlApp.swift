@@ -547,6 +547,27 @@ struct GeneralSettingsTab: View {
                 ))
             } header: {
                 Text("Startup")
+            } footer: {
+                Text("Recommended: When enabled, the daemon starts at boot and the app launches at login. This reduces password prompts since the daemon is already running.")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("About Password Prompts", systemImage: "lock.shield")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+
+                    Text("Your admin password is required to start or stop the system daemon that monitors AWDL. This is a macOS security requirement for system-level services.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text("To minimize prompts: Enable \"Launch at Login\" above. The daemon will start automatically at boot, so toggling AWDL blocking won't require a password.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Security")
             }
         }
         .formStyle(.grouped)
