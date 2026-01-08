@@ -134,8 +134,6 @@ class AWDLMonitor {
             return
         }
 
-        let bundledDaemonSource = "\(bundlePath)/AWDLMonitorDaemon"
-        let bundledPlistSource = "\(bundlePath)/com.awdlcontrol.daemon.plist"
         let installerScript = "\(bundlePath)/install_daemon.sh"
 
         log.info("Bundle path: \(bundlePath)")

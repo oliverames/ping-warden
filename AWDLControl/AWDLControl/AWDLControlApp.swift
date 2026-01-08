@@ -887,6 +887,10 @@ class GameModeDetector {
 
     var onGameModeChange: ((Bool) -> Void)?
 
+    deinit {
+        timer?.invalidate()
+    }
+
     func start() {
         // Check immediately
         checkGameModeStatus()

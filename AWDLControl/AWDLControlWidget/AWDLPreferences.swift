@@ -9,9 +9,9 @@ class AWDLPreferences {
     private let lastStateKey = "AWDLLastState"
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
 
-    private var defaults: UserDefaults? {
+    private lazy var defaults: UserDefaults? = {
         return UserDefaults(suiteName: appGroupID)
-    }
+    }()
 
     private init() {}
 
