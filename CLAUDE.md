@@ -17,13 +17,22 @@ AWDLControl keeps AWDL (Apple Wireless Direct Link) disabled with <1ms response 
 
 Based on [awdlkiller](https://github.com/jamestut/awdlkiller) by jamestut.
 
+## Features
+
+- **Menu Bar Control**: Quick access from the system menu bar
+- **Control Center Widget** (Beta): Modern Control Center integration
+- **Game Mode Auto-Detect** (Beta): Automatically enables AWDL blocking when a fullscreen game is detected
+- **Launch at Login**: Start automatically when you log in
+- **Show/Hide Dock Icon**: Choose your preferred app visibility
+
 ## Architecture
 
 | Component | Language | Purpose |
 |-----------|----------|---------|
 | `awdl_monitor_daemon` | C | AF_ROUTE socket monitoring, ioctl() interface control |
-| `AWDLControl.app` | Swift/SwiftUI | Menu bar UI, daemon lifecycle management |
+| `AWDLControl.app` | Swift/SwiftUI | Menu bar UI, settings, daemon lifecycle management |
 | `AWDLControlWidget` | Swift/WidgetKit | Control Center widget for quick toggle |
+| `GameModeDetector` | Swift | Monitors for fullscreen apps to detect Game Mode |
 
 ### Why This Architecture?
 
@@ -171,6 +180,8 @@ log stream --predicate 'subsystem == "com.awdlcontrol.app" AND category == "Moni
 Categories:
 - `App` - App lifecycle, UI events
 - `Monitor` - Daemon control operations
+- `Settings` - Settings changes
+- `GameMode` - Game Mode detection events
 - `Performance` - Signpost intervals for timing
 
 ### Daemon Logs (syslog)
@@ -243,8 +254,8 @@ NotificationCenter.default.post(name: .awdlMonitoringStateChanged, object: nil)
 
 ## Requirements
 
-- macOS 15.0+ (Sequoia)
-- Xcode 16.0+ (for building)
+- macOS 26.0+ (Tahoe)
+- Xcode 26.0+ (for building)
 
 ## Common Issues
 

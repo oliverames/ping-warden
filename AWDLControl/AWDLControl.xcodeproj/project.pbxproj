@@ -601,7 +601,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = AWDLControl/Info.plist;
+				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -630,7 +630,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = AWDLControl/Info.plist;
+				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
