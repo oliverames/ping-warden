@@ -495,7 +495,7 @@ struct WelcomeView: View {
                 Image(systemName: "info.circle.fill")
                     .foregroundStyle(.secondary)
 
-                Text("Setup requires your admin password once to install a system daemon.")
+                Text("Setup requires a one-time system approval in System Settings.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -863,15 +863,15 @@ struct GeneralSettingsContent: View {
                 }
             }
 
-            SettingsSectionHeader(title: "SECURITY")
+            SettingsSectionHeader(title: "HOW IT WORKS")
 
             SettingsGroup {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("About Password Prompts", systemImage: "lock.shield")
+                    Label("No Password Prompts", systemImage: "checkmark.shield")
                         .font(.subheadline)
                         .fontWeight(.medium)
 
-                    Text("Your admin password is required to start or stop the system daemon. Enable \"Launch at Login\" to minimize prompts - the daemon will start automatically at boot.")
+                    Text("Ping Warden uses a modern system daemon that requires only a one-time approval in System Settings. The daemon runs while the app is open and automatically restores AWDL when you quit.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1007,7 +1007,7 @@ struct AdvancedSettingsContent: View {
             SettingsSectionHeader(title: "DIAGNOSTICS")
 
             SettingsGroup {
-                SettingsRow("Test Daemon Response Time", description: "Verify the daemon is responding quickly") {
+                SettingsRow("Test Helper Response", description: "Verify the helper is responding quickly") {
                     Button("Run Test") {
                         runDaemonTest()
                     }
@@ -1027,8 +1027,8 @@ struct AdvancedSettingsContent: View {
             SettingsSectionHeader(title: "MAINTENANCE")
 
             SettingsGroup {
-                SettingsRow("Reinstall Daemon", description: "Reinstall if experiencing issues") {
-                    Button("Reinstall...") {
+                SettingsRow("Re-register Helper", description: "Re-register if experiencing issues") {
+                    Button("Re-register...") {
                         showingReinstallConfirm = true
                     }
                     .buttonStyle(.bordered)
@@ -1036,7 +1036,7 @@ struct AdvancedSettingsContent: View {
 
                 SettingsDivider()
 
-                SettingsRow("Uninstall", description: "Remove daemon and all app data") {
+                SettingsRow("Uninstall", description: "Unregister helper and quit app") {
                     Button("Uninstall...") {
                         showingUninstallConfirm = true
                     }
@@ -1046,16 +1046,16 @@ struct AdvancedSettingsContent: View {
             }
         }
         .confirmationDialog(
-            "Reinstall Daemon?",
+            "Re-register Helper?",
             isPresented: $showingReinstallConfirm,
             titleVisibility: .visible
         ) {
-            Button("Reinstall") {
+            Button("Re-register") {
                 AWDLMonitor.shared.installAndStartMonitoring()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will reinstall the AWDL monitoring daemon. Useful if you're experiencing issues.")
+            Text("This will re-register the helper with the system. May help if you're experiencing connection issues.")
         }
         .confirmationDialog(
             "Uninstall Ping Warden?",
@@ -1067,9 +1067,9 @@ struct AdvancedSettingsContent: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will remove the daemon and all app data. The app will quit after uninstallation.")
+            Text("This will unregister the helper and quit. You can also just drag the app to Trash.")
         }
-        .alert("Daemon Test Results", isPresented: $showingTestResults) {
+        .alert("Helper Test Results", isPresented: $showingTestResults) {
             Button("OK") {}
         } message: {
             Text(testResults)
@@ -1134,29 +1134,23 @@ struct AdvancedSettingsContent: View {
     }
 
     private func performUninstall() {
-        let uninstallScript = """
-        launchctl bootout system/com.awdlcontrol.daemon 2>/dev/null || true
-        rm -f /usr/local/bin/awdl_monitor_daemon
-        rm -f /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
-        rm -f /var/log/awdl_monitor_daemon.log
-        """
+        settingsLog.info("Performing uninstall...")
 
-        let appleScript = """
-        do shell script "\(uninstallScript.replacingOccurrences(of: "\"", with: "\\\""))" with administrator privileges
-        """
+        // Stop monitoring and disconnect XPC
+        AWDLMonitor.shared.stopMonitoring()
 
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        task.arguments = ["-e", appleScript]
-
+        // Unregister the helper with SMAppService
         do {
-            try task.run()
-            task.waitUntilExit()
-            DispatchQueue.main.async {
-                NSApplication.shared.terminate(nil)
-            }
+            let helperService = SMAppService.daemon(plistName: "com.awdlcontrol.helper.plist")
+            try helperService.unregister()
+            settingsLog.info("Helper unregistered successfully")
         } catch {
-            settingsLog.error("Uninstall error: \(error.localizedDescription)")
+            settingsLog.warning("Helper unregister: \(error.localizedDescription)")
+        }
+
+        // Quit the app - macOS will handle cleanup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            NSApplication.shared.terminate(nil)
         }
     }
 }

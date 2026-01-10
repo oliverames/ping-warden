@@ -4,21 +4,38 @@ set -e
 echo "🔨 Building Ping Warden v2.0..."
 echo ""
 
-# Build all targets
+# Build targets
+# Note: Widget requires Developer ID signing (App Groups entitlement)
+# For development/unsigned builds, we build app + helper only
 echo "📱 Building app and helper..."
 # Temporarily disable set -e to handle xcodebuild failure gracefully
 set +e
+
+# Try building all targets first (requires Developer ID for widget)
 xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
            -target AWDLControl \
            -target AWDLControlWidget \
            -target AWDLControlHelper \
            -configuration Release \
            clean build \
-           CODE_SIGN_IDENTITY="" \
-           CODE_SIGNING_REQUIRED=NO \
-           CODE_SIGNING_ALLOWED=NO \
            > /tmp/xcodebuild.log 2>&1
 XCODE_EXIT=$?
+
+# If full build fails (likely due to signing), try without widget and entitlements
+if [ $XCODE_EXIT -ne 0 ]; then
+    echo "   ⚠️  Full build failed, trying without widget (requires Developer ID)..."
+    xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
+               -target AWDLControl \
+               -target AWDLControlHelper \
+               -configuration Release \
+               clean build \
+               CODE_SIGN_IDENTITY="-" \
+               CODE_SIGNING_REQUIRED=NO \
+               CODE_SIGNING_ALLOWED=YES \
+               CODE_SIGN_ENTITLEMENTS="" \
+               > /tmp/xcodebuild.log 2>&1
+    XCODE_EXIT=$?
+fi
 set -e
 
 if [ $XCODE_EXIT -eq 0 ]; then
@@ -53,6 +70,13 @@ if [ $XCODE_EXIT -eq 0 ]; then
 
     echo ""
 
+    # Re-sign the app bundle after adding helper (important!)
+    echo "🔏 Signing app bundle..."
+    codesign --force --deep --sign - "$APP_BUNDLE"
+    echo "   ✅ App bundle signed with ad-hoc signature"
+
+    echo ""
+
     # Verify bundle structure
     echo "📋 Verifying bundle structure..."
     MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
@@ -77,6 +101,11 @@ if [ $XCODE_EXIT -eq 0 ]; then
         echo "   ❌ Helper plist missing!"
         exit 1
     fi
+
+    # Verify code signature
+    echo ""
+    echo "🔏 Verifying code signature..."
+    codesign -vvv "$APP_BUNDLE" 2>&1 | head -5 || echo "   ⚠️  Signature verification warning (ad-hoc is expected)"
 
     echo ""
     echo "✅ Build complete!"
