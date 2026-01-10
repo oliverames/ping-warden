@@ -37,6 +37,8 @@ Ping Warden keeps AWDL disabled with **<1ms response time** and **0% CPU** when 
 
 ## Installation
 
+### Building from Source
+
 ```bash
 git clone https://github.com/oliverames/ping-warden.git
 cd ping-warden
@@ -44,10 +46,27 @@ cd ping-warden
 cp -r "AWDLControl/build/Release/Ping Warden.app" /Applications/
 ```
 
-On first launch:
-1. Click **Set Up Now** when prompted
-2. Approve in **System Settings → Login Items** (one-time)
-3. That's it! No password prompts after initial setup.
+### First Launch
+
+1. Open **Ping Warden.app** from Applications
+2. Click **Set Up Now** when prompted
+3. macOS will show a notification: *"Ping Warden" can run in the background for all users*
+4. Click **Allow** on the notification
+5. Click **Set Up Now** again if needed
+6. Done! No password prompts after initial setup.
+
+### Code Signing Note
+
+Ping Warden v2.0 uses SMAppService which requires code signing. The build script uses **ad-hoc signing** (`-`) which works for local development.
+
+When you first run the app, macOS may show security prompts because the app isn't signed with a Developer ID. This is expected for source builds.
+
+**For the best experience**, build from Xcode with your Apple Developer account:
+1. Open `AWDLControl/AWDLControl.xcodeproj` in Xcode
+2. Select your Team in Signing & Capabilities
+3. Build and run (Cmd+R)
+
+> **Note**: Official code signing with a Developer ID certificate will be added in a future release for easier installation.
 
 ## Usage
 
@@ -81,6 +100,8 @@ When enabled, Ping Warden automatically activates AWDL blocking when it detects 
 
 - macOS 13.0+ (Ventura or later)
 - Xcode 16.0+ (for building)
+
+> **Tip**: For the best app icon rendering, build from Xcode IDE rather than the command-line script. Xcode properly processes Icon Composer `.icon` files.
 
 ## How It Works
 
