@@ -1199,25 +1199,44 @@ struct AboutView: View {
 
             Divider()
 
-            VStack(spacing: 8) {
-                Text("Based on awdlkiller by jamestut")
+            VStack(spacing: 12) {
+                Text("Credits")
                     .font(.caption)
+                    .fontWeight(.medium)
                     .foregroundStyle(.secondary)
 
-                Button("View on GitHub") {
-                    openURL(URL(string: "https://github.com/jamestut/awdlkiller")!)
+                VStack(spacing: 4) {
+                    Button("jamestut/awdlkiller") {
+                        openURL(URL(string: "https://github.com/jamestut/awdlkiller")!)
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+
+                    Text("AF_ROUTE monitoring concept")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.link)
-                .font(.caption)
+
+                VStack(spacing: 4) {
+                    Button("james-howard/AWDLControl") {
+                        openURL(URL(string: "https://github.com/james-howard/AWDLControl")!)
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+
+                    Text("SMAppService + XPC architecture")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
-            .padding(.vertical, 16)
+            .padding(.vertical, 12)
 
             Text("© 2025 Oliver Ames")
                 .font(.caption2)
                 .foregroundStyle(.quaternary)
                 .padding(.bottom, 16)
         }
-        .frame(width: 280, height: 340)
+        .frame(width: 280, height: 400)
         .background(.regularMaterial)
     }
 }
