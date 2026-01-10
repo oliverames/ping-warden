@@ -48,27 +48,33 @@ if [ $XCODE_EXIT -eq 0 ]; then
     HELPER_BINARY="AWDLControl/build/Release/AWDLControlHelper"
     HELPER_PLIST="AWDLControl/AWDLControlHelper/com.awdlcontrol.helper.plist"
 
-    # Bundle helper binary into app
-    echo "📦 Bundling helper..."
-    if [ -f "$HELPER_BINARY" ]; then
-        cp "$HELPER_BINARY" "$APP_BUNDLE/Contents/MacOS/"
-        chmod 755 "$APP_BUNDLE/Contents/MacOS/AWDLControlHelper"
-        echo "   ✅ Helper binary copied to Contents/MacOS/"
-    else
+    # Validate required files exist BEFORE copying
+    echo "🔍 Validating build artifacts..."
+    if [ ! -d "$APP_BUNDLE" ]; then
+        echo "   ❌ App bundle not found at $APP_BUNDLE"
+        exit 1
+    fi
+    if [ ! -f "$HELPER_BINARY" ]; then
         echo "   ❌ Helper binary not found at $HELPER_BINARY"
         exit 1
     fi
+    if [ ! -f "$HELPER_PLIST" ]; then
+        echo "   ❌ Helper plist not found at $HELPER_PLIST"
+        exit 1
+    fi
+    echo "   ✅ All build artifacts present"
+
+    # Bundle helper binary into app
+    echo "📦 Bundling helper..."
+    cp "$HELPER_BINARY" "$APP_BUNDLE/Contents/MacOS/"
+    chmod 755 "$APP_BUNDLE/Contents/MacOS/AWDLControlHelper"
+    echo "   ✅ Helper binary copied to Contents/MacOS/"
 
     # Bundle helper plist for SMAppService
     echo "📦 Bundling helper plist..."
     mkdir -p "$APP_BUNDLE/Contents/Library/LaunchDaemons"
-    if [ -f "$HELPER_PLIST" ]; then
-        cp "$HELPER_PLIST" "$APP_BUNDLE/Contents/Library/LaunchDaemons/"
-        echo "   ✅ Helper plist copied to Contents/Library/LaunchDaemons/"
-    else
-        echo "   ❌ Helper plist not found at $HELPER_PLIST"
-        exit 1
-    fi
+    cp "$HELPER_PLIST" "$APP_BUNDLE/Contents/Library/LaunchDaemons/"
+    echo "   ✅ Helper plist copied to Contents/Library/LaunchDaemons/"
 
     echo ""
 

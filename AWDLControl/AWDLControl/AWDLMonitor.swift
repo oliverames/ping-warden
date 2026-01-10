@@ -32,12 +32,43 @@ class AWDLMonitor {
         return SMAppService.daemon(plistName: helperPlistName)
     }()
 
-    /// XPC connection to the helper
-    private var xpcConnection: NSXPCConnection?
+    /// XPC connection to the helper (use thread-safe accessor)
+    private var _xpcConnection: NSXPCConnection?
 
-    /// Lock for thread-safe access to isMonitoring flag
+    /// Lock for thread-safe access to state
     private let stateLock = NSLock()
     private var _isMonitoring = false
+
+    /// Flag to prevent recursive registration
+    private var _isRegisteringHelper = false
+
+    /// Thread-safe access to XPC connection
+    private var xpcConnection: NSXPCConnection? {
+        get {
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return _xpcConnection
+        }
+        set {
+            stateLock.lock()
+            _xpcConnection = newValue
+            stateLock.unlock()
+        }
+    }
+
+    /// Thread-safe access to registration flag
+    private var isRegisteringHelper: Bool {
+        get {
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return _isRegisteringHelper
+        }
+        set {
+            stateLock.lock()
+            _isRegisteringHelper = newValue
+            stateLock.unlock()
+        }
+    }
 
     /// Thread-safe access to monitoring state
     private var isMonitoring: Bool {
@@ -167,8 +198,15 @@ class AWDLMonitor {
         // Check if helper is registered
         guard isHelperRegistered else {
             log.info("Helper not registered - starting registration flow")
+            // Prevent recursive registration
+            guard !isRegisteringHelper else {
+                log.debug("Already registering helper, skipping")
+                return
+            }
+            isRegisteringHelper = true
             registerHelper { success in
-                if success {
+                self.isRegisteringHelper = false
+                if success && self.isHelperRegistered {
                     self.startMonitoring()
                 }
             }
@@ -260,25 +298,28 @@ class AWDLMonitor {
         // Check 3: Query helper status
         var helperStatus = "Unknown"
         var helperVersion = "Unknown"
-        let semaphore = DispatchSemaphore(value: 0)
+        let statusSemaphore = DispatchSemaphore(value: 0)
+        let versionSemaphore = DispatchSemaphore(value: 0)
 
         proxy.getAWDLStatus(reply: { status in
             helperStatus = status
-            semaphore.signal()
+            statusSemaphore.signal()
         })
-        _ = semaphore.wait(timeout: .now() + 2.0)
+        _ = statusSemaphore.wait(timeout: .now() + 2.0)
 
         proxy.getVersion(reply: { version in
             helperVersion = version
-            semaphore.signal()
+            versionSemaphore.signal()
         })
-        _ = semaphore.wait(timeout: .now() + 2.0)
+        _ = versionSemaphore.wait(timeout: .now() + 2.0)
 
         // Check 4: Check actual AWDL interface status
         let awdlStatus = getAWDLInterfaceStatus()
         log.debug("AWDL interface status: \(awdlStatus)")
 
-        let isAWDLDown = !awdlStatus.contains("UP") || awdlStatus.contains("<DOWN")
+        // Parse AWDL status - check for DOWN flag or absence of UP in flags section
+        let isAWDLDown = awdlStatus.contains("<DOWN") ||
+                         (awdlStatus.contains("flags=") && !awdlStatus.contains("<UP"))
 
         if isMonitoring && !isAWDLDown {
             log.warning("Health check: AWDL is UP despite monitoring being active")
@@ -406,9 +447,14 @@ class AWDLMonitor {
         }
     }
 
-    /// Get the helper proxy for making XPC calls
+    /// Get the helper proxy for making XPC calls (thread-safe)
     private func getHelperProxy() -> AWDLHelperProtocol? {
-        guard let connection = xpcConnection else {
+        // Get connection under lock to avoid TOCTOU race
+        stateLock.lock()
+        let connection = _xpcConnection
+        stateLock.unlock()
+
+        guard let connection = connection else {
             log.warning("No XPC connection available")
             return nil
         }

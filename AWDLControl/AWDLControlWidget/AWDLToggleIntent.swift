@@ -12,13 +12,22 @@ struct ToggleAWDLMonitoringIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         // Toggle the current state
-        let newState = !AWDLPreferences.shared.isMonitoringEnabled
-        log.info("Toggling monitoring to \(newState)")
+        let currentState = AWDLPreferences.shared.isMonitoringEnabled
+        let newState = !currentState
+        log.info("Toggling monitoring from \(currentState) to \(newState)")
 
         // Update shared preferences
         // The main app polls this and will start/stop the daemon accordingly
         AWDLPreferences.shared.isMonitoringEnabled = newState
 
+        // Verify the change was applied
+        let verifiedState = AWDLPreferences.shared.isMonitoringEnabled
+        if verifiedState != newState {
+            log.error("Failed to toggle monitoring - state mismatch")
+            throw AWDLError.toggleFailed
+        }
+
+        log.info("Successfully toggled monitoring to \(newState)")
         return .result()
     }
 }
