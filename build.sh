@@ -3,6 +3,8 @@ set -e
 
 echo "🔨 Building Ping Warden v2.0..."
 echo ""
+echo "⚠️  Note: For proper app icon, build from Xcode IDE instead."
+echo ""
 
 # Build targets
 # Note: Widget requires Developer ID signing (App Groups entitlement)
