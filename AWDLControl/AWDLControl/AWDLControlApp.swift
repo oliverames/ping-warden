@@ -253,7 +253,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // About
         let aboutItem = NSMenuItem(
-            title: "About AWDLControl",
+            title: "About Ping Warden",
             action: #selector(showAbout),
             keyEquivalent: ""
         )
@@ -263,7 +263,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenu?.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(
-            title: "Quit AWDLControl",
+            title: "Quit Ping Warden",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
@@ -461,7 +461,7 @@ struct WelcomeView: View {
                     .foregroundStyle(.tint)
                     .symbolEffect(.pulse, options: .repeating)
 
-                Text("Welcome to AWDLControl")
+                Text("Welcome to Ping Warden")
                     .font(.largeTitle)
                     .fontWeight(.bold)
             }
@@ -831,7 +831,7 @@ struct GeneralSettingsContent: View {
             SettingsSectionHeader(title: "APP")
 
             SettingsGroup {
-                SettingsRow("Launch at Login", description: "Start AWDLControl when you log in") {
+                SettingsRow("Launch at Login", description: "Start Ping Warden when you log in") {
                     Toggle("", isOn: Binding(
                         get: { launchAtLogin },
                         set: { newValue in
@@ -978,7 +978,7 @@ struct AutomationSettingsContent: View {
             }
 
             if isControlCenterAvailable && controlCenterEnabled {
-                Text("To add the widget: System Settings → Control Center → scroll to AWDLControl")
+                Text("To add the widget: System Settings → Control Center → scroll to Ping Warden")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 24)
@@ -1058,7 +1058,7 @@ struct AdvancedSettingsContent: View {
             Text("This will reinstall the AWDL monitoring daemon. Useful if you're experiencing issues.")
         }
         .confirmationDialog(
-            "Uninstall AWDLControl?",
+            "Uninstall Ping Warden?",
             isPresented: $showingUninstallConfirm,
             titleVisibility: .visible
         ) {
@@ -1182,7 +1182,7 @@ struct AboutView: View {
                 .font(.system(size: 64, weight: .thin))
                 .foregroundStyle(.tint)
 
-            Text("AWDLControl")
+            Text("Ping Warden")
                 .font(.title)
                 .fontWeight(.semibold)
                 .padding(.top, 16)

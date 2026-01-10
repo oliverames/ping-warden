@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import ServiceManagement
 import os.log
 
 /// Unified logger for AWDLMonitor - logs to both Console.app and file
@@ -8,20 +9,31 @@ private let log = Logger(subsystem: "com.awdlcontrol.app", category: "Monitor")
 /// Signpost for performance measurement
 private let signposter = OSSignposter(subsystem: "com.awdlcontrol.app", category: "Performance")
 
-/// Controls the AWDL Monitor Daemon (C daemon using AF_ROUTE sockets)
-/// This provides instant response (<1ms) with 0% CPU when idle
+/// Controls the AWDL helper daemon via SMAppService and XPC
+/// In v2.0, the helper runs as a bundled LaunchDaemon registered via SMAppService
+/// No more password prompts - just one-time system approval
 ///
-/// The daemon is a separate C process that monitors interface changes via AF_ROUTE sockets
-/// exactly like awdlkiller. On first launch, the app automatically installs the daemon.
+/// Architecture (v2.0):
+/// - Helper binary bundled in Contents/MacOS/AWDLControlHelper
+/// - Plist bundled in Contents/Library/LaunchDaemons/com.awdlcontrol.helper.plist
+/// - Communication via XPC (com.awdlcontrol.xpc.helper)
+/// - Helper exits when app quits (via XPC connection invalidation)
 class AWDLMonitor {
     static let shared = AWDLMonitor()
 
-    private let daemonLabel = "com.awdlcontrol.daemon"
-    private let daemonPlistPath = "/Library/LaunchDaemons/com.awdlcontrol.daemon.plist"
-    private let daemonBinaryPath = "/usr/local/bin/awdl_monitor_daemon"
+    /// XPC service name - must match MachServices key in plist
+    private let xpcServiceName = "com.awdlcontrol.xpc.helper"
 
-    /// Expected daemon version - should match DAEMON_VERSION in awdl_monitor_daemon.c
-    static let expectedDaemonVersion = "1.0.0"
+    /// Plist filename for SMAppService - must match file in Contents/Library/LaunchDaemons/
+    private let helperPlistName = "com.awdlcontrol.helper.plist"
+
+    /// SMAppService instance for the helper daemon
+    private lazy var helperService: SMAppService = {
+        return SMAppService.daemon(plistName: helperPlistName)
+    }()
+
+    /// XPC connection to the helper
+    private var xpcConnection: NSXPCConnection?
 
     /// Lock for thread-safe access to isMonitoring flag
     private let stateLock = NSLock()
@@ -44,153 +56,286 @@ class AWDLMonitor {
     /// Callback for UI updates
     var onStateChange: (() -> Void)?
 
+    /// Timer for polling registration status
+    private var registrationTimer: Timer?
+
     private init() {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log.info("AWDLMonitor initializing...")
+        log.info("AWDLMonitor v2.0 initializing (SMAppService + XPC)...")
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-        // Check current state
-        let daemonIsInstalled = isDaemonInstalled()
-        let daemonIsLoaded = isDaemonLoaded()
+        let status = helperService.status
+        log.info("  Helper service status: \(self.statusDescription(status))")
+        log.info("  XPC service name: \(self.xpcServiceName)")
+        log.info("  Helper plist: \(self.helperPlistName)")
 
-        log.info("  Daemon installed: \(daemonIsInstalled)")
-        log.info("  Daemon running: \(daemonIsLoaded)")
-        log.info("  Daemon binary path: \(self.daemonBinaryPath)")
-        log.info("  Daemon plist path: \(self.daemonPlistPath)")
+        // If helper is already registered, connect to it
+        if status == .enabled {
+            log.info("  Helper already enabled, connecting XPC...")
+            connectXPC()
 
-        if daemonIsInstalled {
-            if let version = getDaemonVersion() {
-                log.info("  Daemon version: \(version)")
-                log.info("  Expected version: \(Self.expectedDaemonVersion)")
-                log.info("  Version compatible: \(version == Self.expectedDaemonVersion)")
+            // Check if we should restore monitoring state
+            if AWDLPreferences.shared.isMonitoringEnabled {
+                log.info("  Restoring monitoring state from preferences")
+                startMonitoring()
             }
         }
 
-        isMonitoring = daemonIsLoaded
-
-        log.info("  Initial monitoring state: \(self.isMonitoring)")
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     }
 
     // MARK: - Public API
 
-    /// Check if daemon is installed (binary and plist exist)
-    func isDaemonInstalled() -> Bool {
-        let fileManager = FileManager.default
-        let binaryExists = fileManager.fileExists(atPath: daemonBinaryPath)
-        let plistExists = fileManager.fileExists(atPath: daemonPlistPath)
+    /// Check if helper is registered with SMAppService
+    var isHelperRegistered: Bool {
+        return helperService.status == .enabled
+    }
 
-        log.debug("isDaemonInstalled: binary=\(binaryExists), plist=\(plistExists)")
-        return binaryExists && plistExists
+    /// Check if helper needs system approval (user denied or not yet approved)
+    var needsApproval: Bool {
+        return helperService.status == .requiresApproval
+    }
+
+    /// Current registration status
+    var registrationStatus: SMAppService.Status {
+        return helperService.status
     }
 
     /// Check if monitoring is currently active
     var isMonitoringActive: Bool {
-        // Always check actual daemon state
-        let running = isDaemonLoaded()
-        if running != isMonitoring {
-            log.debug("State mismatch detected: cached=\(self.isMonitoring), actual=\(running)")
-            isMonitoring = running
-        }
-        return isMonitoring
+        return isMonitoring && xpcConnection != nil
     }
 
-    /// Get the installed daemon version
-    func getDaemonVersion() -> String? {
-        guard FileManager.default.fileExists(atPath: daemonBinaryPath) else {
-            log.debug("getDaemonVersion: binary not found")
-            return nil
-        }
-
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: daemonBinaryPath)
-        task.arguments = ["--version"]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let version = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            log.debug("getDaemonVersion: \(version ?? "nil")")
-            return version
-        } catch {
-            log.error("getDaemonVersion error: \(error.localizedDescription)")
-            return nil
-        }
-    }
-
-    /// Check if installed daemon version matches expected version
-    func isDaemonVersionCompatible() -> Bool {
-        guard let installedVersion = getDaemonVersion() else {
-            return false
-        }
-        return installedVersion == Self.expectedDaemonVersion
-    }
-
-    /// Install daemon and start monitoring - ONE password prompt
-    /// This is the main entry point for first-time setup
-    func installAndStartMonitoring() {
+    /// Register helper with SMAppService
+    /// This triggers a one-time system approval prompt (not a password dialog)
+    func registerHelper(completion: ((Bool) -> Void)? = nil) {
         log.info("┌─────────────────────────────────────────────────────┐")
-        log.info("│ installAndStartMonitoring() called                  │")
+        log.info("│ registerHelper() called                             │")
         log.info("└─────────────────────────────────────────────────────┘")
 
         let signpostID = signposter.makeSignpostID()
-        let state = signposter.beginInterval("InstallAndStart", id: signpostID)
+        let state = signposter.beginInterval("RegisterHelper", id: signpostID)
 
-        // Get bundled daemon resources
-        guard let bundlePath = Bundle.main.resourcePath else {
-            log.error("Could not find app bundle resources")
-            showError("Could not find app bundle resources. Please reinstall the app.")
-            signposter.endInterval("InstallAndStart", state)
+        let currentStatus = helperService.status
+        log.info("Current status: \(self.statusDescription(currentStatus))")
+
+        switch currentStatus {
+        case .enabled:
+            log.info("Helper already enabled")
+            signposter.endInterval("RegisterHelper", state)
+            connectXPC()
+            completion?(true)
+            return
+
+        case .requiresApproval:
+            log.info("Helper requires approval - opening System Settings")
+            SMAppService.openSystemSettingsLoginItems()
+            startPollingForRegistration(completion: completion)
+            signposter.endInterval("RegisterHelper", state)
+            return
+
+        case .notRegistered, .notFound:
+            log.info("Registering helper with SMAppService...")
+            do {
+                try helperService.register()
+                log.info("Registration request submitted")
+                // Start polling for approval
+                startPollingForRegistration(completion: completion)
+            } catch {
+                log.error("Registration failed: \(error.localizedDescription)")
+                signposter.endInterval("RegisterHelper", state)
+
+                DispatchQueue.main.async {
+                    self.showError("Failed to register helper.\n\nError: \(error.localizedDescription)")
+                }
+                completion?(false)
+            }
+
+        @unknown default:
+            log.error("Unknown helper status: \(String(describing: currentStatus))")
+            signposter.endInterval("RegisterHelper", state)
+            completion?(false)
+        }
+    }
+
+    /// Start monitoring - sends command to helper via XPC
+    func startMonitoring() {
+        log.info("┌─────────────────────────────────────────────────────┐")
+        log.info("│ startMonitoring() called                            │")
+        log.info("└─────────────────────────────────────────────────────┘")
+
+        // Check if helper is registered
+        guard isHelperRegistered else {
+            log.info("Helper not registered - starting registration flow")
+            registerHelper { success in
+                if success {
+                    self.startMonitoring()
+                }
+            }
             return
         }
 
-        let installerScript = "\(bundlePath)/install_daemon.sh"
+        // Ensure XPC connection
+        if xpcConnection == nil {
+            connectXPC()
+        }
 
-        log.info("Bundle path: \(bundlePath)")
-        log.info("Looking for installer script: \(installerScript)")
-
-        // Check if installer script exists
-        guard FileManager.default.fileExists(atPath: installerScript) else {
-            log.error("Installer script not found at: \(installerScript)")
-            showError("Installer script not found. Please reinstall the app.")
-            signposter.endInterval("InstallAndStart", state)
+        // Send command to disable AWDL
+        guard let proxy = getHelperProxy() else {
+            log.error("Failed to get helper proxy")
+            showError("Cannot connect to helper.\n\nTry restarting the app.")
             return
         }
 
-        log.info("Installer script found, requesting admin privileges...")
+        log.info("Sending setAWDLEnabled(false) via XPC...")
 
-        // Run installation + start in ONE operation with ONE password
-        let installAndStartScript = """
-        # Run the installer script
-        '\(installerScript)'
+        proxy.setAWDLEnabled(false, reply: { success in
+            DispatchQueue.main.async {
+                if success {
+                    self.isMonitoring = true
+                    AWDLPreferences.shared.isMonitoringEnabled = true
+                    AWDLPreferences.shared.lastKnownState = "down"
+                    self.onStateChange?()
+                    log.info("✅ AWDL monitoring started")
+                } else {
+                    log.error("❌ Failed to disable AWDL")
+                    self.showError("Failed to disable AWDL.\n\nThe helper may not be running correctly.")
+                }
+            }
+        })
+    }
 
-        # Start the daemon immediately after installation
-        launchctl bootstrap system '\(self.daemonPlistPath)' 2>/dev/null || true
+    /// Stop monitoring - sends command to helper via XPC
+    func stopMonitoring() {
+        log.info("┌─────────────────────────────────────────────────────┐")
+        log.info("│ stopMonitoring() called                             │")
+        log.info("└─────────────────────────────────────────────────────┘")
 
-        echo "Installation and startup complete"
-        """
+        guard let proxy = getHelperProxy() else {
+            log.warning("No helper proxy - updating state anyway")
+            isMonitoring = false
+            AWDLPreferences.shared.isMonitoringEnabled = false
+            AWDLPreferences.shared.lastKnownState = "up"
+            onStateChange?()
+            return
+        }
 
-        let success = runPrivilegedScript(installAndStartScript, description: "Install and start daemon")
+        log.info("Sending setAWDLEnabled(true) via XPC...")
 
-        signposter.endInterval("InstallAndStart", state)
+        proxy.setAWDLEnabled(true, reply: { success in
+            DispatchQueue.main.async {
+                if success {
+                    self.isMonitoring = false
+                    AWDLPreferences.shared.isMonitoringEnabled = false
+                    AWDLPreferences.shared.lastKnownState = "up"
+                    self.onStateChange?()
+                    log.info("✅ AWDL monitoring stopped - AirDrop/Handoff available")
+                } else {
+                    log.error("❌ Failed to enable AWDL")
+                }
+            }
+        })
+    }
 
-        if success {
-            log.info("✅ Installation and startup successful")
+    /// Perform a health check on the helper
+    func performHealthCheck() -> (isHealthy: Bool, message: String) {
+        log.info("Performing health check...")
 
-            // Wait for daemon to actually start
-            if waitForDaemonState(running: true, timeout: 5.0) {
-                isMonitoring = true
-                AWDLPreferences.shared.isMonitoringEnabled = true
-                AWDLPreferences.shared.lastKnownState = "down"
-                onStateChange?()
+        // Check 1: Is helper registered?
+        guard isHelperRegistered else {
+            log.info("Health check: Helper not registered")
+            return (false, "Helper not registered with system")
+        }
 
-                log.info("✅ Daemon is running, AWDL monitoring active")
+        // Check 2: Can we connect via XPC?
+        if xpcConnection == nil {
+            connectXPC()
+        }
+
+        guard let proxy = getHelperProxy() else {
+            log.info("Health check: Cannot connect to helper")
+            return (false, "Cannot connect to helper via XPC")
+        }
+
+        // Check 3: Query helper status
+        var helperStatus = "Unknown"
+        var helperVersion = "Unknown"
+        let semaphore = DispatchSemaphore(value: 0)
+
+        proxy.getAWDLStatus(reply: { status in
+            helperStatus = status
+            semaphore.signal()
+        })
+        _ = semaphore.wait(timeout: .now() + 2.0)
+
+        proxy.getVersion(reply: { version in
+            helperVersion = version
+            semaphore.signal()
+        })
+        _ = semaphore.wait(timeout: .now() + 2.0)
+
+        // Check 4: Check actual AWDL interface status
+        let awdlStatus = getAWDLInterfaceStatus()
+        log.debug("AWDL interface status: \(awdlStatus)")
+
+        let isAWDLDown = !awdlStatus.contains("UP") || awdlStatus.contains("<DOWN")
+
+        if isMonitoring && !isAWDLDown {
+            log.warning("Health check: AWDL is UP despite monitoring being active")
+            return (false, "Monitoring active but AWDL is UP - helper may not be functioning")
+        }
+
+        let message = "Helper healthy: v\(helperVersion), Status: \(helperStatus)"
+        log.info("Health check: \(message)")
+        return (true, message)
+    }
+
+    /// Test the daemon response time (for Testing Mode feature)
+    func testDaemonResponseTime(iterations: Int = 5, completion: @escaping ([(passed: Bool, responseTime: TimeInterval)]) -> Void) {
+        log.info("Testing daemon response time (\(iterations) iterations)...")
+
+        var results: [(passed: Bool, responseTime: TimeInterval)] = []
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            for i in 0..<iterations {
+                let startTime = Date()
+
+                // Bring AWDL up
+                self.runIfconfig(up: true)
+
+                // Small delay for system to process
+                Thread.sleep(forTimeInterval: 0.001)
+
+                // Check if AWDL is still down (daemon should have caught it)
+                let status = self.getAWDLInterfaceStatus()
+                let endTime = Date()
+
+                let responseTime = endTime.timeIntervalSince(startTime)
+                let passed = !status.contains("UP") || status.contains("<DOWN")
+
+                results.append((passed: passed, responseTime: responseTime))
+                log.debug("Test \(i + 1): passed=\(passed), time=\(String(format: "%.3f", responseTime * 1000))ms")
+
+                // Small delay between tests
+                if i < iterations - 1 {
+                    Thread.sleep(forTimeInterval: 0.1)
+                }
+            }
+
+            DispatchQueue.main.async {
+                completion(results)
+            }
+        }
+    }
+
+    // MARK: - Legacy API Support (for compatibility)
+
+    /// Legacy method - redirects to registerHelper
+    func installAndStartMonitoring() {
+        log.info("installAndStartMonitoring() called - redirecting to registerHelper()")
+        registerHelper { success in
+            if success {
+                self.startMonitoring()
 
                 DispatchQueue.main.async {
                     let alert = NSAlert()
@@ -200,248 +345,132 @@ class AWDLMonitor {
                     alert.addButton(withTitle: "OK")
                     alert.runModal()
                 }
-            } else {
-                log.error("❌ Daemon failed to start after installation")
-                showError("Installation completed but daemon failed to start.\n\nTry clicking 'Enable AWDL Monitoring' again.")
             }
-        } else {
-            log.error("❌ Installation failed or was cancelled")
         }
     }
 
-    /// Start monitoring by loading the LaunchDaemon
-    func startMonitoring() {
-        log.info("┌─────────────────────────────────────────────────────┐")
-        log.info("│ startMonitoring() called                            │")
-        log.info("└─────────────────────────────────────────────────────┘")
+    /// Legacy check - now checks SMAppService status
+    func isDaemonInstalled() -> Bool {
+        return isHelperRegistered
+    }
 
-        // Check if daemon is installed
-        if !isDaemonInstalled() {
-            log.info("Daemon not installed - starting installation flow")
-            installAndStartMonitoring()
-            return
-        }
+    /// Legacy check - now checks XPC connection
+    func isDaemonVersionCompatible() -> Bool {
+        // In v2.0, version is always compatible since helper is bundled
+        return isHelperRegistered
+    }
 
-        // Check daemon version compatibility
-        if !isDaemonVersionCompatible() {
-            let installedVersion = getDaemonVersion() ?? "unknown"
-            log.warning("Version mismatch: installed=\(installedVersion), expected=\(Self.expectedDaemonVersion)")
+    // MARK: - XPC Connection Management
 
+    /// Connect to helper via XPC
+    private func connectXPC() {
+        log.debug("Connecting to XPC service: \(self.xpcServiceName)")
+
+        // Invalidate existing connection if any
+        xpcConnection?.invalidate()
+
+        let connection = NSXPCConnection(machServiceName: xpcServiceName, options: [])
+        connection.remoteObjectInterface = NSXPCInterface(with: AWDLHelperProtocol.self)
+
+        connection.interruptionHandler = { [weak self] in
+            log.warning("XPC connection interrupted")
             DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Daemon Update Required"
-                alert.informativeText = "The installed daemon (v\(installedVersion)) needs to be updated to v\(Self.expectedDaemonVersion).\n\nWould you like to update now?"
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "Update Now")
-                alert.addButton(withTitle: "Not Now")
-
-                if alert.runModal() == .alertFirstButtonReturn {
-                    self.installAndStartMonitoring()
-                }
+                self?.handleXPCDisconnect()
             }
-            return
         }
 
-        // Check if daemon is already loaded and running
-        if isDaemonLoaded() {
-            log.info("Daemon is already running")
-            isMonitoring = true
-            AWDLPreferences.shared.isMonitoringEnabled = true
-            onStateChange?()
-            return
+        connection.invalidationHandler = { [weak self] in
+            log.warning("XPC connection invalidated")
+            DispatchQueue.main.async {
+                self?.handleXPCDisconnect()
+            }
         }
 
-        log.info("Loading daemon...")
+        connection.activate()
+        xpcConnection = connection
 
-        // Load the daemon (requires password)
-        if loadDaemon() {
-            isMonitoring = true
-            AWDLPreferences.shared.isMonitoringEnabled = true
-            AWDLPreferences.shared.lastKnownState = "down"
-            onStateChange?()
-            log.info("✅ Daemon loaded successfully")
+        log.info("XPC connection activated")
+    }
+
+    /// Handle XPC disconnect
+    private func handleXPCDisconnect() {
+        xpcConnection = nil
+
+        // If we were monitoring, try to reconnect
+        if isMonitoring {
+            log.info("Attempting to reconnect XPC...")
+            connectXPC()
         } else {
-            log.error("❌ Failed to load daemon")
-            showError("Failed to start monitoring.\n\nPlease try again or reinstall the daemon.")
-        }
-    }
-
-    /// Stop monitoring by unloading the LaunchDaemon
-    func stopMonitoring() {
-        log.info("┌─────────────────────────────────────────────────────┐")
-        log.info("│ stopMonitoring() called                             │")
-        log.info("└─────────────────────────────────────────────────────┘")
-
-        // Check if daemon is actually loaded
-        if !isDaemonLoaded() {
-            log.info("Daemon is not running - nothing to stop")
             isMonitoring = false
-            AWDLPreferences.shared.isMonitoringEnabled = false
-            AWDLPreferences.shared.lastKnownState = "up"
             onStateChange?()
-            return
-        }
-
-        log.info("Unloading daemon...")
-
-        if unloadDaemon() {
-            isMonitoring = false
-            AWDLPreferences.shared.isMonitoringEnabled = false
-            AWDLPreferences.shared.lastKnownState = "up"
-            onStateChange?()
-            log.info("✅ Daemon unloaded - AWDL available for AirDrop/Handoff")
-        } else {
-            log.error("❌ Failed to unload daemon")
-            showError("Failed to stop monitoring.\n\nPlease try again.")
         }
     }
 
-    /// Perform a health check on the daemon
-    func performHealthCheck() -> (isHealthy: Bool, message: String) {
-        log.info("Performing health check...")
-
-        // Check 1: Is daemon installed?
-        guard isDaemonInstalled() else {
-            log.info("Health check: Daemon not installed")
-            return (false, "Daemon not installed")
+    /// Get the helper proxy for making XPC calls
+    private func getHelperProxy() -> AWDLHelperProtocol? {
+        guard let connection = xpcConnection else {
+            log.warning("No XPC connection available")
+            return nil
         }
 
-        // Check 2: Is version compatible?
-        guard isDaemonVersionCompatible() else {
-            let version = getDaemonVersion() ?? "unknown"
-            log.info("Health check: Version mismatch (\(version) vs \(Self.expectedDaemonVersion))")
-            return (false, "Version mismatch: installed \(version), expected \(Self.expectedDaemonVersion)")
-        }
-
-        // Check 3: Is daemon process running?
-        guard isDaemonLoaded() else {
-            log.info("Health check: Daemon not running")
-            return (false, "Daemon process not running")
-        }
-
-        // Check 4: Check if AWDL is actually down (the daemon's job)
-        let awdlStatus = getAWDLStatus()
-        log.debug("AWDL status: \(awdlStatus)")
-
-        if awdlStatus.contains("UP") {
-            log.warning("Health check: AWDL is UP despite daemon running")
-            return (false, "Daemon running but AWDL is UP - daemon may not be functioning")
-        }
-
-        let message = "Daemon healthy: v\(getDaemonVersion() ?? "?"), AWDL kept down"
-        log.info("Health check: \(message)")
-        return (true, message)
+        return connection.remoteObjectProxy as? AWDLHelperProtocol
     }
 
-    // MARK: - Private Methods
+    // MARK: - Registration Polling
 
-    /// Check if daemon is currently loaded - Check for actual running process
-    private func isDaemonLoaded() -> Bool {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        task.arguments = ["-x", "awdl_monitor_daemon"]
-        task.standardOutput = Pipe()
-        task.standardError = Pipe()
+    /// Poll for registration status change
+    private func startPollingForRegistration(completion: ((Bool) -> Void)?) {
+        log.debug("Starting registration polling...")
 
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let isRunning = (task.terminationStatus == 0)
-            log.debug("isDaemonLoaded: \(isRunning)")
-            return isRunning
-        } catch {
-            log.error("Error checking daemon process: \(error.localizedDescription)")
-            return false
-        }
-    }
-
-    /// Run a shell script with administrator privileges
-    private func runPrivilegedScript(_ script: String, description: String) -> Bool {
-        log.info("Running privileged script: \(description)")
-        log.debug("Script content:\n\(script)")
-
-        let appleScript = """
-        do shell script "\(script.replacingOccurrences(of: "\"", with: "\\\"").replacingOccurrences(of: "\n", with: "\n"))" with administrator privileges
-        """
-
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        task.arguments = ["-e", appleScript]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-
-        do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-
-            log.debug("Script exit code: \(task.terminationStatus)")
-            if !output.isEmpty {
-                log.debug("Script output: \(output)")
+        registrationTimer?.invalidate()
+        registrationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
             }
 
-            return task.terminationStatus == 0
-        } catch {
-            log.error("Script execution error: \(error.localizedDescription)")
-            return false
-        }
-    }
+            let status = self.helperService.status
+            log.debug("Polling: status = \(self.statusDescription(status))")
 
-    /// Load the LaunchDaemon
-    private func loadDaemon() -> Bool {
-        log.info("Loading daemon (requires admin password)...")
+            switch status {
+            case .enabled:
+                timer.invalidate()
+                self.registrationTimer = nil
+                log.info("✅ Helper registration approved")
+                self.connectXPC()
+                completion?(true)
 
-        let script = "launchctl bootstrap system '\(daemonPlistPath)'"
-        let success = runPrivilegedScript(script, description: "Load daemon")
+            case .notRegistered:
+                timer.invalidate()
+                self.registrationTimer = nil
+                log.info("❌ Helper registration denied")
+                completion?(false)
 
-        if success {
-            return waitForDaemonState(running: true, timeout: 3.0)
-        }
-        return false
-    }
+            case .requiresApproval, .notFound:
+                // Keep polling
+                break
 
-    /// Unload the LaunchDaemon
-    private func unloadDaemon() -> Bool {
-        log.info("Unloading daemon (requires admin password)...")
-
-        let script = "launchctl bootout system/\(daemonLabel)"
-        let success = runPrivilegedScript(script, description: "Unload daemon")
-
-        if success {
-            return waitForDaemonState(running: false, timeout: 3.0)
-        }
-        return false
-    }
-
-    /// Wait for daemon to reach expected state with timeout
-    /// Uses RunLoop to avoid completely blocking the main thread
-    private func waitForDaemonState(running: Bool, timeout: TimeInterval) -> Bool {
-        log.debug("Waiting for daemon state: running=\(running), timeout=\(timeout)s")
-
-        let startTime = Date()
-        let checkInterval: TimeInterval = 0.1
-
-        while Date().timeIntervalSince(startTime) < timeout {
-            if isDaemonLoaded() == running {
-                let elapsed = Date().timeIntervalSince(startTime)
-                log.debug("Daemon reached expected state in \(String(format: "%.2f", elapsed))s")
-                return true
+            @unknown default:
+                break
             }
-            // Use RunLoop instead of Thread.sleep to allow event processing
-            RunLoop.current.run(until: Date(timeIntervalSinceNow: checkInterval))
         }
-
-        log.warning("Timeout waiting for daemon state (expected running=\(running))")
-        return isDaemonLoaded() == running
     }
 
-    /// Get current AWDL interface status
-    private func getAWDLStatus() -> String {
+    // MARK: - Helper Methods
+
+    /// Get human-readable status description
+    private func statusDescription(_ status: SMAppService.Status) -> String {
+        switch status {
+        case .notRegistered: return "Not Registered"
+        case .enabled: return "Enabled"
+        case .requiresApproval: return "Requires Approval"
+        case .notFound: return "Not Found"
+        @unknown default: return "Unknown"
+        }
+    }
+
+    /// Get current AWDL interface status via ifconfig
+    private func getAWDLInterfaceStatus() -> String {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/sbin/ifconfig")
         task.arguments = ["awdl0"]
@@ -464,6 +493,22 @@ class AWDLMonitor {
         } catch {
             log.error("Error getting AWDL status: \(error.localizedDescription)")
             return "Error: \(error.localizedDescription)"
+        }
+    }
+
+    /// Run ifconfig to bring AWDL up or down (for testing only)
+    private func runIfconfig(up: Bool) {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/sbin/ifconfig")
+        task.arguments = ["awdl0", up ? "up" : "down"]
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+        } catch {
+            log.error("Error running ifconfig: \(error.localizedDescription)")
         }
     }
 

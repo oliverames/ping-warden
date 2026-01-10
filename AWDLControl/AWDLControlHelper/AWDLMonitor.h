@@ -1,0 +1,30 @@
+//
+//  AWDLMonitor.h
+//  AWDLControlHelper
+//
+//  Monitors AWDL interface state using AF_ROUTE socket.
+//  Based on james-howard/AWDLControl and jamestut/awdlkiller.
+//
+
+#import <Foundation/Foundation.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+/// Monitors and controls the AWDL (awdl0) network interface.
+/// Uses AF_ROUTE socket for kernel-level monitoring with <1ms response time.
+/// When awdlEnabled is NO, any attempt by the system to bring awdl0 UP
+/// is immediately countered by bringing it back DOWN.
+@interface AWDLMonitor : NSObject
+
+/// When YES, AWDL is allowed to be up (normal operation).
+/// When NO, AWDL is kept down (blocking mode).
+/// Setting this property immediately applies the desired state.
+@property (nonatomic) BOOL awdlEnabled;
+
+/// Stop the monitoring thread and cleanup all resources.
+/// Should be called before the helper exits.
+- (void)invalidate;
+
+@end
+
+NS_ASSUME_NONNULL_END

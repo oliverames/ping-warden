@@ -1,31 +1,17 @@
 #!/bin/bash
 set -e
 
-echo "🔨 Building AWDLControl..."
+echo "🔨 Building Ping Warden v2.0..."
 echo ""
 
-# Build C daemon
-echo "📦 Building C daemon..."
-cd AWDLControl/AWDLMonitorDaemon
-make clean > /dev/null 2>&1 || true
-make
-cd ../..
-echo "✅ Daemon built successfully"
-echo ""
-
-# Build Swift app
-echo "📱 Building Swift app..."
-
-# Note: Building without code signing. Control Center widget requires code signing
-# to work. To enable signing, open the project in Xcode and configure signing there.
-echo "⚠️  Building without code signing (Control Center widget will not be available)"
-echo "   To enable: Open project in Xcode → Signing & Capabilities → Select your team"
-
+# Build all targets
+echo "📱 Building app and helper..."
 # Temporarily disable set -e to handle xcodebuild failure gracefully
 set +e
 xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
            -target AWDLControl \
            -target AWDLControlWidget \
+           -target AWDLControlHelper \
            -configuration Release \
            clean build \
            CODE_SIGN_IDENTITY="" \
@@ -36,31 +22,81 @@ XCODE_EXIT=$?
 set -e
 
 if [ $XCODE_EXIT -eq 0 ]; then
-    echo "✅ App built successfully"
+    echo "✅ Build succeeded"
     echo ""
 
-    # Copy daemon binary to app bundle Resources
-    echo "📦 Bundling daemon binary..."
-    RESOURCES_DIR="AWDLControl/build/Release/AWDLControl.app/Contents/Resources"
-    cp AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon "$RESOURCES_DIR/"
-    chmod 755 "$RESOURCES_DIR/awdl_monitor_daemon"
-    echo "✅ Daemon binary bundled"
+    APP_BUNDLE="AWDLControl/build/Release/Ping Warden.app"
+    HELPER_BINARY="AWDLControl/build/Release/AWDLControlHelper"
+    HELPER_PLIST="AWDLControl/AWDLControlHelper/com.awdlcontrol.helper.plist"
+
+    # Bundle helper binary into app
+    echo "📦 Bundling helper..."
+    if [ -f "$HELPER_BINARY" ]; then
+        cp "$HELPER_BINARY" "$APP_BUNDLE/Contents/MacOS/"
+        chmod 755 "$APP_BUNDLE/Contents/MacOS/AWDLControlHelper"
+        echo "   ✅ Helper binary copied to Contents/MacOS/"
+    else
+        echo "   ❌ Helper binary not found at $HELPER_BINARY"
+        exit 1
+    fi
+
+    # Bundle helper plist for SMAppService
+    echo "📦 Bundling helper plist..."
+    mkdir -p "$APP_BUNDLE/Contents/Library/LaunchDaemons"
+    if [ -f "$HELPER_PLIST" ]; then
+        cp "$HELPER_PLIST" "$APP_BUNDLE/Contents/Library/LaunchDaemons/"
+        echo "   ✅ Helper plist copied to Contents/Library/LaunchDaemons/"
+    else
+        echo "   ❌ Helper plist not found at $HELPER_PLIST"
+        exit 1
+    fi
+
     echo ""
 
-    # Verify bundle contents
-    echo "📋 Bundle contents:"
-    ls -la "$RESOURCES_DIR/"
-    echo ""
+    # Verify bundle structure
+    echo "📋 Verifying bundle structure..."
+    MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
+    DAEMON_DIR="$APP_BUNDLE/Contents/Library/LaunchDaemons"
 
-    echo "📍 Built app location:"
-    echo "   AWDLControl/build/Release/AWDLControl.app"
+    echo "   Contents/MacOS:"
+    ls -la "$MACOS_DIR" | grep -E "Ping Warden|Helper" || true
+
+    echo "   Contents/Library/LaunchDaemons:"
+    ls -la "$DAEMON_DIR" 2>/dev/null || echo "   (directory missing)"
+
+    # Verify required files exist
+    if [ ! -f "$MACOS_DIR/Ping Warden" ]; then
+        echo "   ❌ Main app binary missing!"
+        exit 1
+    fi
+    if [ ! -f "$MACOS_DIR/AWDLControlHelper" ]; then
+        echo "   ❌ Helper binary missing!"
+        exit 1
+    fi
+    if [ ! -f "$DAEMON_DIR/com.awdlcontrol.helper.plist" ]; then
+        echo "   ❌ Helper plist missing!"
+        exit 1
+    fi
+
     echo ""
-    echo "📋 Next steps:"
-    echo "   1. Copy to Applications: cp -r AWDLControl/build/Release/AWDLControl.app /Applications/"
-    echo "   2. Launch AWDLControl.app"
-    echo "   3. Click 'Set Up Now' when prompted"
+    echo "✅ Build complete!"
+    echo ""
+    echo "📍 App location:"
+    echo "   $APP_BUNDLE"
+    echo ""
+    echo "📋 To install:"
+    echo "   cp -r \"$APP_BUNDLE\" /Applications/"
+    echo ""
+    echo "📋 First launch:"
+    echo "   1. Open Ping Warden.app"
+    echo "   2. Click 'Set Up Now' when prompted"
+    echo "   3. Approve in System Settings → Login Items (one-time)"
+    echo ""
+    echo "🎉 No more password prompts after initial setup!"
 else
     echo "❌ Build failed. Check /tmp/xcodebuild.log for details"
+    echo ""
+    echo "Last 50 lines of build log:"
     tail -50 /tmp/xcodebuild.log
     exit 1
 fi

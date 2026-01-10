@@ -20,6 +20,13 @@
 			remoteGlobalIDString = WidgetTarget;
 			remoteInfo = AWDLControlWidget;
 		};
+		HelperProxy /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = RootObject /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = HelperTarget;
+			remoteInfo = AWDLControlHelper;
+		};
 		WidgetProxy /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = RootObject /* Project object */;
@@ -38,6 +45,26 @@
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
+		};
+		CopyHelperBinary /* Copy Helper Binary */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+			);
+			name = "Copy Helper Binary";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CopyHelperPlist /* Copy Helper Plist */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "Library/LaunchDaemons";
+			dstSubfolderSpec = 1;
+			files = (
+			);
+			name = "Copy Helper Plist";
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		WidgetEmbed /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -70,6 +97,11 @@
 		AppGroup /* AWDLControl */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AWDLControl;
+			sourceTree = "<group>";
+		};
+		CommonGroup /* Common */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Common;
 			sourceTree = "<group>";
 		};
 		HelperGroup /* AWDLControlHelper */ = {
@@ -144,6 +176,7 @@
 				AppGroup /* AWDLControl */,
 				WidgetGroup /* AWDLControlWidget */,
 				HelperGroup /* AWDLControlHelper */,
+				CommonGroup /* Common */,
 				81865E1F2EAEC91800AB80D3 /* AWDLHelper */,
 				ProductsGroup /* Products */,
 				FrameworksGroup /* Frameworks */,
@@ -183,12 +216,15 @@
 				AppFrameworks /* Frameworks */,
 				AppResources /* Resources */,
 				WidgetEmbed /* Embed Foundation Extensions */,
+				CopyHelperBinary /* Copy Helper Binary */,
+				CopyHelperPlist /* Copy Helper Plist */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				WidgetDep /* PBXTargetDependency */,
 				815E03192EAEA562006913A8 /* PBXTargetDependency */,
+				HelperDep /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				AppGroup /* AWDLControl */,
@@ -213,6 +249,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				HelperGroup /* AWDLControlHelper */,
+				CommonGroup /* Common */,
 			);
 			name = AWDLControlHelper;
 			packageProductDependencies = (
@@ -343,6 +380,11 @@
 			target = WidgetTarget /* AWDLControlWidget */;
 			targetProxy = 815E03182EAEA562006913A8 /* PBXContainerItemProxy */;
 		};
+		HelperDep /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = HelperTarget /* AWDLControlHelper */;
+			targetProxy = HelperProxy /* PBXContainerItemProxy */;
+		};
 		WidgetDep /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = WidgetTarget /* AWDLControlWidget */;
@@ -405,7 +447,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Ping Warden";
 				REGISTER_APP_GROUPS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "AWDLControl/AWDLControl-Bridging-Header.h";
@@ -437,7 +479,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Ping Warden";
 				REGISTER_APP_GROUPS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "AWDLControl/AWDLControl-Bridging-Header.h";
@@ -452,9 +494,9 @@
 				DEAD_CODE_STRIPPING = YES;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				INFOPLIST_FILE = AWDLControlHelper/Info.plist;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.helper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -465,9 +507,9 @@
 				DEAD_CODE_STRIPPING = YES;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				INFOPLIST_FILE = AWDLControlHelper/Info.plist;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.helper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};

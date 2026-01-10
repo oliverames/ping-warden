@@ -1,21 +1,24 @@
 # CLAUDE.md
 
-Development guide for AWDLControl - a macOS menu bar app that disables AWDL to eliminate network latency spikes during gaming and video calls.
+Development guide for Ping Warden (internally AWDLControl) - a macOS menu bar app that disables AWDL to eliminate network latency spikes during gaming and video calls.
 
 ## Quick Start
 
 ```bash
 ./build.sh
-cp -r AWDLControl/build/Release/AWDLControl.app /Applications/
+cp -r "AWDLControl/build/Release/Ping Warden.app" /Applications/
 ```
+
+On first launch: Click "Set Up Now" and approve in System Settings (one-time).
 
 ## Project Overview
 
-AWDLControl keeps AWDL (Apple Wireless Direct Link) disabled with <1ms response time and 0% CPU when idle. AWDL powers AirDrop/AirPlay/Handoff but causes 100-300ms ping spikes.
+Ping Warden keeps AWDL (Apple Wireless Direct Link) disabled with <1ms response time and 0% CPU when idle. AWDL powers AirDrop/AirPlay/Handoff but causes 100-300ms ping spikes.
 
 **Trade-off**: While active, AirDrop/AirPlay/Handoff won't work.
 
 Based on [awdlkiller](https://github.com/jamestut/awdlkiller) by jamestut.
+SMAppService + XPC architecture inspired by [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl).
 
 ## Features
 
@@ -25,50 +28,80 @@ Based on [awdlkiller](https://github.com/jamestut/awdlkiller) by jamestut.
 - **Launch at Login**: Start automatically when you log in
 - **Show/Hide Dock Icon**: Choose your preferred app visibility
 
-## Architecture
+## Architecture (v2.0)
 
 | Component | Language | Purpose |
 |-----------|----------|---------|
-| `awdl_monitor_daemon` | C | AF_ROUTE socket monitoring, ioctl() interface control |
-| `AWDLControl.app` | Swift/SwiftUI | Menu bar UI, settings, daemon lifecycle management |
+| `AWDLControlHelper` | Objective-C | AF_ROUTE socket monitoring, ioctl() interface control |
+| `AWDLControl.app` | Swift/SwiftUI | Menu bar UI, settings, helper lifecycle via SMAppService |
 | `AWDLControlWidget` | Swift/WidgetKit | Control Center widget for quick toggle |
 | `GameModeDetector` | Swift | Monitors for fullscreen apps to detect Game Mode |
 
+### v2.0 Key Changes
+
+- **No password prompts**: Uses SMAppService for one-time system approval
+- **Helper bundled inside app**: Clean uninstall by dragging to Trash
+- **XPC communication**: App talks to helper via Mach services
+- **Helper exits with app**: AWDL automatically restored when you quit
+
 ### Why This Architecture?
 
-- **C daemon**: Swift cannot efficiently use AF_ROUTE sockets. The daemon uses `poll()` with infinite timeout for true 0% CPU when idle.
-- **Swift app**: Manages daemon via `launchctl`, provides native macOS UI.
+- **Obj-C helper**: Swift cannot efficiently use AF_ROUTE sockets. The helper uses `poll()` with infinite timeout for true 0% CPU when idle.
+- **SMAppService**: Modern macOS API that registers bundled helpers as LaunchDaemons with user approval (no sudo/password).
+- **XPC**: Secure inter-process communication via Mach services.
 - **Widget**: Uses App Groups (`group.com.awdlcontrol.app`) to share state with main app.
 
 ### How It Works
 
-1. Daemon creates AF_ROUTE socket to receive kernel routing messages
-2. On `RTM_IFINFO` for `awdl0`, checks if interface is UP
-3. If UP, immediately clears `IFF_UP` flag via `ioctl(SIOCSIFFLAGS)`
-4. Response time: <1ms (kernel-level event-driven)
+1. App registers helper via `SMAppService.daemon(plistName:)`
+2. User approves once in System Settings → Login Items
+3. macOS starts helper as LaunchDaemon (bundled plist)
+4. App communicates with helper via XPC (`com.awdlcontrol.xpc.helper`)
+5. Helper creates AF_ROUTE socket to receive kernel routing messages
+6. On `RTM_IFINFO` for `awdl0`, checks if interface is UP
+7. If UP, immediately clears `IFF_UP` flag via `ioctl(SIOCSIFFLAGS)`
+8. Response time: <1ms (kernel-level event-driven)
+9. When app quits, helper exits and AWDL is restored
 
 ## Directory Structure
 
 ```
 AWDLControl/
 ├── AWDLControl.xcodeproj/      # Xcode project
+├── Common/                      # Shared between app and helper
+│   └── HelperProtocol.h        # XPC protocol definition
 ├── AWDLControl/                 # Main app target
 │   ├── AWDLControlApp.swift    # App entry, menu bar, AppDelegate
-│   ├── AWDLMonitor.swift       # Daemon lifecycle (install/start/stop)
+│   ├── AWDLMonitor.swift       # Helper lifecycle (SMAppService + XPC)
 │   ├── AWDLPreferences.swift   # Shared state via App Groups
 │   ├── Info.plist              # App metadata, version
-│   ├── Resources/
-│   │   ├── install_daemon.sh   # Privileged installation script
-│   │   └── com.awdlcontrol.daemon.plist  # LaunchDaemon config
+│   ├── AWDLControl-Bridging-Header.h  # Imports HelperProtocol.h
 │   └── Assets.xcassets/        # App icons
-├── AWDLControlWidget/          # Control Center widget
-│   ├── AWDLControlWidget.swift # Widget UI
-│   ├── AWDLToggleIntent.swift  # Toggle action intent
-│   └── AWDLPreferences.swift   # Shared preferences (duplicated)
-└── AWDLMonitorDaemon/          # C daemon
-    ├── awdl_monitor_daemon.c   # Main daemon source
-    ├── Makefile                # Build config
-    └── com.awdlcontrol.daemon.plist  # LaunchDaemon template
+├── AWDLControlHelper/          # Obj-C helper daemon
+│   ├── main.m                  # XPC listener entry point
+│   ├── AWDLMonitor.h           # Monitor interface
+│   ├── AWDLMonitor.m           # AF_ROUTE monitoring, ioctl control
+│   ├── Info.plist              # Helper bundle info
+│   └── com.awdlcontrol.helper.plist  # SMAppService daemon config
+└── AWDLControlWidget/          # Control Center widget
+    ├── AWDLControlWidget.swift # Widget UI
+    ├── AWDLToggleIntent.swift  # Toggle action intent
+    └── AWDLPreferences.swift   # Shared preferences (duplicated)
+```
+
+### App Bundle Structure (after build)
+
+```
+AWDLControl.app/
+├── Contents/
+│   ├── MacOS/
+│   │   ├── AWDLControl          # Main app binary
+│   │   └── AWDLControlHelper    # Helper binary (copied by build.sh)
+│   ├── Library/
+│   │   └── LaunchDaemons/
+│   │       └── com.awdlcontrol.helper.plist  # SMAppService config
+│   ├── Info.plist
+│   └── Resources/
 ```
 
 ## Build
@@ -80,72 +113,60 @@ AWDLControl/
 ```
 
 This:
-1. Builds C daemon with `make`
-2. Builds Swift app + widget with `xcodebuild`
-3. Bundles daemon binary into app's Resources
-
-### Component Builds
-
-```bash
-# C daemon only
-cd AWDLControl/AWDLMonitorDaemon
-make clean && make
-
-# Swift app only (assumes daemon already built)
-xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
-           -target AWDLControl \
-           -target AWDLControlWidget \
-           -configuration Release \
-           CODE_SIGN_IDENTITY="" \
-           CODE_SIGNING_REQUIRED=NO \
-           CODE_SIGNING_ALLOWED=NO
-```
+1. Builds Swift app + widget + helper with `xcodebuild`
+2. Copies helper binary to `Contents/MacOS/`
+3. Copies helper plist to `Contents/Library/LaunchDaemons/`
+4. Verifies bundle structure
 
 ### Build Output
 
 - App: `AWDLControl/build/Release/AWDLControl.app`
-- Daemon binary: `AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon`
+- Helper (standalone): `AWDLControl/build/Release/AWDLControlHelper`
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `AWDLMonitorDaemon/awdl_monitor_daemon.c` | Core daemon - AF_ROUTE monitoring, ioctl control |
+| `Common/HelperProtocol.h` | XPC protocol shared between app and helper |
+| `AWDLControlHelper/main.m` | XPC listener, connection management |
+| `AWDLControlHelper/AWDLMonitor.m` | Core AF_ROUTE monitoring, ioctl control |
 | `AWDLControl/AWDLControlApp.swift` | Menu bar UI, first-launch setup, all menu actions |
-| `AWDLControl/AWDLMonitor.swift` | Daemon install/start/stop/health-check via launchctl |
+| `AWDLControl/AWDLMonitor.swift` | SMAppService registration, XPC communication |
 | `AWDLControl/AWDLPreferences.swift` | App Groups shared state between app and widget |
-| `AWDLControl/Resources/install_daemon.sh` | Privileged install (called via osascript) |
 
-## Version Synchronization
+## XPC Protocol
 
-**CRITICAL**: These three locations must have matching versions:
+Defined in `Common/HelperProtocol.h`:
 
-| Location | Variable/Key |
-|----------|-------------|
-| `AWDLMonitorDaemon/awdl_monitor_daemon.c` | `#define DAEMON_VERSION "1.0.0"` |
-| `AWDLControl/AWDLMonitor.swift` | `static let expectedDaemonVersion = "1.0.0"` |
-| `AWDLControl/Info.plist` | `CFBundleShortVersionString`, `CFBundleVersion` |
+```objc
+@protocol AWDLHelperProtocol <NSObject>
+- (void)isAWDLEnabledWithReply:(void (^)(BOOL enabled))reply;
+- (void)setAWDLEnabled:(BOOL)enable withReply:(void (^)(BOOL success))reply;
+- (void)getAWDLStatusWithReply:(void (^)(NSString *status))reply;
+- (void)getVersionWithReply:(void (^)(NSString *version))reply;
+@end
+```
 
-The app checks version compatibility before starting the daemon and prompts for update if mismatched.
+Swift calls these via `NSXPCConnection` to the Mach service `com.awdlcontrol.xpc.helper`.
 
 ## Testing
 
-### Check Daemon Status
+### Check Helper Status
 
 ```bash
-# Is daemon process running?
-pgrep -x awdl_monitor_daemon
+# Is helper process running?
+pgrep -x AWDLControlHelper
 
 # Is AWDL interface down?
 ifconfig awdl0 | grep flags    # Should show DOWN, not UP
 
-# Get daemon version
-/usr/local/bin/awdl_monitor_daemon --version
+# Check SMAppService registration
+# (No direct CLI - check System Settings → Login Items)
 ```
 
 ### Response Time Test (from app menu)
 
-The "Test Daemon" menu item runs:
+Settings → Advanced → Test Daemon runs:
 ```bash
 for i in 1 2 3 4 5; do
     ifconfig awdl0 up
@@ -154,16 +175,7 @@ for i in 1 2 3 4 5; do
 done
 ```
 
-### LaunchDaemon Status
-
-```bash
-# Check if daemon is loaded
-sudo launchctl list | grep awdlcontrol
-
-# Manual load/unload
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
-sudo launchctl bootout system/com.awdlcontrol.daemon
-```
+All iterations should pass, indicating <1ms response time.
 
 ## Logging
 
@@ -179,57 +191,64 @@ log stream --predicate 'subsystem == "com.awdlcontrol.app" AND category == "Moni
 
 Categories:
 - `App` - App lifecycle, UI events
-- `Monitor` - Daemon control operations
+- `Monitor` - XPC communication, SMAppService operations
 - `Settings` - Settings changes
 - `GameMode` - Game Mode detection events
 - `Performance` - Signpost intervals for timing
 
-### Daemon Logs (syslog)
+### Helper Logs
 
 ```bash
-# Recent daemon logs
-log show --predicate 'process == "awdl_monitor_daemon"' --last 1h
-
-# Stream daemon logs
-log stream --predicate 'process == "awdl_monitor_daemon"'
+# Stream helper logs
+log stream --predicate 'subsystem == "com.awdlcontrol.helper"'
 ```
 
-## Installation Paths
+## Installation
 
-| Component | Path |
-|-----------|------|
-| Daemon binary | `/usr/local/bin/awdl_monitor_daemon` (setuid root) |
-| LaunchDaemon plist | `/Library/LaunchDaemons/com.awdlcontrol.daemon.plist` |
-| App | `/Applications/AWDLControl.app` |
+The helper is bundled inside the app. On first launch:
+
+1. App calls `SMAppService.daemon(plistName:).register()`
+2. macOS prompts user to approve in System Settings → Login Items
+3. Once approved, macOS starts the helper as a LaunchDaemon
+4. App connects via XPC and sends commands
+
+No files are installed outside the app bundle.
 
 ## Uninstall
 
-From menu bar: **Uninstall Everything**
+Simply **drag Ping Warden.app to the Trash**. macOS automatically removes the SMAppService registration.
 
-Or manually:
-```bash
-sudo launchctl bootout system/com.awdlcontrol.daemon
-sudo rm -f /usr/local/bin/awdl_monitor_daemon
-sudo rm -f /Library/LaunchDaemons/com.awdlcontrol.daemon.plist
-rm -rf /Applications/AWDLControl.app
-```
+Or from the app: Settings → Advanced → Uninstall
 
 ## CI/CD
 
 GitHub Actions workflow (`.github/workflows/build.yml`):
 - Runs on: `macos-14` with Xcode 16
-- Builds C daemon and Swift app
+- Builds app, widget, and helper
 - Verifies build artifacts exist
 
 ## Code Patterns
 
-### Privileged Operations
+### SMAppService Registration
 
-All privileged operations use osascript with `administrator privileges`:
 ```swift
-let appleScript = """
-do shell script "..." with administrator privileges
-"""
+let helperService = SMAppService.daemon(plistName: "com.awdlcontrol.helper.plist")
+try helperService.register()
+// User approves in System Settings
+// Then helperService.status == .enabled
+```
+
+### XPC Communication
+
+```swift
+let connection = NSXPCConnection(machServiceName: "com.awdlcontrol.xpc.helper", options: [])
+connection.remoteObjectInterface = NSXPCInterface(with: AWDLHelperProtocol.self)
+connection.activate()
+
+let proxy = connection.remoteObjectProxy as? AWDLHelperProtocol
+proxy?.setAWDLEnabled(false) { success in
+    // AWDL is now disabled
+}
 ```
 
 ### State Synchronization
@@ -244,28 +263,36 @@ Changes trigger `NSNotification`:
 NotificationCenter.default.post(name: .awdlMonitoringStateChanged, object: nil)
 ```
 
-### Daemon Health Check
+### Helper Health Check
 
 `AWDLMonitor.performHealthCheck()` verifies:
-1. Daemon binary exists
-2. Version matches expected
-3. Process is running
-4. AWDL interface is actually DOWN
+1. Helper is registered with SMAppService
+2. XPC connection is active
+3. Helper responds to status queries
+4. AWDL interface is actually DOWN (when monitoring)
 
 ## Requirements
 
-- macOS 26.0+ (Tahoe)
-- Xcode 26.0+ (for building)
+- macOS 13.0+ (Ventura or later)
+- Xcode 16.0+ (for building)
 
 ## Common Issues
 
-### Daemon not starting
-- Check Console.app for errors
-- Verify `/usr/local/bin/awdl_monitor_daemon` has setuid bit: `ls -la` should show `-rwsr-xr-x`
+### Helper not starting
+- Check System Settings → Login Items for AWDLControl
+- Try "Re-register Helper" from Settings → Advanced
+- Check Console.app for XPC errors
 
-### Version mismatch warning
-- Rebuild and reinstall: `./build.sh` then "Reinstall Daemon" from menu
+### "Requires Approval" status persists
+- Open System Settings → Login Items
+- Toggle AWDLControl off then on
+- Restart the app
 
 ### AWDL still showing UP
-- Verify daemon is running: `pgrep -x awdl_monitor_daemon`
-- Check daemon logs for errors
+- Verify helper is running: `pgrep -x AWDLControlHelper`
+- Check XPC connection in app logs
+- Try toggling monitoring off then on
+
+### App shows "Helper not responding"
+- Quit and relaunch the app
+- If persists, use "Re-register Helper" in settings

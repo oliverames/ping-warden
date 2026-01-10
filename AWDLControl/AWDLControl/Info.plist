@@ -7,13 +7,15 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>AWDLControl</string>
+    <string>Ping Warden</string>
+    <key>CFBundleDisplayName</key>
+    <string>Ping Warden</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleVersion</key>
-    <string>1.0.0</string>
+    <string>2.0.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>2.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
