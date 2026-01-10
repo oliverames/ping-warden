@@ -54,14 +54,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             setupMenuBar()
         }
 
-        // Check if this is first launch (daemon not installed)
-        if !monitor.isDaemonInstalled() {
-            log.info("First launch detected - daemon not installed")
+        // Check if this is first launch (helper not registered)
+        if !monitor.isHelperRegistered {
+            log.info("First launch detected - helper not registered")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.showWelcomeWindow()
             }
         } else {
-            log.info("Daemon already installed")
+            log.info("Helper already registered")
             if AWDLPreferences.shared.isMonitoringEnabled && !monitor.isMonitoringActive {
                 monitor.startMonitoring()
             }
@@ -375,10 +375,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
               let statusItem = menu.items.first(where: { $0.tag == 100 }) else { return }
 
         let isMonitoring = AWDLMonitor.shared.isMonitoringActive
-        let installed = AWDLMonitor.shared.isDaemonInstalled()
+        let installed = AWDLMonitor.shared.isHelperRegistered
 
         if !installed {
-            statusItem.title = "Status: Not Installed"
+            statusItem.title = "Status: Not Set Up"
         } else if isMonitoring {
             statusItem.title = "Status: Blocking AWDL"
         } else {
@@ -790,7 +790,7 @@ struct SettingsSectionHeader: View {
 
 struct GeneralSettingsContent: View {
     @State private var isMonitoring = AWDLMonitor.shared.isMonitoringActive
-    @State private var isDaemonInstalled = AWDLMonitor.shared.isDaemonInstalled()
+    @State private var isHelperRegistered = AWDLMonitor.shared.isHelperRegistered
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var showDockIcon = AWDLPreferences.shared.showDockIcon
     @State private var timer: Timer?
@@ -812,7 +812,7 @@ struct GeneralSettingsContent: View {
                     ))
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .disabled(!isDaemonInstalled)
+                    .disabled(!isHelperRegistered)
                 }
 
                 SettingsDivider()
@@ -871,7 +871,7 @@ struct GeneralSettingsContent: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
 
-                    Text("Ping Warden uses a modern system daemon that requires only a one-time approval in System Settings. The daemon runs while the app is open and automatically restores AWDL when you quit.")
+                    Text("Ping Warden uses a background helper that requires only a one-time approval in System Settings. The helper runs while the app is open and automatically restores AWDL when you quit.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -882,7 +882,7 @@ struct GeneralSettingsContent: View {
         .onAppear {
             timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 isMonitoring = AWDLMonitor.shared.isMonitoringActive
-                isDaemonInstalled = AWDLMonitor.shared.isDaemonInstalled()
+                isHelperRegistered = AWDLMonitor.shared.isHelperRegistered
             }
         }
         .onDisappear {
@@ -891,12 +891,12 @@ struct GeneralSettingsContent: View {
     }
 
     private var statusColor: Color {
-        if !isDaemonInstalled { return .gray }
+        if !isHelperRegistered { return .gray }
         return isMonitoring ? .green : .orange
     }
 
     private var statusText: String {
-        if !isDaemonInstalled { return "Not Installed" }
+        if !isHelperRegistered { return "Not Set Up" }
         return isMonitoring ? "Blocking AWDL" : "AWDL Allowed"
     }
 }
@@ -1009,7 +1009,7 @@ struct AdvancedSettingsContent: View {
             SettingsGroup {
                 SettingsRow("Test Helper Response", description: "Verify the helper is responding quickly") {
                     Button("Run Test") {
-                        runDaemonTest()
+                        runHelperTest()
                     }
                     .buttonStyle(.bordered)
                 }
@@ -1076,7 +1076,7 @@ struct AdvancedSettingsContent: View {
         }
     }
 
-    private func runDaemonTest() {
+    private func runHelperTest() {
         let healthCheck = AWDLMonitor.shared.performHealthCheck()
 
         if !healthCheck.isHealthy {
@@ -1086,7 +1086,7 @@ struct AdvancedSettingsContent: View {
         }
 
         let testScript = """
-        echo "Testing AWDL daemon response time..."
+        echo "Testing AWDL helper response time..."
         for i in 1 2 3 4 5; do
             ifconfig awdl0 up 2>/dev/null
             sleep 0.001

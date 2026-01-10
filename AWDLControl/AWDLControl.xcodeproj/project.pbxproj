@@ -46,26 +46,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
-		CopyHelperBinary /* Copy Helper Binary */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 6;
-			files = (
-			);
-			name = "Copy Helper Binary";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		CopyHelperPlist /* Copy Helper Plist */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "Library/LaunchDaemons";
-			dstSubfolderSpec = 1;
-			files = (
-			);
-			name = "Copy Helper Plist";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		WidgetEmbed /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -81,12 +61,29 @@
 
 /* Begin PBXFileReference section */
 		81865E1E2EAEC91800AB80D3 /* AWDLHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = AWDLHelper; sourceTree = BUILT_PRODUCTS_DIR; };
-		AppRef /* AWDLControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AWDLControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AppRef /* AWDLControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = AWDLControl.app; path = "Ping Warden.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		HelperRef /* AWDLControlHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = AWDLControlHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		SwiftUIRef /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		WidgetKitRef /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		WidgetRef /* AWDLControlWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AWDLControlWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8144F2982F11D84B005F44A0 /* Exceptions for "AWDLControl" folder in "AWDLControl" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = AppTarget /* AWDLControl */;
+		};
+		8144F2992F11D84B005F44A0 /* Exceptions for "AWDLControlWidget" folder in "AWDLControlWidget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = WidgetTarget /* AWDLControlWidget */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		81865E1F2EAEC91800AB80D3 /* AWDLHelper */ = {
@@ -96,6 +93,9 @@
 		};
 		AppGroup /* AWDLControl */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8144F2982F11D84B005F44A0 /* Exceptions for "AWDLControl" folder in "AWDLControl" target */,
+			);
 			path = AWDLControl;
 			sourceTree = "<group>";
 		};
@@ -111,6 +111,9 @@
 		};
 		WidgetGroup /* AWDLControlWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8144F2992F11D84B005F44A0 /* Exceptions for "AWDLControlWidget" folder in "AWDLControlWidget" target */,
+			);
 			path = AWDLControlWidget;
 			sourceTree = "<group>";
 		};
@@ -248,8 +251,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				HelperGroup /* AWDLControlHelper */,
 				CommonGroup /* Common */,
+				HelperGroup /* AWDLControlHelper */,
 			);
 			name = AWDLControlHelper;
 			packageProductDependencies = (
@@ -288,7 +291,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1600;
-				LastUpgradeCheck = 2600;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					81865E1D2EAEC91800AB80D3 = {
 						CreatedOnToolsVersion = 26.0.1;
@@ -343,6 +346,41 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		CopyHelperBinary /* Copy Helper Binary */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/AWDLControlHelper",
+			);
+			name = "Copy Helper Binary";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/AWDLControlHelper",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "cp \"${BUILT_PRODUCTS_DIR}/AWDLControlHelper\" \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/\"\nchmod 755 \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/MacOS/AWDLControlHelper\"\n";
+		};
+		CopyHelperPlist /* Copy Helper Plist */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/AWDLControlHelper/com.awdlcontrol.helper.plist",
+			);
+			name = "Copy Helper Plist";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchDaemons/com.awdlcontrol.helper.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "mkdir -p \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchDaemons\"\ncp \"${SRCROOT}/AWDLControlHelper/com.awdlcontrol.helper.plist\" \"${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchDaemons/\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		81865E1A2EAEC91800AB80D3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -396,7 +434,7 @@
 		81865E232EAEC91800AB80D3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_IDENTITY = "Apple Development: oliver@amesvt.com (Y3Z79XM83W)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -411,7 +449,7 @@
 		81865E242EAEC91800AB80D3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_IDENTITY = "Apple Development: oliver@amesvt.com (Y3Z79XM83W)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -491,8 +529,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				DEAD_CODE_STRIPPING = YES;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
 				INFOPLIST_FILE = AWDLControlHelper/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.helper;
@@ -504,8 +543,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				DEAD_CODE_STRIPPING = YES;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = PV3W52NDZ3;
 				INFOPLIST_FILE = AWDLControlHelper/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.helper;

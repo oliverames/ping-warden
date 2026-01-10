@@ -290,9 +290,9 @@ class AWDLMonitor {
         return (true, message)
     }
 
-    /// Test the daemon response time (for Testing Mode feature)
-    func testDaemonResponseTime(iterations: Int = 5, completion: @escaping ([(passed: Bool, responseTime: TimeInterval)]) -> Void) {
-        log.info("Testing daemon response time (\(iterations) iterations)...")
+    /// Test the helper response time (for Testing Mode feature)
+    func testHelperResponseTime(iterations: Int = 5, completion: @escaping ([(passed: Bool, responseTime: TimeInterval)]) -> Void) {
+        log.info("Testing helper response time (\(iterations) iterations)...")
 
         var results: [(passed: Bool, responseTime: TimeInterval)] = []
 
@@ -306,7 +306,7 @@ class AWDLMonitor {
                 // Small delay for system to process
                 Thread.sleep(forTimeInterval: 0.001)
 
-                // Check if AWDL is still down (daemon should have caught it)
+                // Check if AWDL is still down (helper should have caught it)
                 let status = self.getAWDLInterfaceStatus()
                 let endTime = Date()
 

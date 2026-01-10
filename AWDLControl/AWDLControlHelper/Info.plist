@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundlePackageType</key>
-	<string>XPC!</string>
+	<string>BNDL</string>
 	<key>CFBundleExecutable</key>
 	<string>AWDLControlHelper</string>
 	<key>LSMinimumSystemVersion</key>
