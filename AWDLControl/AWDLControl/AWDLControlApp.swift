@@ -1243,7 +1243,10 @@ struct AboutView: View {
 
 // MARK: - Game Mode Detector
 
-/// Detects when macOS Game Mode is active by monitoring for fullscreen apps
+/// Detects when macOS Game Mode is active by monitoring for fullscreen games.
+/// Only apps that are categorized as games (via LSApplicationCategoryType or LSSupportsGameMode
+/// in their Info.plist) will trigger game mode detection, preventing false positives from
+/// non-game fullscreen apps like productivity apps or browsers.
 class GameModeDetector {
     private var timer: Timer?
     private var isGameModeActive = false
@@ -1316,18 +1319,62 @@ class GameModeDetector {
 
             // Check if window covers the full screen
             if windowFrame.width >= screenFrame.width && windowFrame.height >= screenFrame.height {
-                // Get owner name to filter out system apps
-                if let ownerName = window[kCGWindowOwnerName as String] as? String {
-                    // Skip system apps that commonly go fullscreen
-                    let systemApps = ["Finder", "Dock", "Window Server", "SystemUIServer", "Control Center", "Notification Center"]
-                    if systemApps.contains(ownerName) {
-                        continue
-                    }
+                // Get owner name and PID
+                guard let ownerName = window[kCGWindowOwnerName as String] as? String,
+                      let ownerPID = window[kCGWindowOwnerPID as String] as? pid_t else {
+                    continue
+                }
 
-                    log.debug("Fullscreen app detected: \(ownerName)")
+                // Skip system apps that commonly go fullscreen
+                let systemApps = ["Finder", "Dock", "Window Server", "SystemUIServer", "Control Center", "Notification Center"]
+                if systemApps.contains(ownerName) {
+                    continue
+                }
+
+                // Check if this app is marked as a game
+                if isAppAGame(pid: ownerPID) {
+                    log.debug("Fullscreen game detected: \(ownerName)")
                     return true
+                } else {
+                    log.debug("Fullscreen app '\(ownerName)' is not a game, ignoring")
                 }
             }
+        }
+
+        return false
+    }
+
+    /// Checks if an app is categorized as a game by examining its Info.plist
+    /// Returns true if:
+    /// - LSApplicationCategoryType == "public.app-category.games"
+    /// - OR LSSupportsGameMode == true
+    private func isAppAGame(pid: pid_t) -> Bool {
+        // Get the running application from PID
+        guard let app = NSRunningApplication(processIdentifier: pid),
+              let bundleURL = app.bundleURL else {
+            log.debug("Could not get bundle for PID \(pid)")
+            return false
+        }
+
+        // Load the bundle to access Info.plist
+        guard let bundle = Bundle(url: bundleURL),
+              let infoPlist = bundle.infoDictionary else {
+            log.debug("Could not load Info.plist for bundle: \(bundleURL.lastPathComponent)")
+            return false
+        }
+
+        // Check LSApplicationCategoryType for game category
+        if let categoryType = infoPlist["LSApplicationCategoryType"] as? String {
+            if categoryType == "public.app-category.games" {
+                log.debug("App \(bundleURL.lastPathComponent) has game category")
+                return true
+            }
+        }
+
+        // Check LSSupportsGameMode flag
+        if let supportsGameMode = infoPlist["LSSupportsGameMode"] as? Bool, supportsGameMode {
+            log.debug("App \(bundleURL.lastPathComponent) supports Game Mode")
+            return true
         }
 
         return false
