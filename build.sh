@@ -71,17 +71,35 @@ fi
 
 echo ""
 
-# Build all targets with proper signing
-echo "📱 Building app, widget, and helper..."
+# Check for macOS 26 SDK (required for Control Center widget)
+echo "🔍 Checking for macOS 26 SDK (widget requirement)..."
+MACOS26_SDK=$(xcodebuild -showsdks 2>/dev/null | grep -o "macosx26\.[0-9]*" | head -1 || true)
+if [ -n "$MACOS26_SDK" ]; then
+    echo "   ✅ macOS 26 SDK found ($MACOS26_SDK) - widget will be built"
+    BUILD_WIDGET=true
+else
+    echo "   ℹ️  macOS 26 SDK not found - widget will be skipped"
+    echo "      (Control Center widget requires Xcode 26+ with macOS 26 SDK)"
+    BUILD_WIDGET=false
+fi
+
+echo ""
+
+# Build targets with proper signing
+if [ "$BUILD_WIDGET" = true ]; then
+    echo "📱 Building app, widget, and helper..."
+    BUILD_TARGETS="-target AWDLControl -target AWDLControlWidget -target AWDLControlHelper"
+else
+    echo "📱 Building app and helper (widget skipped - requires macOS 26 SDK)..."
+    BUILD_TARGETS="-target AWDLControl -target AWDLControlHelper"
+fi
 
 # Use tee to capture output while showing progress, handle signals properly
 BUILD_LOG="/tmp/xcodebuild.log"
 trap 'echo ""; echo "Build interrupted. Log saved to $BUILD_LOG"; exit 130' INT TERM
 
 xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
-           -target AWDLControl \
-           -target AWDLControlWidget \
-           -target AWDLControlHelper \
+           $BUILD_TARGETS \
            -configuration Release \
            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
            CODE_SIGN_STYLE=Automatic \
@@ -168,6 +186,11 @@ if [ $XCODE_EXIT -eq 0 ]; then
 
     echo ""
     echo "✅ Build complete!"
+    if [ "$BUILD_WIDGET" = true ]; then
+        echo "   (App, Widget, and Helper built successfully)"
+    else
+        echo "   (App and Helper built - Widget skipped, requires macOS 26 SDK)"
+    fi
     echo ""
     echo "📍 App location:"
     echo "   $APP_BUNDLE"
