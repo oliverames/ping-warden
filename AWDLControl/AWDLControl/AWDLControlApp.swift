@@ -651,11 +651,10 @@ class SettingsSplitViewController: NSSplitViewController {
         let newDetailController = NSHostingController(rootView: newDetailView)
 
         // Remove old detail view item first, then add new one
-        // Capture the item reference to avoid potential TOCTOU race
-        let items = splitViewItems
-        if items.count > 1 {
-            let itemToRemove = items[1]
-            removeSplitViewItem(itemToRemove)
+        // Use safe iteration to find and remove the detail item
+        // This ensures we don't access an invalid index
+        while splitViewItems.count > 1 {
+            removeSplitViewItem(splitViewItems[1])
         }
 
         // Update the reference
@@ -783,6 +782,8 @@ struct SettingsRow<Content: View>: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(description != nil ? "\(title), \(description!)" : title)
     }
 }
 

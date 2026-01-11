@@ -65,6 +65,9 @@ class AWDLMonitor {
     private var _registrationAttempts = 0
     private let maxRegistrationAttempts = 3
 
+    /// Flag to prevent re-entrant XPC invalidation handling
+    private var _isHandlingInvalidation = false
+
     /// Thread-safe access to XPC connection
     private var xpcConnection: NSXPCConnection? {
         get {
@@ -158,9 +161,43 @@ class AWDLMonitor {
         return helperService.status
     }
 
-    /// Check if monitoring is currently active
+    /// Check if monitoring is currently active (thread-safe)
     var isMonitoringActive: Bool {
-        return isMonitoring && xpcConnection != nil
+        stateLock.lock()
+        let active = _isMonitoring && _xpcConnection != nil
+        stateLock.unlock()
+        return active
+    }
+
+    /// Validate that the helper binary and plist exist in the app bundle
+    private func validateHelperBundle() -> (valid: Bool, error: String?) {
+        guard let appBundle = Bundle.main.bundlePath as String? else {
+            return (false, "Could not determine app bundle path")
+        }
+
+        let helperBinaryPath = "\(appBundle)/Contents/MacOS/AWDLControlHelper"
+        let helperPlistPath = "\(appBundle)/Contents/Library/LaunchDaemons/\(helperPlistName)"
+
+        let fileManager = FileManager.default
+
+        if !fileManager.fileExists(atPath: helperBinaryPath) {
+            log.error("Helper binary not found at: \(helperBinaryPath)")
+            return (false, "Helper binary not found in app bundle.\n\nPlease reinstall the app.")
+        }
+
+        if !fileManager.fileExists(atPath: helperPlistPath) {
+            log.error("Helper plist not found at: \(helperPlistPath)")
+            return (false, "Helper configuration not found in app bundle.\n\nPlease reinstall the app.")
+        }
+
+        // Verify binary is executable
+        if !fileManager.isExecutableFile(atPath: helperBinaryPath) {
+            log.error("Helper binary is not executable: \(helperBinaryPath)")
+            return (false, "Helper binary is not executable.\n\nPlease reinstall the app.")
+        }
+
+        log.debug("Helper bundle validation passed")
+        return (true, nil)
     }
 
     /// Register helper with SMAppService
@@ -169,6 +206,17 @@ class AWDLMonitor {
         log.info("┌─────────────────────────────────────────────────────┐")
         log.info("│ registerHelper() called                             │")
         log.info("└─────────────────────────────────────────────────────┘")
+
+        // Validate helper bundle before attempting registration
+        let validation = validateHelperBundle()
+        if !validation.valid {
+            log.error("Helper bundle validation failed: \(validation.error ?? "unknown")")
+            DispatchQueue.main.async { [weak self] in
+                self?.showError(validation.error ?? "Helper bundle validation failed")
+            }
+            completion?(false)
+            return
+        }
 
         let signpostID = signposter.makeSignpostID()
         let state = signposter.beginInterval("RegisterHelper", id: signpostID)
@@ -520,6 +568,34 @@ class AWDLMonitor {
         xpcRetryCount = 0
 
         log.info("XPC connection activated")
+
+        // Validate connection by attempting a simple query with timeout
+        validateXPCConnection()
+    }
+
+    /// Validate XPC connection is actually working
+    private func validateXPCConnection() {
+        guard let proxy = getHelperProxy() else {
+            log.warning("XPC validation: No proxy available")
+            return
+        }
+
+        let validationSemaphore = DispatchSemaphore(value: 0)
+        var isValid = false
+
+        proxy.getVersion(reply: { version in
+            isValid = !version.isEmpty
+            validationSemaphore.signal()
+        })
+
+        // Wait up to 2 seconds for validation
+        if validationSemaphore.wait(timeout: .now() + 2.0) == .timedOut {
+            log.warning("XPC validation: Connection timeout - helper may not be running")
+        } else if isValid {
+            log.debug("XPC validation: Connection verified successfully")
+        } else {
+            log.warning("XPC validation: Invalid response from helper")
+        }
     }
 
     /// Handle XPC interruption (temporary disconnect)
@@ -530,10 +606,23 @@ class AWDLMonitor {
 
     /// Handle XPC invalidation (permanent disconnect)
     private func handleXPCInvalidation() {
+        // Prevent re-entrant handling
         stateLock.lock()
+        if _isHandlingInvalidation {
+            stateLock.unlock()
+            log.debug("Already handling XPC invalidation, skipping")
+            return
+        }
+        _isHandlingInvalidation = true
         _xpcConnection = nil
         let wasMonitoring = _isMonitoring
         stateLock.unlock()
+
+        defer {
+            stateLock.lock()
+            _isHandlingInvalidation = false
+            stateLock.unlock()
+        }
 
         // If we were monitoring, try to reconnect with exponential backoff
         if wasMonitoring {
