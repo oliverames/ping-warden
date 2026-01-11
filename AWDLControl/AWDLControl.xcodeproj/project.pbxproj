@@ -699,14 +699,14 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
+				INFOPLIST_KEY_CFBundleDisplayName = "Ping Warden";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -731,14 +731,14 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AWDLControlWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "AWDL Control";
+				INFOPLIST_KEY_CFBundleDisplayName = "Ping Warden";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 2.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.awdlcontrol.app.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";

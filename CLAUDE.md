@@ -274,6 +274,7 @@ NotificationCenter.default.post(name: .awdlMonitoringStateChanged, object: nil)
 ## Requirements
 
 - macOS 13.0+ (Ventura or later)
+- macOS 26.0+ (Tahoe or later) for Control Center Widget
 - Xcode 16.0+ (for building)
 
 ## Common Issues

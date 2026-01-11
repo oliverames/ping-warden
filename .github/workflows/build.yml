@@ -41,8 +41,9 @@ jobs:
     - name: Build App (verification only)
       run: |
         echo "Building AWDLControl app..."
-        # Note: Widget is skipped in CI as it requires App Groups entitlement
-        # which needs a valid signing certificate
+        # Note: Widget is skipped in CI because:
+        # 1. It requires App Groups entitlement which needs a valid signing certificate
+        # 2. ControlWidget requires macOS 26.0+ (Tahoe) SDK for third-party Control Center controls
         xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
                    -target AWDLControl \
                    -configuration Release \
