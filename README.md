@@ -108,7 +108,7 @@ When enabled, Ping Warden automatically activates AWDL blocking when it detects 
 ## Requirements
 
 - macOS 13.0+ (Ventura or later)
-- macOS 14.0+ (Sonoma or later) for Control Center Widget
+- macOS 26.0+ (Tahoe or later) for Control Center Widget
 - Xcode 16.0+ (for building)
 
 > **Tip**: For the best app icon rendering, build from Xcode IDE rather than the command-line script. Xcode properly processes Icon Composer `.icon` files.
