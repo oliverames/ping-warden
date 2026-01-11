@@ -1304,9 +1304,13 @@ struct AboutView: View {
 /// Only apps that are categorized as games (via LSApplicationCategoryType or LSSupportsGameMode
 /// in their Info.plist) will trigger game mode detection, preventing false positives from
 /// non-game fullscreen apps like productivity apps or browsers.
+///
+/// Note: This feature requires Screen Recording permission on macOS 10.15+.
+/// Without this permission, CGWindowListCopyWindowInfo won't return window names or owner info.
 class GameModeDetector {
     private var timer: Timer?
     private var isGameModeActive = false
+    private var hasLoggedPermissionWarning = false
     private let log = Logger(subsystem: "com.awdlcontrol.app", category: "GameMode")
 
     var onGameModeChange: ((Bool) -> Void)?
@@ -1322,6 +1326,16 @@ class GameModeDetector {
                 self?.start()
             }
             return
+        }
+
+        // Check for Screen Recording permission on first start
+        if !hasScreenRecordingPermission() {
+            log.warning("Screen Recording permission not granted - Game Mode detection may not work correctly")
+            if !hasLoggedPermissionWarning {
+                hasLoggedPermissionWarning = true
+                // Only show alert once per app session
+                showScreenRecordingPermissionAlert()
+            }
         }
 
         // Check immediately
@@ -1345,6 +1359,53 @@ class GameModeDetector {
         if isGameModeActive {
             isGameModeActive = false
             onGameModeChange?(false)
+        }
+    }
+
+    /// Check if Screen Recording permission is granted
+    /// CGWindowListCopyWindowInfo requires this permission on macOS 10.15+ to get window names
+    private func hasScreenRecordingPermission() -> Bool {
+        // Create a small 1x1 capture to test if we have permission
+        // This is the most reliable way to check Screen Recording permission
+        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
+            return false
+        }
+
+        // If we can get window names, we have permission
+        // Without permission, window names will be nil or empty
+        for window in windowList {
+            if let ownerName = window[kCGWindowOwnerName as String] as? String,
+               !ownerName.isEmpty,
+               ownerName != "Window Server" {
+                return true
+            }
+        }
+
+        // If we only see Window Server or no names, we likely don't have permission
+        // However, this could also be a legitimate state (no windows), so we do an additional check
+        // Try to get process info which doesn't require permission
+        return windowList.contains { window in
+            (window[kCGWindowOwnerPID as String] as? pid_t) != nil
+        }
+    }
+
+    /// Show alert explaining Screen Recording permission is needed
+    private func showScreenRecordingPermissionAlert() {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = "Screen Recording Permission Needed"
+            alert.informativeText = "Game Mode auto-detect requires Screen Recording permission to detect fullscreen games.\n\nGrant access in System Settings → Privacy & Security → Screen Recording."
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "Open Settings")
+            alert.addButton(withTitle: "Later")
+
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                // Open System Preferences/Settings to Screen Recording
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
         }
     }
 
