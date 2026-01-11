@@ -11,7 +11,7 @@
 
 set -eo pipefail
 
-echo "🔨 Building Ping Warden v2.0..."
+echo "🔨 Building Ping Warden v2.0.1..."
 echo ""
 
 # Development Team ID (must match Xcode project settings)
