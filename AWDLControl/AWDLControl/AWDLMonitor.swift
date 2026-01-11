@@ -1,3 +1,13 @@
+//
+//  AWDLMonitor.swift
+//  AWDLControl
+//
+//  Controls the AWDL helper daemon via SMAppService and XPC.
+//
+//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Licensed under the MIT License.
+//
+
 import Foundation
 import AppKit
 import ServiceManagement
@@ -26,6 +36,15 @@ class AWDLMonitor {
 
     /// Plist filename for SMAppService - must match file in Contents/Library/LaunchDaemons/
     private let helperPlistName = "com.awdlcontrol.helper.plist"
+
+    /// Maximum time to wait for registration approval (60 seconds)
+    private let registrationTimeoutSeconds: TimeInterval = 60.0
+
+    /// Maximum XPC connection retry attempts
+    private let maxXPCRetries = 3
+
+    /// Current XPC retry count
+    private var xpcRetryCount = 0
 
     /// SMAppService instance for the helper daemon
     private lazy var helperService: SMAppService = {
@@ -94,9 +113,12 @@ class AWDLMonitor {
     /// Timer for polling registration status
     private var registrationTimer: Timer?
 
+    /// Timer for registration timeout
+    private var registrationTimeoutTimer: Timer?
+
     private init() {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log.info("AWDLMonitor v2.0 initializing (SMAppService + XPC)...")
+        log.info("AWDLMonitor v2.0.1 initializing (SMAppService + XPC)...")
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         let status = helperService.status
@@ -234,9 +256,9 @@ class AWDLMonitor {
             return
         }
 
-        // Ensure XPC connection
+        // Ensure XPC connection with retry
         if xpcConnection == nil {
-            connectXPC()
+            connectXPCWithRetry()
         }
 
         // Send command to disable AWDL
@@ -272,7 +294,9 @@ class AWDLMonitor {
 
         guard let proxy = getHelperProxy() else {
             log.warning("No helper proxy - updating state anyway")
-            isMonitoring = false
+            stateLock.lock()
+            _isMonitoring = false
+            stateLock.unlock()
             AWDLPreferences.shared.isMonitoringEnabled = false
             AWDLPreferences.shared.lastKnownState = "up"
             onStateChange?()
@@ -284,7 +308,9 @@ class AWDLMonitor {
         proxy.setAWDLEnabled(true, reply: { success in
             DispatchQueue.main.async {
                 if success {
-                    self.isMonitoring = false
+                    self.stateLock.lock()
+                    self._isMonitoring = false
+                    self.stateLock.unlock()
                     AWDLPreferences.shared.isMonitoringEnabled = false
                     AWDLPreferences.shared.lastKnownState = "up"
                     self.onStateChange?()
@@ -450,46 +476,83 @@ class AWDLMonitor {
 
     // MARK: - XPC Connection Management
 
+    /// Connect to helper via XPC with retry logic
+    private func connectXPCWithRetry() {
+        xpcRetryCount = 0
+        connectXPC()
+    }
+
     /// Connect to helper via XPC
     private func connectXPC() {
         log.debug("Connecting to XPC service: \(self.xpcServiceName)")
 
         // Invalidate existing connection if any
-        xpcConnection?.invalidate()
+        stateLock.lock()
+        _xpcConnection?.invalidate()
+        stateLock.unlock()
 
+        // Use .privileged for daemon registered via SMAppService
+        // This is required because the daemon runs as root
         let connection = NSXPCConnection(machServiceName: xpcServiceName, options: .privileged)
         connection.remoteObjectInterface = NSXPCInterface(with: AWDLHelperProtocol.self)
 
         connection.interruptionHandler = { [weak self] in
             log.warning("XPC connection interrupted")
             DispatchQueue.main.async {
-                self?.handleXPCDisconnect()
+                self?.handleXPCInterruption()
             }
         }
 
         connection.invalidationHandler = { [weak self] in
             log.warning("XPC connection invalidated")
             DispatchQueue.main.async {
-                self?.handleXPCDisconnect()
+                self?.handleXPCInvalidation()
             }
         }
 
         connection.activate()
-        xpcConnection = connection
+
+        stateLock.lock()
+        _xpcConnection = connection
+        stateLock.unlock()
+
+        // Reset retry count on successful activation
+        xpcRetryCount = 0
 
         log.info("XPC connection activated")
     }
 
-    /// Handle XPC disconnect
-    private func handleXPCDisconnect() {
-        xpcConnection = nil
+    /// Handle XPC interruption (temporary disconnect)
+    private func handleXPCInterruption() {
+        // Interruption is recoverable - the connection can be resumed
+        log.info("XPC interruption - connection may recover automatically")
+    }
 
-        // If we were monitoring, try to reconnect
-        if isMonitoring {
-            log.info("Attempting to reconnect XPC...")
-            connectXPC()
+    /// Handle XPC invalidation (permanent disconnect)
+    private func handleXPCInvalidation() {
+        stateLock.lock()
+        _xpcConnection = nil
+        let wasMonitoring = _isMonitoring
+        stateLock.unlock()
+
+        // If we were monitoring, try to reconnect with exponential backoff
+        if wasMonitoring {
+            xpcRetryCount += 1
+            if xpcRetryCount <= maxXPCRetries {
+                let delay = pow(2.0, Double(xpcRetryCount - 1)) // 1s, 2s, 4s
+                log.info("Attempting XPC reconnect in \(delay)s (attempt \(xpcRetryCount)/\(maxXPCRetries))")
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    self?.connectXPC()
+                }
+            } else {
+                log.error("Max XPC retry attempts exceeded")
+                stateLock.lock()
+                _isMonitoring = false
+                stateLock.unlock()
+                onStateChange?()
+                showError("Lost connection to helper.\n\nPlease restart the app.")
+            }
         } else {
-            isMonitoring = false
             onStateChange?()
         }
     }
@@ -510,18 +573,36 @@ class AWDLMonitor {
         return xpc.remoteObjectProxyWithErrorHandler { error in
             log.error("XPC proxy error: \(error.localizedDescription)")
             DispatchQueue.main.async { [weak self] in
-                self?.handleXPCDisconnect()
+                self?.handleXPCInvalidation()
             }
         } as? AWDLHelperProtocol
     }
 
     // MARK: - Registration Polling
 
-    /// Poll for registration status change
+    /// Poll for registration status change with timeout
     private func startPollingForRegistration(completion: ((Bool) -> Void)?) {
-        log.debug("Starting registration polling...")
+        log.debug("Starting registration polling (timeout: \(registrationTimeoutSeconds)s)...")
 
+        // Cancel any existing timers
         registrationTimer?.invalidate()
+        registrationTimeoutTimer?.invalidate()
+
+        // Set up timeout timer
+        registrationTimeoutTimer = Timer.scheduledTimer(withTimeInterval: registrationTimeoutSeconds, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            log.warning("Registration polling timed out after \(self.registrationTimeoutSeconds)s")
+            self.registrationTimer?.invalidate()
+            self.registrationTimer = nil
+            self.registrationTimeoutTimer = nil
+
+            DispatchQueue.main.async {
+                self.showError("Registration timed out.\n\nPlease approve the helper in System Settings → Login Items and try again.")
+            }
+            completion?(false)
+        }
+
+        // Set up polling timer
         registrationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
@@ -535,6 +616,8 @@ class AWDLMonitor {
             case .enabled:
                 timer.invalidate()
                 self.registrationTimer = nil
+                self.registrationTimeoutTimer?.invalidate()
+                self.registrationTimeoutTimer = nil
                 log.info("✅ Helper registration approved")
                 self.connectXPC()
                 completion?(true)
@@ -542,6 +625,8 @@ class AWDLMonitor {
             case .notRegistered:
                 timer.invalidate()
                 self.registrationTimer = nil
+                self.registrationTimeoutTimer?.invalidate()
+                self.registrationTimeoutTimer = nil
                 log.info("❌ Helper registration denied")
                 completion?(false)
 

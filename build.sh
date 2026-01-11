@@ -1,5 +1,15 @@
 #!/bin/bash
-set -e
+#
+# build.sh
+# Ping Warden (AWDLControl)
+#
+# Build script for the app, widget, and helper.
+#
+# Copyright (c) 2025 Oliver Ames. All rights reserved.
+# Licensed under the MIT License.
+#
+
+set -eo pipefail
 
 echo "🔨 Building Ping Warden v2.0..."
 echo ""
@@ -7,16 +17,46 @@ echo ""
 # Development Team ID (must match Xcode project settings)
 DEVELOPMENT_TEAM="PV3W52NDZ3"
 
+# Expected team ID in project file (for validation)
+PROJECT_FILE="AWDLControl/AWDLControl.xcodeproj/project.pbxproj"
+
+# Validate team ID matches project
+echo "🔍 Validating build configuration..."
+if [ -f "$PROJECT_FILE" ]; then
+    PROJECT_TEAM=$(grep -o 'DEVELOPMENT_TEAM = [^;]*' "$PROJECT_FILE" | head -1 | cut -d'"' -f2 | tr -d '=; ')
+    if [ -n "$PROJECT_TEAM" ] && [ "$PROJECT_TEAM" != "$DEVELOPMENT_TEAM" ]; then
+        echo "   ⚠️  Warning: DEVELOPMENT_TEAM mismatch"
+        echo "      Script: $DEVELOPMENT_TEAM"
+        echo "      Project: $PROJECT_TEAM"
+        echo "      Using project value..."
+        DEVELOPMENT_TEAM="$PROJECT_TEAM"
+    else
+        echo "   ✅ DEVELOPMENT_TEAM validated: $DEVELOPMENT_TEAM"
+    fi
+fi
+
 # Check if we can find a valid signing identity
+# Use exact pattern matching to avoid substring matches
 echo "🔍 Checking for Developer ID certificate..."
-if security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+AVAILABLE_CERTS=$(security find-identity -v -p codesigning 2>/dev/null || true)
+
+# First try to find an exact "Developer ID Application" certificate (not expired)
+if echo "$AVAILABLE_CERTS" | grep -E "\"Developer ID Application: [^\"]+\"$" | grep -v "CSSMERR" > /dev/null 2>&1; then
     SIGNING_IDENTITY="Developer ID Application"
     echo "   ✅ Found Developer ID Application certificate"
-elif security find-identity -v -p codesigning | grep -q "Apple Development"; then
+# Fall back to Apple Development
+elif echo "$AVAILABLE_CERTS" | grep -E "\"Apple Development: [^\"]+\"$" | grep -v "CSSMERR" > /dev/null 2>&1; then
     SIGNING_IDENTITY="Apple Development"
     echo "   ✅ Found Apple Development certificate"
+# Last resort: any development certificate
+elif echo "$AVAILABLE_CERTS" | grep -E "\"[^\"]+Development[^\"]+\"$" | grep -v "CSSMERR" > /dev/null 2>&1; then
+    SIGNING_IDENTITY=$(echo "$AVAILABLE_CERTS" | grep -E "\"[^\"]+Development[^\"]+\"$" | grep -v "CSSMERR" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+    echo "   ✅ Found certificate: $SIGNING_IDENTITY"
 else
     echo "   ❌ No valid signing certificate found!"
+    echo ""
+    echo "   Available certificates:"
+    echo "$AVAILABLE_CERTS" | grep -v "^$" | head -10 || echo "   (none)"
     echo ""
     echo "   To build this app, you need either:"
     echo "   - A Developer ID Application certificate (for distribution)"
@@ -30,6 +70,11 @@ echo ""
 
 # Build all targets with proper signing
 echo "📱 Building app, widget, and helper..."
+
+# Use tee to capture output while showing progress, handle signals properly
+BUILD_LOG="/tmp/xcodebuild.log"
+trap 'echo ""; echo "Build interrupted. Log saved to $BUILD_LOG"; exit 130' INT TERM
+
 xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
            -target AWDLControl \
            -target AWDLControlWidget \
@@ -37,12 +82,13 @@ xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
            -configuration Release \
            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
            CODE_SIGN_STYLE=Automatic \
-           clean build \
-           > /tmp/xcodebuild.log 2>&1
+           clean build 2>&1 | tee "$BUILD_LOG" | grep -E "^(Build|Compile|Sign|error:|warning:|===)" || true
 
-XCODE_EXIT=$?
+# Check the actual exit status from xcodebuild (not from grep)
+XCODE_EXIT=${PIPESTATUS[0]}
 
 if [ $XCODE_EXIT -eq 0 ]; then
+    echo ""
     echo "✅ Build succeeded"
     echo ""
 
@@ -83,7 +129,7 @@ if [ $XCODE_EXIT -eq 0 ]; then
     # Re-sign the app bundle after adding helper with proper Developer ID
     echo "🔏 Signing app bundle with $SIGNING_IDENTITY..."
     codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
-    echo "   ✅ App bundle signed with Developer ID"
+    echo "   ✅ App bundle signed"
 
     echo ""
 
@@ -132,9 +178,12 @@ if [ $XCODE_EXIT -eq 0 ]; then
     echo "   3. Approve in System Settings → Login Items (one-time)"
     echo ""
 else
-    echo "❌ Build failed. Check /tmp/xcodebuild.log for details"
+    echo ""
+    echo "❌ Build failed (exit code: $XCODE_EXIT)"
+    echo ""
+    echo "Build log saved to: $BUILD_LOG"
     echo ""
     echo "Last 50 lines of build log:"
-    tail -50 /tmp/xcodebuild.log
+    tail -50 "$BUILD_LOG"
     exit 1
 fi

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.awdlcontrol.helper.plist
+  SMAppService daemon configuration for AWDLControlHelper
+
+  Copyright (c) 2025 Oliver Ames. All rights reserved.
+  Licensed under the MIT License.
+-->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
@@ -11,6 +18,7 @@
 	<key>AssociatedBundleIdentifiers</key>
 	<array>
 		<string>com.awdlcontrol.app</string>
+		<string>com.awdlcontrol.app.widget</string>
 	</array>
 
 	<key>MachServices</key>
@@ -21,5 +29,16 @@
 
 	<key>RunAtLoad</key>
 	<true/>
+
+	<!-- Run as root to allow ioctl on network interfaces -->
+	<key>UserName</key>
+	<string>root</string>
+
+	<!-- Keep helper alive for responsive network control -->
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
 </dict>
 </plist>

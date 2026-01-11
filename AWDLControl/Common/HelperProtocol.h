@@ -5,6 +5,9 @@
 //  XPC protocol for communication between main app and privileged helper daemon.
 //  Based on james-howard/AWDLControl SMAppService architecture.
 //
+//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Licensed under the MIT License.
+//
 
 #import <Foundation/Foundation.h>
 
