@@ -3,43 +3,44 @@ set -e
 
 echo "🔨 Building Ping Warden v2.0..."
 echo ""
-echo "⚠️  Note: For proper app icon, build from Xcode IDE instead."
+
+# Development Team ID (must match Xcode project settings)
+DEVELOPMENT_TEAM="PV3W52NDZ3"
+
+# Check if we can find a valid signing identity
+echo "🔍 Checking for Developer ID certificate..."
+if security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+    SIGNING_IDENTITY="Developer ID Application"
+    echo "   ✅ Found Developer ID Application certificate"
+elif security find-identity -v -p codesigning | grep -q "Apple Development"; then
+    SIGNING_IDENTITY="Apple Development"
+    echo "   ✅ Found Apple Development certificate"
+else
+    echo "   ❌ No valid signing certificate found!"
+    echo ""
+    echo "   To build this app, you need either:"
+    echo "   - A Developer ID Application certificate (for distribution)"
+    echo "   - An Apple Development certificate (for local testing)"
+    echo ""
+    echo "   Please ensure you are signed into Xcode with your Apple Developer account."
+    exit 1
+fi
+
 echo ""
 
-# Build targets
-# Note: Widget requires Developer ID signing (App Groups entitlement)
-# For development/unsigned builds, we build app + helper only
-echo "📱 Building app and helper..."
-# Temporarily disable set -e to handle xcodebuild failure gracefully
-set +e
-
-# Try building all targets first (requires Developer ID for widget)
+# Build all targets with proper signing
+echo "📱 Building app, widget, and helper..."
 xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
            -target AWDLControl \
            -target AWDLControlWidget \
            -target AWDLControlHelper \
            -configuration Release \
+           DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+           CODE_SIGN_STYLE=Automatic \
            clean build \
            > /tmp/xcodebuild.log 2>&1
-XCODE_EXIT=$?
 
-# If full build fails (likely due to signing), try without widget but keep entitlements
-if [ $XCODE_EXIT -ne 0 ]; then
-    echo "   ⚠️  Full build failed, trying without widget (requires Developer ID)..."
-    # Note: We use ad-hoc signing (-) but preserve entitlements for SMAppService to work
-    # The entitlements file contains App Groups which is needed for preferences
-    xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
-               -target AWDLControl \
-               -target AWDLControlHelper \
-               -configuration Release \
-               clean build \
-               CODE_SIGN_IDENTITY="-" \
-               CODE_SIGNING_REQUIRED=NO \
-               CODE_SIGNING_ALLOWED=YES \
-               > /tmp/xcodebuild.log 2>&1
-    XCODE_EXIT=$?
-fi
-set -e
+XCODE_EXIT=$?
 
 if [ $XCODE_EXIT -eq 0 ]; then
     echo "✅ Build succeeded"
@@ -79,10 +80,10 @@ if [ $XCODE_EXIT -eq 0 ]; then
 
     echo ""
 
-    # Re-sign the app bundle after adding helper (important!)
-    echo "🔏 Signing app bundle..."
-    codesign --force --deep --sign - "$APP_BUNDLE"
-    echo "   ✅ App bundle signed with ad-hoc signature"
+    # Re-sign the app bundle after adding helper with proper Developer ID
+    echo "🔏 Signing app bundle with $SIGNING_IDENTITY..."
+    codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
+    echo "   ✅ App bundle signed with Developer ID"
 
     echo ""
 
@@ -114,7 +115,7 @@ if [ $XCODE_EXIT -eq 0 ]; then
     # Verify code signature
     echo ""
     echo "🔏 Verifying code signature..."
-    codesign -vvv "$APP_BUNDLE" 2>&1 | head -5 || echo "   ⚠️  Signature verification warning (ad-hoc is expected)"
+    codesign -dvvv "$APP_BUNDLE" 2>&1 | grep -E "Authority|Identifier|TeamIdentifier" || true
 
     echo ""
     echo "✅ Build complete!"
@@ -130,7 +131,6 @@ if [ $XCODE_EXIT -eq 0 ]; then
     echo "   2. Click 'Set Up Now' when prompted"
     echo "   3. Approve in System Settings → Login Items (one-time)"
     echo ""
-    echo "🎉 No more password prompts after initial setup!"
 else
     echo "❌ Build failed. Check /tmp/xcodebuild.log for details"
     echo ""

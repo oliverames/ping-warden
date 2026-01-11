@@ -55,18 +55,26 @@ cp -r "AWDLControl/build/Release/Ping Warden.app" /Applications/
 5. Click **Set Up Now** again if needed
 6. Done! No password prompts after initial setup.
 
-### Code Signing Note
+### Code Signing Requirement
 
-Ping Warden v2.0 uses SMAppService which requires code signing. The build script uses **ad-hoc signing** (`-`) which works for local development.
+Ping Warden v2.0 uses SMAppService which requires proper code signing. The build script automatically detects your Developer ID or Apple Development certificate and signs the app appropriately.
 
-When you first run the app, macOS may show security prompts because the app isn't signed with a Developer ID. This is expected for source builds.
+**Prerequisites:**
+- Apple Developer account signed into Xcode
+- Developer ID Application certificate (for distribution) OR
+- Apple Development certificate (for local testing)
 
-**For the best experience**, build from Xcode with your Apple Developer account:
+**Building from Xcode** (recommended):
 1. Open `AWDLControl/AWDLControl.xcodeproj` in Xcode
-2. Select your Team in Signing & Capabilities
+2. Verify your Team is selected in Signing & Capabilities for all targets
 3. Build and run (Cmd+R)
 
-> **Note**: Official code signing with a Developer ID certificate will be added in a future release for easier installation.
+**Building from command line:**
+```bash
+./build.sh  # Automatically uses your Developer ID certificate
+```
+
+> **Note**: The build script will fail if no valid signing certificate is found. Ensure you're signed into Xcode with your Apple Developer account.
 
 ## Usage
 

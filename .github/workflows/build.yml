@@ -1,10 +1,14 @@
-name: Build
+name: Build Verification
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
+# Note: This workflow verifies the code compiles but does not produce
+# a distributable app. For distribution builds, use build.sh on a Mac
+# with a valid Developer ID certificate installed.
 
 jobs:
   build:
@@ -20,38 +24,54 @@ jobs:
     - name: Show Xcode version
       run: xcodebuild -version
 
-    - name: Build Helper
+    - name: Build Helper (verification only)
       run: |
+        echo "Building AWDLControlHelper..."
         xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
                    -target AWDLControlHelper \
                    -configuration Release \
                    CODE_SIGN_IDENTITY="" \
                    CODE_SIGNING_REQUIRED=NO \
                    CODE_SIGNING_ALLOWED=NO \
+                   ONLY_ACTIVE_ARCH=NO \
                    -quiet
-        # Verify binary was created
+        echo "Helper binary built successfully"
         ls -la AWDLControl/build/Release/AWDLControlHelper
 
-    - name: Build Swift App and Widget
+    - name: Build App (verification only)
       run: |
+        echo "Building AWDLControl app..."
+        # Note: Widget is skipped in CI as it requires App Groups entitlement
+        # which needs a valid signing certificate
         xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
                    -target AWDLControl \
-                   -target AWDLControlWidget \
                    -configuration Release \
                    CODE_SIGN_IDENTITY="" \
                    CODE_SIGNING_REQUIRED=NO \
                    CODE_SIGNING_ALLOWED=NO \
+                   ONLY_ACTIVE_ARCH=NO \
                    -quiet
+        echo "App built successfully"
 
     - name: Verify Build Artifacts
       run: |
-        echo "Checking helper binary..."
+        echo "=== Build Verification Results ==="
+        echo ""
+
+        echo "Helper binary:"
         ls -la "AWDLControl/build/Release/AWDLControlHelper"
+        file "AWDLControl/build/Release/AWDLControlHelper"
+        echo ""
 
-        echo "Checking app bundle..."
-        ls -la "AWDLControl/build/Release/Ping Warden.app" || echo "App bundle not found at expected location"
+        echo "App bundle:"
+        ls -la "AWDLControl/build/Release/Ping Warden.app" || ls -la AWDLControl/build/Release/*.app
+        echo ""
 
-        echo "Checking widget extension..."
-        ls -la "AWDLControl/build/Release/Ping Warden.app/Contents/PlugIns/AWDLControlWidget.appex" 2>/dev/null || echo "Widget not embedded (expected for unsigned build)"
+        echo "App bundle contents:"
+        ls -la "AWDLControl/build/Release/Ping Warden.app/Contents/MacOS/" || true
+        echo ""
 
-        echo "Build completed successfully!"
+        echo "=== Build verification passed ==="
+        echo ""
+        echo "Note: This is a CI verification build without code signing."
+        echo "For a distributable app, build locally with a Developer ID certificate."
