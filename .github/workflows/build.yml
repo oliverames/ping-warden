@@ -20,17 +20,19 @@ jobs:
     - name: Show Xcode version
       run: xcodebuild -version
 
-    - name: Build C Daemon
+    - name: Build Helper
       run: |
-        cd AWDLControl/AWDLMonitorDaemon
-        make clean
-        make
+        xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
+                   -target AWDLControlHelper \
+                   -configuration Release \
+                   CODE_SIGN_IDENTITY="" \
+                   CODE_SIGNING_REQUIRED=NO \
+                   CODE_SIGNING_ALLOWED=NO \
+                   -quiet
         # Verify binary was created
-        ls -la awdl_monitor_daemon
-        # Check version
-        ./awdl_monitor_daemon --version
+        ls -la AWDLControl/build/Release/AWDLControlHelper
 
-    - name: Build Swift App
+    - name: Build Swift App and Widget
       run: |
         xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
                    -target AWDLControl \
@@ -43,10 +45,13 @@ jobs:
 
     - name: Verify Build Artifacts
       run: |
-        echo "Checking daemon binary..."
-        ls -la AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon
+        echo "Checking helper binary..."
+        ls -la "AWDLControl/build/Release/AWDLControlHelper"
 
         echo "Checking app bundle..."
-        ls -la AWDLControl/build/Release/AWDLControl.app || ls -la build/Release/AWDLControl.app || echo "App location may vary"
+        ls -la "AWDLControl/build/Release/Ping Warden.app" || echo "App bundle not found at expected location"
+
+        echo "Checking widget extension..."
+        ls -la "AWDLControl/build/Release/Ping Warden.app/Contents/PlugIns/AWDLControlWidget.appex" 2>/dev/null || echo "Widget not embedded (expected for unsigned build)"
 
         echo "Build completed successfully!"

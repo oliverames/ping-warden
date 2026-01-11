@@ -17,6 +17,7 @@
 #define HELPER_VERSION @"2.0.0"
 
 static NSInteger activeConnectionCount = 0;
+static dispatch_queue_t connectionCountQueue;
 
 #pragma mark - AWDLService
 
@@ -85,8 +86,10 @@ static NSInteger activeConnectionCount = 0;
 - (BOOL)listener:(NSXPCListener *)listener shouldAcceptNewConnection:(NSXPCConnection *)conn {
     os_log(LOG, "New XPC connection from PID %d (euid: %d)", conn.processIdentifier, conn.effectiveUserIdentifier);
 
-    activeConnectionCount++;
-    os_log_debug(LOG, "Active connections: %ld", (long)activeConnectionCount);
+    dispatch_sync(connectionCountQueue, ^{
+        activeConnectionCount++;
+        os_log_debug(LOG, "Active connections: %ld", (long)activeConnectionCount);
+    });
 
     __weak typeof(self) weakSelf = self;
 
@@ -96,10 +99,14 @@ static NSInteger activeConnectionCount = 0;
 
     conn.invalidationHandler = ^{
         os_log(LOG, "XPC connection invalidated");
-        activeConnectionCount--;
-        os_log_debug(LOG, "Active connections after invalidation: %ld", (long)activeConnectionCount);
+        __block BOOL shouldExit = NO;
+        dispatch_sync(connectionCountQueue, ^{
+            activeConnectionCount--;
+            os_log_debug(LOG, "Active connections after invalidation: %ld", (long)activeConnectionCount);
+            shouldExit = (activeConnectionCount <= 0);
+        });
 
-        if (activeConnectionCount <= 0) {
+        if (shouldExit) {
             [weakSelf scheduleExit];
         }
     };
@@ -118,6 +125,9 @@ static NSInteger activeConnectionCount = 0;
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         os_log(LOG, "AWDLControlHelper v%{public}@ starting (unsigned build)", HELPER_VERSION);
+
+        // Initialize thread-safe queue for connection counting
+        connectionCountQueue = dispatch_queue_create("com.awdlcontrol.helper.connectionCount", DISPATCH_QUEUE_SERIAL);
 
         // Initialize the service
         AWDLService *service = [AWDLService new];

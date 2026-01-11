@@ -457,7 +457,7 @@ class AWDLMonitor {
         // Invalidate existing connection if any
         xpcConnection?.invalidate()
 
-        let connection = NSXPCConnection(machServiceName: xpcServiceName, options: [])
+        let connection = NSXPCConnection(machServiceName: xpcServiceName, options: .privileged)
         connection.remoteObjectInterface = NSXPCInterface(with: AWDLHelperProtocol.self)
 
         connection.interruptionHandler = { [weak self] in
@@ -499,15 +499,15 @@ class AWDLMonitor {
     private func getHelperProxy() -> AWDLHelperProtocol? {
         // Get connection under lock to avoid TOCTOU race
         stateLock.lock()
-        let connection = _xpcConnection
+        let currentConnection = _xpcConnection
         stateLock.unlock()
 
-        guard let connection = connection else {
+        guard let xpc = currentConnection else {
             log.warning("No XPC connection available")
             return nil
         }
 
-        return connection.remoteObjectProxyWithErrorHandler { error in
+        return xpc.remoteObjectProxyWithErrorHandler { error in
             log.error("XPC proxy error: \(error.localizedDescription)")
             DispatchQueue.main.async { [weak self] in
                 self?.handleXPCDisconnect()
