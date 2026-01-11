@@ -98,27 +98,21 @@ static BOOL isProperlyCodeSigned(void) {
         pendingStateVerification = nil;
     }
 
-    // Store previous state to detect if change actually occurred
-    BOOL previousState = self.monitor.awdlEnabled;
+    // Apply the state change - this sends a message to the monitoring thread
+    // which will then bring the interface UP or DOWN as needed
     self.monitor.awdlEnabled = enable;
 
-    // Create a cancellable block for state verification
-    __block BOOL expectedState = enable;
-    dispatch_block_t verificationBlock = dispatch_block_create(0, ^{
-        BOOL currentState = self.monitor.awdlEnabled;
-        BOOL success = (currentState == expectedState);
-        if (!success) {
-            os_log_error(LOG, "setAWDLEnabled failed: requested %d but state is %d", expectedState, currentState);
-        }
-        reply(success);
-        pendingStateVerification = nil;
-    });
+    // Verify the state was accepted by the monitor
+    // Note: This confirms the command was received, not that the interface
+    // state has changed (that happens asynchronously in the background thread)
+    BOOL success = (self.monitor.awdlEnabled == enable);
+    if (!success) {
+        os_log_error(LOG, "setAWDLEnabled failed: requested %d but monitor state is %d",
+                     enable, self.monitor.awdlEnabled);
+    }
 
-    pendingStateVerification = verificationBlock;
-
-    // Verify the state was applied (give a brief moment for the change)
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.01 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), verificationBlock);
+    // Reply immediately - the state change command has been sent
+    reply(success);
 }
 
 - (void)getAWDLStatusWithReply:(void (^)(NSString *))reply {
