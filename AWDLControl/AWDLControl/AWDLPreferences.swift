@@ -47,7 +47,8 @@ class AWDLPreferences {
                 return
             }
             defaults.set(newValue, forKey: monitoringEnabledKey)
-            defaults.synchronize()
+            // Note: synchronize() is deprecated since macOS 10.14 - the system
+            // automatically synchronizes UserDefaults at appropriate times
             // Use distributed notification for cross-process communication with widget
             DistributedNotificationCenter.default().postNotificationName(
                 .awdlMonitoringStateChanged,
