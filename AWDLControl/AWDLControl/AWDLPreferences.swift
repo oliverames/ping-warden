@@ -1,4 +1,17 @@
+//
+//  AWDLPreferences.swift
+//  AWDLControl
+//
+//  Manages shared state between app and widget using App Groups.
+//
+//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Licensed under the MIT License.
+//
+
 import Foundation
+import os.log
+
+private let log = Logger(subsystem: "com.awdlcontrol.app", category: "Preferences")
 
 /// Manages shared state between app and widget using App Groups
 class AWDLPreferences {
@@ -14,9 +27,10 @@ class AWDLPreferences {
     private lazy var defaults: UserDefaults? = {
         // Use standard UserDefaults if App Groups aren't available
         guard let suite = UserDefaults(suiteName: appGroupID) else {
-            print("AWDLPreferences: Failed to create App Group suite, using standard defaults")
+            log.error("Failed to create App Group suite '\(self.appGroupID)', using standard defaults")
             return UserDefaults.standard
         }
+        log.debug("Successfully connected to App Group suite")
         return suite
     }()
 
@@ -29,6 +43,7 @@ class AWDLPreferences {
         }
         set {
             defaults?.set(newValue, forKey: monitoringEnabledKey)
+            defaults?.synchronize()
             // Use distributed notification for cross-process communication with widget
             DistributedNotificationCenter.default().postNotificationName(
                 .awdlMonitoringStateChanged,
@@ -84,8 +99,9 @@ class AWDLPreferences {
 }
 
 extension Notification.Name {
-    static let awdlMonitoringStateChanged = Notification.Name("AWDLMonitoringStateChanged")
-    static let controlCenterModeChanged = Notification.Name("ControlCenterModeChanged")
-    static let gameModeAutoDetectChanged = Notification.Name("GameModeAutoDetectChanged")
-    static let dockIconVisibilityChanged = Notification.Name("DockIconVisibilityChanged")
+    // Use namespaced notification names to avoid collisions with other apps
+    static let awdlMonitoringStateChanged = Notification.Name("com.awdlcontrol.notification.MonitoringStateChanged")
+    static let controlCenterModeChanged = Notification.Name("com.awdlcontrol.notification.ControlCenterModeChanged")
+    static let gameModeAutoDetectChanged = Notification.Name("com.awdlcontrol.notification.GameModeAutoDetectChanged")
+    static let dockIconVisibilityChanged = Notification.Name("com.awdlcontrol.notification.DockIconVisibilityChanged")
 }

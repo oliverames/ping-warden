@@ -6,18 +6,57 @@
 //  Registered via SMAppService, runs as LaunchDaemon.
 //  Based on james-howard/AWDLControl architecture.
 //
+//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Licensed under the MIT License.
+//
 
 #import <Foundation/Foundation.h>
+#import <Security/Security.h>
 #import <os/log.h>
 
 #import "../Common/HelperProtocol.h"
 #import "AWDLMonitor.h"
 
 #define LOG OS_LOG_DEFAULT
-#define HELPER_VERSION @"2.0.0"
+#define HELPER_VERSION @"2.0.1"
+
+// Team ID for code signing validation
+#define TEAM_ID @"PV3W52NDZ3"
+
+// Grace period before exiting when all connections close (allows reconnection)
+#define EXIT_GRACE_PERIOD_SECONDS 5.0
 
 static NSInteger activeConnectionCount = 0;
 static dispatch_queue_t connectionCountQueue;
+static dispatch_source_t exitTimer = nil;
+
+#pragma mark - Code Signing Helpers
+
+/// Check if this binary is properly code signed (not ad-hoc)
+static BOOL isProperlyCodeSigned(void) {
+    SecCodeRef code = NULL;
+    OSStatus status = SecCodeCopySelf(kSecCSDefaultFlags, &code);
+    if (status != errSecSuccess || !code) {
+        return NO;
+    }
+
+    // Check for valid signature (not ad-hoc)
+    SecRequirementRef requirement = NULL;
+    NSString *reqString = [NSString stringWithFormat:
+        @"anchor apple generic and certificate leaf[subject.OU] = \"%@\"", TEAM_ID];
+    status = SecRequirementCreateWithString((__bridge CFStringRef)reqString,
+                                            kSecCSDefaultFlags, &requirement);
+    if (status != errSecSuccess || !requirement) {
+        CFRelease(code);
+        return NO;
+    }
+
+    status = SecCodeCheckValidity(code, kSecCSDefaultFlags, requirement);
+    CFRelease(code);
+    CFRelease(requirement);
+
+    return status == errSecSuccess;
+}
 
 #pragma mark - AWDLService
 
@@ -50,8 +89,21 @@ static dispatch_queue_t connectionCountQueue;
 
 - (void)setAWDLEnabled:(BOOL)enable withReply:(void (^)(BOOL))reply {
     os_log(LOG, "setAWDLEnabled: %d", enable);
+
+    // Store previous state to detect if change actually occurred
+    BOOL previousState = self.monitor.awdlEnabled;
     self.monitor.awdlEnabled = enable;
-    reply(YES);
+
+    // Verify the state was applied (give a brief moment for the change)
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.01 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        BOOL currentState = self.monitor.awdlEnabled;
+        BOOL success = (currentState == enable);
+        if (!success) {
+            os_log_error(LOG, "setAWDLEnabled failed: requested %d but state is %d", enable, currentState);
+        }
+        reply(success);
+    });
 }
 
 - (void)getAWDLStatusWithReply:(void (^)(NSString *))reply {
@@ -67,18 +119,56 @@ static dispatch_queue_t connectionCountQueue;
 
 #pragma mark - Lifecycle
 
+- (void)cancelExitTimer {
+    if (exitTimer) {
+        dispatch_source_cancel(exitTimer);
+        exitTimer = nil;
+        os_log_debug(LOG, "Exit timer cancelled - new connection established");
+    }
+}
+
 - (void)scheduleExit {
-    os_log(LOG, "All XPC connections closed, restoring AWDL and exiting");
+    os_log(LOG, "All XPC connections closed, scheduling exit in %.1f seconds", EXIT_GRACE_PERIOD_SECONDS);
 
-    // Restore AWDL to enabled state before exiting
-    [self.monitor setAwdlEnabled:YES];
-    [self.monitor invalidate];
+    // Cancel any existing timer
+    [self cancelExitTimer];
 
-    // Give a moment for cleanup, then exit
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        os_log(LOG, "AWDLControlHelper exiting");
-        exit(0);
+    // Create a new timer that allows reconnection within grace period
+    exitTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_source_set_event_handler(exitTimer, ^{
+        __strong typeof(weakSelf) strongSelf = weakSelf;
+
+        // Double-check no connections were established during grace period
+        __block NSInteger currentCount = 0;
+        dispatch_sync(connectionCountQueue, ^{
+            currentCount = activeConnectionCount;
+        });
+
+        if (currentCount > 0) {
+            os_log(LOG, "Exit cancelled - %ld active connection(s)", (long)currentCount);
+            return;
+        }
+
+        os_log(LOG, "Grace period expired, restoring AWDL and exiting");
+
+        // Restore AWDL to enabled state before exiting
+        [strongSelf.monitor setAwdlEnabled:YES];
+        [strongSelf.monitor invalidate];
+
+        // Give a moment for cleanup, then exit
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            os_log(LOG, "AWDLControlHelper exiting");
+            exit(0);
+        });
     });
+
+    dispatch_source_set_timer(exitTimer,
+                              dispatch_time(DISPATCH_TIME_NOW, (int64_t)(EXIT_GRACE_PERIOD_SECONDS * NSEC_PER_SEC)),
+                              DISPATCH_TIME_FOREVER, 0);
+    dispatch_resume(exitTimer);
 }
 
 #pragma mark - NSXPCListenerDelegate
@@ -86,7 +176,11 @@ static dispatch_queue_t connectionCountQueue;
 - (BOOL)listener:(NSXPCListener *)listener shouldAcceptNewConnection:(NSXPCConnection *)conn {
     os_log(LOG, "New XPC connection from PID %d (euid: %d)", conn.processIdentifier, conn.effectiveUserIdentifier);
 
-    dispatch_sync(connectionCountQueue, ^{
+    // Cancel pending exit if a new connection arrives
+    [self cancelExitTimer];
+
+    // Use dispatch_async to avoid potential deadlock from XPC callback context
+    dispatch_async(connectionCountQueue, ^{
         activeConnectionCount++;
         os_log_debug(LOG, "Active connections: %ld", (long)activeConnectionCount);
     });
@@ -99,16 +193,18 @@ static dispatch_queue_t connectionCountQueue;
 
     conn.invalidationHandler = ^{
         os_log(LOG, "XPC connection invalidated");
-        __block BOOL shouldExit = NO;
-        dispatch_sync(connectionCountQueue, ^{
+
+        // Use dispatch_async to avoid deadlock
+        dispatch_async(connectionCountQueue, ^{
             activeConnectionCount--;
             os_log_debug(LOG, "Active connections after invalidation: %ld", (long)activeConnectionCount);
-            shouldExit = (activeConnectionCount <= 0);
-        });
 
-        if (shouldExit) {
-            [weakSelf scheduleExit];
-        }
+            if (activeConnectionCount <= 0) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [weakSelf scheduleExit];
+                });
+            }
+        });
     };
 
     conn.exportedInterface = [NSXPCInterface interfaceWithProtocol:@protocol(AWDLHelperProtocol)];
@@ -124,10 +220,13 @@ static dispatch_queue_t connectionCountQueue;
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
-        os_log(LOG, "AWDLControlHelper v%{public}@ starting (unsigned build)", HELPER_VERSION);
+        BOOL isSigned = isProperlyCodeSigned();
+        os_log(LOG, "AWDLControlHelper v%{public}@ starting (%{public}s)",
+               HELPER_VERSION, isSigned ? "signed" : "unsigned/ad-hoc");
 
         // Initialize thread-safe queue for connection counting
-        connectionCountQueue = dispatch_queue_create("com.awdlcontrol.helper.connectionCount", DISPATCH_QUEUE_SERIAL);
+        connectionCountQueue = dispatch_queue_create("com.awdlcontrol.helper.connectionCount",
+                                                     DISPATCH_QUEUE_SERIAL);
 
         // Initialize the service
         AWDLService *service = [AWDLService new];
@@ -146,10 +245,21 @@ int main(int argc, const char * argv[]) {
             return EXIT_FAILURE;
         }
 
-        // IMPORTANT: For unsigned builds, we do NOT set connectionCodeSigningRequirement
-        // This allows any local process to connect. For signed distribution builds,
-        // you would add:
-        // [listener setConnectionCodeSigningRequirement:@"anchor apple generic and identifier \"com.awdlcontrol.app\""];
+        // For production builds, enforce code signing requirement
+        // This prevents unauthorized processes from connecting to the helper
+        if (isSigned) {
+            NSString *requirement = [NSString stringWithFormat:
+                @"anchor apple generic and identifier \"com.awdlcontrol.app\" "
+                @"and certificate leaf[subject.OU] = \"%@\"", TEAM_ID];
+            os_log(LOG, "Enforcing code signing requirement for XPC connections");
+            // Note: setConnectionCodeSigningRequirement is available in macOS 13+
+            // For older versions, manual validation would be needed in shouldAcceptNewConnection
+            if (@available(macOS 13.0, *)) {
+                listener.connectionCodeSigningRequirement = requirement;
+            }
+        } else {
+            os_log(LOG, "WARNING: Running without code signing - any process can connect");
+        }
 
         listener.delegate = service;
         [listener activate];

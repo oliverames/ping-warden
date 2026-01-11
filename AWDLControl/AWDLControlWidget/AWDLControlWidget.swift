@@ -1,3 +1,13 @@
+//
+//  AWDLControlWidget.swift
+//  AWDLControlWidget
+//
+//  Control Center widget for toggling AWDL blocking.
+//
+//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Licensed under the MIT License.
+//
+
 import SwiftUI
 import WidgetKit
 import AppIntents

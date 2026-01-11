@@ -1,3 +1,13 @@
+//
+//  AWDLControlApp.swift
+//  AWDLControl
+//
+//  Main application entry point and UI for Ping Warden.
+//
+//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Licensed under the MIT License.
+//
+
 import SwiftUI
 import ServiceManagement
 import os.log
@@ -364,11 +374,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let isMonitoring = AWDLMonitor.shared.isMonitoringActive
         let symbolName = isMonitoring ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"
-        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "AWDL Control")
+        let accessibilityDesc = isMonitoring ? "Ping Warden: AWDL Blocking Active" : "Ping Warden: AWDL Blocking Inactive"
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: accessibilityDesc)
         image?.isTemplate = true
 
         button.image = image
         button.toolTip = isMonitoring ? "AWDL Blocking: Active" : "AWDL Blocking: Inactive"
+
+        // Accessibility for VoiceOver
+        button.setAccessibilityLabel(accessibilityDesc)
+        button.setAccessibilityRole(.button)
     }
 
     private func updateMenuItem() {
@@ -636,8 +651,11 @@ class SettingsSplitViewController: NSSplitViewController {
         let newDetailController = NSHostingController(rootView: newDetailView)
 
         // Remove old detail view item first, then add new one
-        if splitViewItems.count > 1 {
-            removeSplitViewItem(splitViewItems[1])
+        // Capture the item reference to avoid potential TOCTOU race
+        let items = splitViewItems
+        if items.count > 1 {
+            let itemToRemove = items[1]
+            removeSplitViewItem(itemToRemove)
         }
 
         // Update the reference
@@ -672,28 +690,6 @@ struct SettingsDetailView: View {
 
     var body: some View {
         SettingsContentView(section: section)
-    }
-}
-
-// Legacy SettingsView kept for reference but not used
-struct SettingsView: View {
-    @State private var selectedSection: SettingsSection = .general
-
-    var body: some View {
-        NavigationSplitView(columnVisibility: .constant(.all)) {
-            List(selection: $selectedSection) {
-                ForEach(SettingsSection.allCases) { section in
-                    Label(section.rawValue, systemImage: section.icon)
-                        .tag(section)
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
-        } detail: {
-            SettingsContentView(section: selectedSection)
-        }
-        .toolbar(removing: .sidebarToggle)
-        .frame(width: 650, height: 500)
     }
 }
 
@@ -1272,11 +1268,8 @@ struct AboutView: View {
                     .foregroundStyle(.secondary)
 
                 VStack(spacing: 4) {
-                    Button("jamestut/awdlkiller") {
-                        openURL(URL(string: "https://github.com/jamestut/awdlkiller")!)
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption)
+                    Link("jamestut/awdlkiller", destination: URL(string: "https://github.com/jamestut/awdlkiller") ?? URL(fileURLWithPath: "/"))
+                        .font(.caption)
 
                     Text("AF_ROUTE monitoring concept")
                         .font(.caption2)
@@ -1284,11 +1277,8 @@ struct AboutView: View {
                 }
 
                 VStack(spacing: 4) {
-                    Button("james-howard/AWDLControl") {
-                        openURL(URL(string: "https://github.com/james-howard/AWDLControl")!)
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption)
+                    Link("james-howard/AWDLControl", destination: URL(string: "https://github.com/james-howard/AWDLControl") ?? URL(fileURLWithPath: "/"))
+                        .font(.caption)
 
                     Text("SMAppService + XPC architecture")
                         .font(.caption2)
@@ -1321,16 +1311,28 @@ class GameModeDetector {
     var onGameModeChange: ((Bool) -> Void)?
 
     deinit {
-        timer?.invalidate()
+        stop()
     }
 
     func start() {
+        // Ensure we're on the main thread for timer scheduling
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.start()
+            }
+            return
+        }
+
         // Check immediately
         checkGameModeStatus()
 
-        // Then check periodically (every 2 seconds)
+        // Then check periodically (every 2 seconds) on main run loop
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             self?.checkGameModeStatus()
+        }
+        // Ensure timer continues during UI interactions
+        if let timer = timer {
+            RunLoop.main.add(timer, forMode: .common)
         }
     }
 

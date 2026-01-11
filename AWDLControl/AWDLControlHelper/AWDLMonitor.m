@@ -5,6 +5,9 @@
 //  Core AWDL monitoring using AF_ROUTE socket.
 //  Based on james-howard/AWDLControl and jamestut/awdlkiller.
 //
+//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Licensed under the MIT License.
+//
 
 #import "AWDLMonitor.h"
 
@@ -20,20 +23,29 @@
 #import <errno.h>
 #import <err.h>
 #import <fcntl.h>
+#import <string.h>
 
 #define LOG OS_LOG_DEFAULT
 
 static const char *TARGETIFNAM = "awdl0";
 
+// Static assertion to ensure TARGETIFNAM fits in IFNAMSIZ
+// IFNAMSIZ is typically 16 on macOS/BSD
+_Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
+
 // Routing messages can contain rt_msghdr + if_msghdr + multiple sockaddr structures
 // Use a generous buffer size to handle all message types safely
 #define RTMSG_BUFFER_SIZE 512
+
+// Invalid file descriptor sentinel
+#define INVALID_FD (-1)
 
 @interface AWDLMonitor () {
     // Pipe file descriptors for internal state change communication
     int _msgfds[2];
 
     BOOL _exit;
+    BOOL _threadRunning;
 
     dispatch_semaphore_t _ioctlThreadExitSemaphore;
 }
@@ -53,35 +65,47 @@ static const char *TARGETIFNAM = "awdl0";
 
 - (instancetype)init {
     if (self = [super init]) {
+        // Initialize file descriptors to invalid state for proper cleanup
+        _rtfd = INVALID_FD;
+        _iocfd = INVALID_FD;
+        _msgfds[0] = INVALID_FD;
+        _msgfds[1] = INVALID_FD;
+        _threadRunning = NO;
+
         // Start off allowing AWDL to be active
         _awdlEnabled = YES;
 
         // Socket to monitor network interface changes
         _rtfd = socket(AF_ROUTE, SOCK_RAW, 0);
         if (_rtfd < 0) {
-            os_log_error(LOG, "Error creating AF_ROUTE socket: %d", errno);
+            os_log_error(LOG, "Error creating AF_ROUTE socket: %d (%s)", errno, strerror(errno));
+            [self cleanupFileDescriptors];
             return nil;
         }
         if (fcntl(_rtfd, F_SETFL, O_NONBLOCK) < 0) {
-            os_log_error(LOG, "Error setting nonblock on AF_ROUTE socket: %d", errno);
+            os_log_error(LOG, "Error setting nonblock on AF_ROUTE socket: %d (%s)", errno, strerror(errno));
+            [self cleanupFileDescriptors];
             return nil;
         }
 
         // Socket to perform ioctl to set interface flags
         _iocfd = socket(AF_INET, SOCK_DGRAM, 0);
         if (_iocfd < 0) {
-            os_log_error(LOG, "Error creating AF_INET socket: %d", errno);
+            os_log_error(LOG, "Error creating AF_INET socket: %d (%s)", errno, strerror(errno));
+            [self cleanupFileDescriptors];
             return nil;
         }
 
         // Pipe for communication from main thread to ioctl thread
         if (0 != pipe(_msgfds)) {
-            os_log_error(LOG, "Error creating pipe: %d", errno);
+            os_log_error(LOG, "Error creating pipe: %d (%s)", errno, strerror(errno));
+            [self cleanupFileDescriptors];
             return nil;
         }
         // Set pipe to non-blocking
         if (fcntl(_msgfds[0], F_SETFL, O_NONBLOCK) < 0) {
-            os_log_error(LOG, "Error setting nonblock on pipe read fd: %d", errno);
+            os_log_error(LOG, "Error setting nonblock on pipe read fd: %d (%s)", errno, strerror(errno));
+            [self cleanupFileDescriptors];
             return nil;
         }
 
@@ -89,11 +113,32 @@ static const char *TARGETIFNAM = "awdl0";
         _ioctlThreadExitSemaphore = dispatch_semaphore_create(0);
         _ioctlThread = [[NSThread alloc] initWithTarget:self selector:@selector(pollIoctl) object:nil];
         _ioctlThread.name = @"AWDLMonitor.pollIoctl";
+        _threadRunning = YES;
         [_ioctlThread start];
 
         os_log(LOG, "AWDLMonitor initialized successfully");
     }
     return self;
+}
+
+/// Clean up file descriptors on error or dealloc
+- (void)cleanupFileDescriptors {
+    if (_iocfd != INVALID_FD) {
+        close(_iocfd);
+        _iocfd = INVALID_FD;
+    }
+    if (_rtfd != INVALID_FD) {
+        close(_rtfd);
+        _rtfd = INVALID_FD;
+    }
+    if (_msgfds[0] != INVALID_FD) {
+        close(_msgfds[0]);
+        _msgfds[0] = INVALID_FD;
+    }
+    if (_msgfds[1] != INVALID_FD) {
+        close(_msgfds[1]);
+        _msgfds[1] = INVALID_FD;
+    }
 }
 
 /// Bring the interface up or down. Must be run only on ioctlThread.
@@ -104,7 +149,7 @@ static const char *TARGETIFNAM = "awdl0";
     strlcpy(ifr.ifr_name, TARGETIFNAM, IFNAMSIZ);
 
     if (ioctl(_iocfd, SIOCGIFFLAGS, &ifr) < 0) {
-        os_log_error(LOG, "Error getting current interface flags: %d", errno);
+        os_log_error(LOG, "Error getting current interface flags: %d (%s)", errno, strerror(errno));
         return;
     }
 
@@ -112,7 +157,7 @@ static const char *TARGETIFNAM = "awdl0";
         // Interface is UP but we want it DOWN
         ifr.ifr_flags &= ~IFF_UP;
         if (ioctl(_iocfd, SIOCSIFFLAGS, &ifr) < 0) {
-            os_log_error(LOG, "Error bringing interface down: %d", errno);
+            os_log_error(LOG, "Error bringing interface down: %d (%s)", errno, strerror(errno));
         } else {
             os_log_debug(LOG, "Brought awdl0 DOWN");
         }
@@ -120,7 +165,7 @@ static const char *TARGETIFNAM = "awdl0";
         // Interface is DOWN but we want it UP
         ifr.ifr_flags |= IFF_UP;
         if (ioctl(_iocfd, SIOCSIFFLAGS, &ifr) < 0) {
-            os_log_error(LOG, "Error bringing interface up: %d", errno);
+            os_log_error(LOG, "Error bringing interface up: %d (%s)", errno, strerror(errno));
         } else {
             os_log_debug(LOG, "Brought awdl0 UP");
         }
@@ -155,7 +200,7 @@ static const char *TARGETIFNAM = "awdl0";
             if (errno == EINTR) {
                 continue;
             }
-            os_log_error(LOG, "Poll error: %d", errno);
+            os_log_error(LOG, "Poll error: %d (%s)", errno, strerror(errno));
             break;
         }
 
@@ -175,7 +220,7 @@ static const char *TARGETIFNAM = "awdl0";
                     } else if (errno == EAGAIN) {
                         break;
                     }
-                    os_log_error(LOG, "Error reading AF_ROUTE socket: %d", errno);
+                    os_log_error(LOG, "Error reading AF_ROUTE socket: %d (%s)", errno, strerror(errno));
                     break;  // Exit loop on unexpected errors
                 }
                 if (len == 0) {
@@ -201,7 +246,7 @@ static const char *TARGETIFNAM = "awdl0";
 
                 // Get interface ID for awdl0
                 static int consecutiveIfFailures = 0;
-                int ifidx = if_nametoindex(TARGETIFNAM);
+                unsigned int ifidx = if_nametoindex(TARGETIFNAM);
                 if (!ifidx) {
                     consecutiveIfFailures++;
                     os_log_error(LOG, "Error getting interface index for %s (%d consecutive failures)",
@@ -215,7 +260,7 @@ static const char *TARGETIFNAM = "awdl0";
                 consecutiveIfFailures = 0;  // Reset on success
 
                 struct if_msghdr *ifmsg = (void *)rtmsg;
-                if (ifmsg->ifm_index != ifidx) {
+                if ((unsigned int)ifmsg->ifm_index != ifidx) {
                     // Not the interface we're watching
                     continue;
                 }
@@ -242,7 +287,7 @@ static const char *TARGETIFNAM = "awdl0";
                     } else if (errno == EAGAIN) {
                         break;
                     }
-                    os_log_error(LOG, "Error reading message pipe: %d", errno);
+                    os_log_error(LOG, "Error reading message pipe: %d (%s)", errno, strerror(errno));
                     break;  // Exit loop on unexpected errors
                 }
                 if (len == 0) {
@@ -265,12 +310,14 @@ static const char *TARGETIFNAM = "awdl0";
                         [self ifconfig:NO];
                         break;
                     default:
+                        os_log_debug(LOG, "Unknown message: %c", msg);
                         break;
                 }
             }
         }
     }
 
+    _threadRunning = NO;
     dispatch_semaphore_signal(_ioctlThreadExitSemaphore);
     os_log(LOG, "pollIoctl thread exiting");
 }
@@ -280,7 +327,7 @@ static const char *TARGETIFNAM = "awdl0";
     const char *msg = awdlEnabled ? "U" : "D";
     ssize_t written = write(_msgfds[1], msg, 1);
     if (written < 0) {
-        os_log_error(LOG, "Error writing to message pipe: %d", errno);
+        os_log_error(LOG, "Error writing to message pipe: %d (%s)", errno, strerror(errno));
     } else if (written != 1) {
         os_log_warning(LOG, "Partial write to message pipe: wrote %zd bytes", written);
     }
@@ -289,24 +336,35 @@ static const char *TARGETIFNAM = "awdl0";
 - (void)invalidate {
     os_log(LOG, "AWDLMonitor invalidating...");
 
-    // Send quit message to background thread
-    const char *msg = "Q";
-    ssize_t written = write(_msgfds[1], msg, 1);
-    if (written < 0) {
-        os_log_error(LOG, "Error writing quit message to pipe: %d", errno);
+    // Only send quit if thread is running
+    if (_threadRunning && _msgfds[1] != INVALID_FD) {
+        // Send quit message to background thread
+        const char *msg = "Q";
+        ssize_t written = write(_msgfds[1], msg, 1);
+        if (written < 0) {
+            os_log_error(LOG, "Error writing quit message to pipe: %d (%s)", errno, strerror(errno));
+        }
+
+        // Wait for background thread to exit (with timeout)
+        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC));
+        if (dispatch_semaphore_wait(_ioctlThreadExitSemaphore, timeout) != 0) {
+            os_log_error(LOG, "Timeout waiting for pollIoctl thread to exit");
+        }
     }
 
-    // Wait for background thread to exit
-    dispatch_semaphore_wait(_ioctlThreadExitSemaphore, DISPATCH_TIME_FOREVER);
+    // Clean up file descriptors after thread exits
+    [self cleanupFileDescriptors];
 
     os_log(LOG, "AWDLMonitor invalidated");
 }
 
 - (void)dealloc {
-    if (_iocfd >= 0) close(_iocfd);
-    if (_rtfd >= 0) close(_rtfd);
-    if (_msgfds[0] >= 0) close(_msgfds[0]);
-    if (_msgfds[1] >= 0) close(_msgfds[1]);
+    // Ensure thread is stopped and resources cleaned up
+    if (_threadRunning) {
+        [self invalidate];
+    } else {
+        [self cleanupFileDescriptors];
+    }
 }
 
 @end
