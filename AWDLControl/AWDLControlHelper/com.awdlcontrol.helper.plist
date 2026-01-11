@@ -18,5 +18,8 @@
 		<key>com.awdlcontrol.xpc.helper</key>
 		<true/>
 	</dict>
+
+	<key>RunAtLoad</key>
+	<true/>
 </dict>
 </plist>

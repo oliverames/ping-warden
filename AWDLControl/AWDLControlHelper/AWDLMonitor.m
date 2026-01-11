@@ -224,14 +224,10 @@ static const char *TARGETIFNAM = "awdl0";
             }
 
             // If AWDL was brought UP by the system but we want it DOWN
+            // Use the ifconfig method to ensure proper thread-safety checks
             if ((ifflag & IFF_UP) && !enable) {
                 os_log_debug(LOG, "AWDL interface was brought UP by system, bringing it back DOWN");
-                struct ifreq ifr = {0};
-                strlcpy(ifr.ifr_name, TARGETIFNAM, IFNAMSIZ);
-                ifr.ifr_flags = ifflag & ~IFF_UP;
-                if (ioctl(_iocfd, SIOCSIFFLAGS, &ifr) < 0) {
-                    os_log_error(LOG, "Error turning down AWDL interface: %d", errno);
-                }
+                [self ifconfig:NO];
             }
         }
 
@@ -307,10 +303,10 @@ static const char *TARGETIFNAM = "awdl0";
 }
 
 - (void)dealloc {
-    close(_iocfd);
-    close(_rtfd);
-    close(_msgfds[0]);
-    close(_msgfds[1]);
+    if (_iocfd >= 0) close(_iocfd);
+    if (_rtfd >= 0) close(_rtfd);
+    if (_msgfds[0] >= 0) close(_msgfds[0]);
+    if (_msgfds[1] >= 0) close(_msgfds[1]);
 }
 
 @end

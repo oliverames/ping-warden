@@ -1,10 +1,14 @@
-name: Build
+name: Build Verification
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
+# Note: This workflow verifies the code compiles but does not produce
+# a distributable app. For distribution builds, use build.sh on a Mac
+# with a valid Developer ID certificate installed.
 
 jobs:
   build:
@@ -20,33 +24,54 @@ jobs:
     - name: Show Xcode version
       run: xcodebuild -version
 
-    - name: Build C Daemon
+    - name: Build Helper (verification only)
       run: |
-        cd AWDLControl/AWDLMonitorDaemon
-        make clean
-        make
-        # Verify binary was created
-        ls -la awdl_monitor_daemon
-        # Check version
-        ./awdl_monitor_daemon --version
-
-    - name: Build Swift App
-      run: |
+        echo "Building AWDLControlHelper..."
         xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
-                   -target AWDLControl \
-                   -target AWDLControlWidget \
+                   -target AWDLControlHelper \
                    -configuration Release \
                    CODE_SIGN_IDENTITY="" \
                    CODE_SIGNING_REQUIRED=NO \
                    CODE_SIGNING_ALLOWED=NO \
+                   ONLY_ACTIVE_ARCH=NO \
                    -quiet
+        echo "Helper binary built successfully"
+        ls -la AWDLControl/build/Release/AWDLControlHelper
+
+    - name: Build App (verification only)
+      run: |
+        echo "Building AWDLControl app..."
+        # Note: Widget is skipped in CI as it requires App Groups entitlement
+        # which needs a valid signing certificate
+        xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
+                   -target AWDLControl \
+                   -configuration Release \
+                   CODE_SIGN_IDENTITY="" \
+                   CODE_SIGNING_REQUIRED=NO \
+                   CODE_SIGNING_ALLOWED=NO \
+                   ONLY_ACTIVE_ARCH=NO \
+                   -quiet
+        echo "App built successfully"
 
     - name: Verify Build Artifacts
       run: |
-        echo "Checking daemon binary..."
-        ls -la AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon
+        echo "=== Build Verification Results ==="
+        echo ""
 
-        echo "Checking app bundle..."
-        ls -la AWDLControl/build/Release/AWDLControl.app || ls -la build/Release/AWDLControl.app || echo "App location may vary"
+        echo "Helper binary:"
+        ls -la "AWDLControl/build/Release/AWDLControlHelper"
+        file "AWDLControl/build/Release/AWDLControlHelper"
+        echo ""
 
-        echo "Build completed successfully!"
+        echo "App bundle:"
+        ls -la "AWDLControl/build/Release/Ping Warden.app" || ls -la AWDLControl/build/Release/*.app
+        echo ""
+
+        echo "App bundle contents:"
+        ls -la "AWDLControl/build/Release/Ping Warden.app/Contents/MacOS/" || true
+        echo ""
+
+        echo "=== Build verification passed ==="
+        echo ""
+        echo "Note: This is a CI verification build without code signing."
+        echo "For a distributable app, build locally with a Developer ID certificate."
