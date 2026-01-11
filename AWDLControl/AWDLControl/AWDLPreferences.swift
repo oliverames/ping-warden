@@ -42,8 +42,12 @@ class AWDLPreferences {
             return defaults?.bool(forKey: monitoringEnabledKey) ?? false
         }
         set {
-            defaults?.set(newValue, forKey: monitoringEnabledKey)
-            defaults?.synchronize()
+            guard let defaults = defaults else {
+                log.error("Cannot set \(monitoringEnabledKey): defaults is nil")
+                return
+            }
+            defaults.set(newValue, forKey: monitoringEnabledKey)
+            defaults.synchronize()
             // Use distributed notification for cross-process communication with widget
             DistributedNotificationCenter.default().postNotificationName(
                 .awdlMonitoringStateChanged,
@@ -60,7 +64,11 @@ class AWDLPreferences {
             return defaults?.string(forKey: lastStateKey) ?? "unknown"
         }
         set {
-            defaults?.set(newValue, forKey: lastStateKey)
+            guard let defaults = defaults else {
+                log.error("Cannot set \(lastStateKey): defaults is nil")
+                return
+            }
+            defaults.set(newValue, forKey: lastStateKey)
         }
     }
 
@@ -70,7 +78,11 @@ class AWDLPreferences {
             return defaults?.bool(forKey: controlCenterEnabledKey) ?? false
         }
         set {
-            defaults?.set(newValue, forKey: controlCenterEnabledKey)
+            guard let defaults = defaults else {
+                log.error("Cannot set \(controlCenterEnabledKey): defaults is nil")
+                return
+            }
+            defaults.set(newValue, forKey: controlCenterEnabledKey)
             NotificationCenter.default.post(name: .controlCenterModeChanged, object: nil)
         }
     }
@@ -81,7 +93,11 @@ class AWDLPreferences {
             return defaults?.bool(forKey: gameModeAutoDetectKey) ?? false
         }
         set {
-            defaults?.set(newValue, forKey: gameModeAutoDetectKey)
+            guard let defaults = defaults else {
+                log.error("Cannot set \(gameModeAutoDetectKey): defaults is nil")
+                return
+            }
+            defaults.set(newValue, forKey: gameModeAutoDetectKey)
             NotificationCenter.default.post(name: .gameModeAutoDetectChanged, object: nil)
         }
     }
@@ -92,7 +108,11 @@ class AWDLPreferences {
             return defaults?.bool(forKey: showDockIconKey) ?? false
         }
         set {
-            defaults?.set(newValue, forKey: showDockIconKey)
+            guard let defaults = defaults else {
+                log.error("Cannot set \(showDockIconKey): defaults is nil")
+                return
+            }
+            defaults.set(newValue, forKey: showDockIconKey)
             NotificationCenter.default.post(name: .dockIconVisibilityChanged, object: nil)
         }
     }

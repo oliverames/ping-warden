@@ -29,6 +29,8 @@
 static NSInteger activeConnectionCount = 0;
 static dispatch_queue_t connectionCountQueue;
 static dispatch_source_t exitTimer = nil;
+static dispatch_block_t pendingStateVerification = nil;
+static AWDLService *sharedService = nil;  // For signal handler access
 
 #pragma mark - Code Signing Helpers
 
@@ -90,20 +92,33 @@ static BOOL isProperlyCodeSigned(void) {
 - (void)setAWDLEnabled:(BOOL)enable withReply:(void (^)(BOOL))reply {
     os_log(LOG, "setAWDLEnabled: %d", enable);
 
+    // Cancel any pending state verification to avoid race conditions
+    if (pendingStateVerification) {
+        dispatch_block_cancel(pendingStateVerification);
+        pendingStateVerification = nil;
+    }
+
     // Store previous state to detect if change actually occurred
     BOOL previousState = self.monitor.awdlEnabled;
     self.monitor.awdlEnabled = enable;
 
-    // Verify the state was applied (give a brief moment for the change)
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.01 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
+    // Create a cancellable block for state verification
+    __block BOOL expectedState = enable;
+    dispatch_block_t verificationBlock = dispatch_block_create(0, ^{
         BOOL currentState = self.monitor.awdlEnabled;
-        BOOL success = (currentState == enable);
+        BOOL success = (currentState == expectedState);
         if (!success) {
-            os_log_error(LOG, "setAWDLEnabled failed: requested %d but state is %d", enable, currentState);
+            os_log_error(LOG, "setAWDLEnabled failed: requested %d but state is %d", expectedState, currentState);
         }
         reply(success);
+        pendingStateVerification = nil;
     });
+
+    pendingStateVerification = verificationBlock;
+
+    // Verify the state was applied (give a brief moment for the change)
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.01 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), verificationBlock);
 }
 
 - (void)getAWDLStatusWithReply:(void (^)(NSString *))reply {
@@ -139,29 +154,36 @@ static BOOL isProperlyCodeSigned(void) {
     __weak typeof(self) weakSelf = self;
     dispatch_source_set_event_handler(exitTimer, ^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
-
-        // Double-check no connections were established during grace period
-        __block NSInteger currentCount = 0;
-        dispatch_sync(connectionCountQueue, ^{
-            currentCount = activeConnectionCount;
-        });
-
-        if (currentCount > 0) {
-            os_log(LOG, "Exit cancelled - %ld active connection(s)", (long)currentCount);
-            return;
+        if (!strongSelf) {
+            os_log(LOG, "Exit timer fired but service deallocated");
+            exit(0);
         }
 
-        os_log(LOG, "Grace period expired, restoring AWDL and exiting");
+        // Double-check no connections were established during grace period
+        // Use dispatch_async to avoid potential deadlock with main queue
+        dispatch_async(connectionCountQueue, ^{
+            NSInteger currentCount = activeConnectionCount;
 
-        // Restore AWDL to enabled state before exiting
-        [strongSelf.monitor setAwdlEnabled:YES];
-        [strongSelf.monitor invalidate];
+            // Return to main queue for the actual exit logic
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (currentCount > 0) {
+                    os_log(LOG, "Exit cancelled - %ld active connection(s)", (long)currentCount);
+                    return;
+                }
 
-        // Give a moment for cleanup, then exit
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
-                       dispatch_get_main_queue(), ^{
-            os_log(LOG, "AWDLControlHelper exiting");
-            exit(0);
+                os_log(LOG, "Grace period expired, restoring AWDL and exiting");
+
+                // Restore AWDL to enabled state before exiting
+                [strongSelf.monitor setAwdlEnabled:YES];
+                [strongSelf.monitor invalidate];
+
+                // Give a moment for cleanup, then exit
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                               dispatch_get_main_queue(), ^{
+                    os_log(LOG, "AWDLControlHelper exiting");
+                    exit(0);
+                });
+            });
         });
     });
 
@@ -218,11 +240,25 @@ static BOOL isProperlyCodeSigned(void) {
 
 #pragma mark - Main
 
+/// Handle SIGTERM for graceful shutdown - restore AWDL before exiting
+static void handleSIGTERM(int sig) {
+    os_log(LOG, "Received SIGTERM, performing graceful shutdown");
+    if (sharedService && sharedService.monitor) {
+        [sharedService.monitor setAwdlEnabled:YES];
+        [sharedService.monitor invalidate];
+    }
+    os_log(LOG, "AWDLControlHelper exiting due to SIGTERM");
+    exit(0);
+}
+
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         BOOL isSigned = isProperlyCodeSigned();
         os_log(LOG, "AWDLControlHelper v%{public}@ starting (%{public}s)",
                HELPER_VERSION, isSigned ? "signed" : "unsigned/ad-hoc");
+
+        // Set up signal handler for graceful shutdown
+        signal(SIGTERM, handleSIGTERM);
 
         // Initialize thread-safe queue for connection counting
         connectionCountQueue = dispatch_queue_create("com.awdlcontrol.helper.connectionCount",
@@ -230,6 +266,7 @@ int main(int argc, const char * argv[]) {
 
         // Initialize the service
         AWDLService *service = [AWDLService new];
+        sharedService = service;  // Store for signal handler
         if (!service) {
             os_log_error(LOG, "Failed to create AWDLService, exiting");
             return EXIT_FAILURE;
@@ -247,11 +284,13 @@ int main(int argc, const char * argv[]) {
 
         // For production builds, enforce code signing requirement
         // This prevents unauthorized processes from connecting to the helper
+        // Allow connections from both the main app and the widget
         if (isSigned) {
             NSString *requirement = [NSString stringWithFormat:
-                @"anchor apple generic and identifier \"com.awdlcontrol.app\" "
+                @"anchor apple generic "
+                @"and (identifier \"com.awdlcontrol.app\" or identifier \"com.awdlcontrol.app.widget\") "
                 @"and certificate leaf[subject.OU] = \"%@\"", TEAM_ID];
-            os_log(LOG, "Enforcing code signing requirement for XPC connections");
+            os_log(LOG, "Enforcing code signing requirement for XPC connections (app and widget)");
             // Note: setConnectionCodeSigningRequirement is available in macOS 13+
             // For older versions, manual validation would be needed in shouldAcceptNewConnection
             if (@available(macOS 13.0, *)) {

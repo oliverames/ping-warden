@@ -9,9 +9,9 @@
 	<key>CFBundleDisplayName</key>
 	<string>AWDL Control Helper</string>
 	<key>CFBundleVersion</key>
-	<string>2.0.0</string>
+	<string>2.0.1</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0</string>
+	<string>2.0.1</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundlePackageType</key>
@@ -20,5 +20,7 @@
 	<string>AWDLControlHelper</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2025 Oliver Ames. All rights reserved.</string>
 </dict>
 </plist>

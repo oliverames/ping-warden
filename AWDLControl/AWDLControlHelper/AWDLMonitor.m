@@ -229,18 +229,25 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
 
                 // Validate message length before casting
                 if (len < (ssize_t)sizeof(struct rt_msghdr)) {
-                    os_log_debug(LOG, "Routing message too short: %zd bytes", len);
+                    os_log_debug(LOG, "Routing message too short: %zd bytes (min %zu)", len, sizeof(struct rt_msghdr));
                     continue;
                 }
 
                 struct rt_msghdr *rtmsg = (void *)rtmsgbuff;
+
+                // Additional validation: check rtm_msglen matches actual data
+                if (rtmsg->rtm_msglen > len || rtmsg->rtm_msglen < sizeof(struct rt_msghdr)) {
+                    os_log_debug(LOG, "Invalid rtm_msglen: %hu (actual read: %zd)", rtmsg->rtm_msglen, len);
+                    continue;
+                }
+
                 if (rtmsg->rtm_type != RTM_IFINFO) {
                     continue;
                 }
 
                 // Validate we have enough data for if_msghdr
                 if (len < (ssize_t)sizeof(struct if_msghdr)) {
-                    os_log_debug(LOG, "IFINFO message too short: %zd bytes", len);
+                    os_log_debug(LOG, "IFINFO message too short: %zd bytes (min %zu)", len, sizeof(struct if_msghdr));
                     continue;
                 }
 
@@ -322,14 +329,39 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     os_log(LOG, "pollIoctl thread exiting");
 }
 
+/// Write a single byte to the message pipe with retry logic
+- (BOOL)writeMessageToPipe:(const char *)msg {
+    if (_msgfds[1] == INVALID_FD) {
+        os_log_error(LOG, "Cannot write to pipe: fd is invalid");
+        return NO;
+    }
+
+    // Retry up to 3 times on EINTR
+    for (int retry = 0; retry < 3; retry++) {
+        ssize_t written = write(_msgfds[1], msg, 1);
+        if (written == 1) {
+            return YES;
+        }
+        if (written < 0) {
+            if (errno == EINTR) {
+                os_log_debug(LOG, "Write interrupted, retrying (attempt %d)", retry + 1);
+                continue;
+            }
+            os_log_error(LOG, "Error writing to message pipe: %d (%s)", errno, strerror(errno));
+            return NO;
+        }
+        // written == 0 means nothing was written
+        os_log_warning(LOG, "Partial write to message pipe: wrote %zd bytes", written);
+    }
+    os_log_error(LOG, "Failed to write message after 3 retries");
+    return NO;
+}
+
 - (void)setAwdlEnabled:(BOOL)awdlEnabled {
     _awdlEnabled = awdlEnabled;
     const char *msg = awdlEnabled ? "U" : "D";
-    ssize_t written = write(_msgfds[1], msg, 1);
-    if (written < 0) {
-        os_log_error(LOG, "Error writing to message pipe: %d (%s)", errno, strerror(errno));
-    } else if (written != 1) {
-        os_log_warning(LOG, "Partial write to message pipe: wrote %zd bytes", written);
+    if (![self writeMessageToPipe:msg]) {
+        os_log_error(LOG, "Failed to send %s message to pipe", awdlEnabled ? "enable" : "disable");
     }
 }
 
@@ -338,17 +370,19 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
 
     // Only send quit if thread is running
     if (_threadRunning && _msgfds[1] != INVALID_FD) {
-        // Send quit message to background thread
-        const char *msg = "Q";
-        ssize_t written = write(_msgfds[1], msg, 1);
-        if (written < 0) {
-            os_log_error(LOG, "Error writing quit message to pipe: %d (%s)", errno, strerror(errno));
+        // Send quit message to background thread with retry
+        if (![self writeMessageToPipe:"Q"]) {
+            os_log_error(LOG, "Failed to send quit message to pipe - thread may not exit cleanly");
         }
 
         // Wait for background thread to exit (with timeout)
+        // Use a shorter initial timeout, then check if thread is still running
         dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5.0 * NSEC_PER_SEC));
-        if (dispatch_semaphore_wait(_ioctlThreadExitSemaphore, timeout) != 0) {
+        long result = dispatch_semaphore_wait(_ioctlThreadExitSemaphore, timeout);
+        if (result != 0) {
             os_log_error(LOG, "Timeout waiting for pollIoctl thread to exit");
+            // Mark thread as not running to prevent further issues
+            _threadRunning = NO;
         }
     }
 

@@ -23,7 +23,10 @@ PROJECT_FILE="AWDLControl/AWDLControl.xcodeproj/project.pbxproj"
 # Validate team ID matches project
 echo "🔍 Validating build configuration..."
 if [ -f "$PROJECT_FILE" ]; then
-    PROJECT_TEAM=$(grep -o 'DEVELOPMENT_TEAM = [^;]*' "$PROJECT_FILE" | head -1 | cut -d'"' -f2 | tr -d '=; ')
+    # Extract DEVELOPMENT_TEAM value - handles both quoted and unquoted formats
+    # Format 1: DEVELOPMENT_TEAM = PV3W52NDZ3;
+    # Format 2: DEVELOPMENT_TEAM = "PV3W52NDZ3";
+    PROJECT_TEAM=$(grep 'DEVELOPMENT_TEAM' "$PROJECT_FILE" | grep -v '//' | head -1 | sed 's/.*DEVELOPMENT_TEAM *= *"\{0,1\}\([A-Z0-9]*\)"\{0,1\}.*/\1/')
     if [ -n "$PROJECT_TEAM" ] && [ "$PROJECT_TEAM" != "$DEVELOPMENT_TEAM" ]; then
         echo "   ⚠️  Warning: DEVELOPMENT_TEAM mismatch"
         echo "      Script: $DEVELOPMENT_TEAM"
