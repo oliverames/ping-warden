@@ -170,6 +170,10 @@ static const char *TARGETIFNAM = "awdl0";
                         break;
                     }
                     os_log_error(LOG, "Error reading AF_ROUTE socket: %d", errno);
+                    break;  // Exit loop on unexpected errors
+                }
+                if (len == 0) {
+                    break;  // Socket closed
                 }
 
                 struct rt_msghdr *rtmsg = (void *)rtmsgbuff;
@@ -178,11 +182,19 @@ static const char *TARGETIFNAM = "awdl0";
                 }
 
                 // Get interface ID for awdl0
+                static int consecutiveIfFailures = 0;
                 int ifidx = if_nametoindex(TARGETIFNAM);
                 if (!ifidx) {
-                    os_log_error(LOG, "Error getting interface index for %s", TARGETIFNAM);
+                    consecutiveIfFailures++;
+                    os_log_error(LOG, "Error getting interface index for %s (%d consecutive failures)",
+                                 TARGETIFNAM, consecutiveIfFailures);
+                    if (consecutiveIfFailures > 10) {
+                        os_log_error(LOG, "Too many failures getting interface - AWDL may not exist on this system");
+                        // Don't quit, just log - interface might become available later
+                    }
                     continue;
                 }
+                consecutiveIfFailures = 0;  // Reset on success
 
                 struct if_msghdr *ifmsg = (void *)rtmsg;
                 if (ifmsg->ifm_index != ifidx) {
@@ -217,6 +229,10 @@ static const char *TARGETIFNAM = "awdl0";
                         break;
                     }
                     os_log_error(LOG, "Error reading message pipe: %d", errno);
+                    break;  // Exit loop on unexpected errors
+                }
+                if (len == 0) {
+                    break;  // Pipe closed
                 }
 
                 switch (msg) {
@@ -248,7 +264,12 @@ static const char *TARGETIFNAM = "awdl0";
 - (void)setAwdlEnabled:(BOOL)awdlEnabled {
     _awdlEnabled = awdlEnabled;
     const char *msg = awdlEnabled ? "U" : "D";
-    write(_msgfds[1], msg, 1);
+    ssize_t written = write(_msgfds[1], msg, 1);
+    if (written < 0) {
+        os_log_error(LOG, "Error writing to message pipe: %d", errno);
+    } else if (written != 1) {
+        os_log_warning(LOG, "Partial write to message pipe: wrote %zd bytes", written);
+    }
 }
 
 - (void)invalidate {
@@ -256,7 +277,10 @@ static const char *TARGETIFNAM = "awdl0";
 
     // Send quit message to background thread
     const char *msg = "Q";
-    write(_msgfds[1], msg, 1);
+    ssize_t written = write(_msgfds[1], msg, 1);
+    if (written < 0) {
+        os_log_error(LOG, "Error writing quit message to pipe: %d", errno);
+    }
 
     // Wait for background thread to exit
     dispatch_semaphore_wait(_ioctlThreadExitSemaphore, DISPATCH_TIME_FOREVER);

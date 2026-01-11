@@ -25,6 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var aboutWindow: NSWindow?
     private var welcomeWindow: NSWindow?
     private var gameModeDetector: GameModeDetector?
+    private var lastToggleTime: Date = .distantPast
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("AWDLControl launching...")
@@ -155,6 +156,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func handleGameModeAutoDetectChange() {
         if AWDLPreferences.shared.gameModeAutoDetect {
+            // Stop existing detector first to prevent duplicates
+            gameModeDetector?.stop()
             setupGameModeDetector()
         } else {
             gameModeDetector?.stop()
@@ -307,7 +310,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.toolbarStyle = .unified
-        window.setContentSize(NSSize(width: 650, height: 500))
+
+        // Ensure window fits on screen
+        var windowSize = NSSize(width: 650, height: 500)
+        if let screen = NSScreen.main {
+            windowSize.width = min(windowSize.width, screen.visibleFrame.width - 40)
+            windowSize.height = min(windowSize.height, screen.visibleFrame.height - 40)
+        }
+        window.setContentSize(windowSize)
         window.center()
         window.isReleasedWhenClosed = false
 
@@ -387,6 +397,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleMonitoring() {
+        // Debounce rapid toggles to prevent race conditions
+        let now = Date()
+        guard now.timeIntervalSince(lastToggleTime) > 0.5 else {
+            log.debug("Toggle debounced - too soon since last toggle")
+            return
+        }
+        lastToggleTime = now
+
         if AWDLMonitor.shared.isMonitoringActive {
             AWDLMonitor.shared.stopMonitoring()
         } else {
@@ -793,7 +811,7 @@ struct GeneralSettingsContent: View {
     @State private var isHelperRegistered = AWDLMonitor.shared.isHelperRegistered
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var showDockIcon = AWDLPreferences.shared.showDockIcon
-    @State private var timer: Timer?
+    @State private var monitoringObserver: NSObjectProtocol?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -880,13 +898,27 @@ struct GeneralSettingsContent: View {
             }
         }
         .onAppear {
-            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            // Use notification-based updates instead of polling
+            monitoringObserver = NotificationCenter.default.addObserver(
+                forName: .awdlMonitoringStateChanged,
+                object: nil,
+                queue: .main
+            ) { _ in
                 isMonitoring = AWDLMonitor.shared.isMonitoringActive
                 isHelperRegistered = AWDLMonitor.shared.isHelperRegistered
             }
+            // Also set up AWDLMonitor's callback for immediate updates
+            AWDLMonitor.shared.onStateChange = {
+                DispatchQueue.main.async {
+                    isMonitoring = AWDLMonitor.shared.isMonitoringActive
+                    isHelperRegistered = AWDLMonitor.shared.isHelperRegistered
+                }
+            }
         }
         .onDisappear {
-            timer?.invalidate()
+            if let observer = monitoringObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
         }
     }
 
@@ -1077,52 +1109,79 @@ struct AdvancedSettingsContent: View {
     }
 
     private func runHelperTest() {
-        let healthCheck = AWDLMonitor.shared.performHealthCheck()
+        // Run health check on background thread to avoid UI freeze
+        DispatchQueue.global(qos: .userInitiated).async {
+            let healthCheck = AWDLMonitor.shared.performHealthCheck()
 
-        if !healthCheck.isHealthy {
-            testResults = "Health Check Failed:\n\(healthCheck.message)"
-            showingTestResults = true
-            return
+            DispatchQueue.main.async {
+                if !healthCheck.isHealthy {
+                    self.testResults = "Health Check Failed:\n\(healthCheck.message)"
+                    self.showingTestResults = true
+                    return
+                }
+
+                // Run the actual test script
+                self.runTestScript()
+            }
         }
+    }
 
+    private func runTestScript() {
+        // Use single quotes in shell script to avoid escaping issues
         let testScript = """
-        echo "Testing AWDL helper response time..."
+        echo 'Testing AWDL helper response time...'
         for i in 1 2 3 4 5; do
             ifconfig awdl0 up 2>/dev/null
             sleep 0.001
-            if ifconfig awdl0 2>/dev/null | grep -q "UP"; then
+            if ifconfig awdl0 2>/dev/null | grep -q 'UP'; then
                 echo "Test $i: FAILED - AWDL still UP after 1ms"
             else
                 echo "Test $i: PASSED - AWDL brought down in <1ms"
             fi
         done
-        echo ""
-        echo "Final AWDL status:"
+        echo ''
+        echo 'Final AWDL status:'
         ifconfig awdl0 2>/dev/null | head -1
         """
 
+        // Base64 encode the script to safely pass it through AppleScript
+        guard let scriptData = testScript.data(using: .utf8) else {
+            testResults = "Error: Could not encode test script"
+            showingTestResults = true
+            return
+        }
+        let base64Script = scriptData.base64EncodedString()
+
         let appleScript = """
-        do shell script "\(testScript.replacingOccurrences(of: "\"", with: "\\\""))" with administrator privileges
+        do shell script "echo '\(base64Script)' | base64 -d | sh" with administrator privileges
         """
 
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        task.arguments = ["-e", appleScript]
+        DispatchQueue.global(qos: .userInitiated).async {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            task.arguments = ["-e", appleScript]
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = pipe
 
-        do {
-            try task.run()
-            task.waitUntilExit()
+            do {
+                try task.run()
+                task.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            testResults = String(data: data, encoding: .utf8) ?? "No output"
-            showingTestResults = true
-        } catch {
-            testResults = "Test error: \(error.localizedDescription)"
-            showingTestResults = true
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8) ?? "No output"
+
+                DispatchQueue.main.async {
+                    self.testResults = output
+                    self.showingTestResults = true
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.testResults = "Test error: \(error.localizedDescription)"
+                    self.showingTestResults = true
+                }
+            }
         }
     }
 

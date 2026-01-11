@@ -10,7 +10,12 @@ class AWDLPreferences {
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
 
     private lazy var defaults: UserDefaults? = {
-        return UserDefaults(suiteName: appGroupID)
+        guard let suite = UserDefaults(suiteName: appGroupID) else {
+            // Fallback to standard defaults if app group fails
+            // This matches the main app's behavior for consistency
+            return UserDefaults.standard
+        }
+        return suite
     }()
 
     private init() {}
