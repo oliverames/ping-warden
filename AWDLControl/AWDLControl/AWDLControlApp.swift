@@ -4,7 +4,7 @@
 //
 //  Main application entry point and UI for Ping Warden.
 //
-//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 //  Licensed under the MIT License.
 //
 
@@ -1288,7 +1288,7 @@ struct AboutView: View {
             }
             .padding(.vertical, 12)
 
-            Text("© 2025 Oliver Ames")
+            Text("© 2025-2026 Oliver Ames")
                 .font(.caption2)
                 .foregroundStyle(.quaternary)
                 .padding(.bottom, 16)

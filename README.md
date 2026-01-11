@@ -91,8 +91,9 @@ Click the antenna icon in the menu bar:
 
 Access Settings from the menu bar to configure:
 
-- **General**: Enable/disable blocking, Launch at Login
-- **Advanced**: Control Center Widget (Beta), Game Mode Auto-Detect (Beta), Show Dock Icon, Diagnostics
+- **General**: Enable/disable blocking, Launch at Login, Show Dock Icon
+- **Automation**: Game Mode Auto-Detect (Beta), Control Center Widget (Beta)
+- **Advanced**: Diagnostics, Re-register Helper, Uninstall
 
 ### Control Center Widget (Beta)
 
@@ -107,6 +108,7 @@ When enabled, Ping Warden automatically activates AWDL blocking when it detects 
 ## Requirements
 
 - macOS 13.0+ (Ventura or later)
+- macOS 14.0+ (Sonoma or later) for Control Center Widget
 - Xcode 16.0+ (for building)
 
 > **Tip**: For the best app icon rendering, build from Xcode IDE rather than the command-line script. Xcode properly processes Icon Composer `.icon` files.
