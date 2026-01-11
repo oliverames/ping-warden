@@ -30,7 +30,6 @@ static NSInteger activeConnectionCount = 0;
 static dispatch_queue_t connectionCountQueue;
 static dispatch_source_t exitTimer = nil;
 static dispatch_block_t pendingStateVerification = nil;
-static AWDLService *sharedService = nil;  // For signal handler access
 
 #pragma mark - Code Signing Helpers
 
@@ -232,18 +231,42 @@ static BOOL isProperlyCodeSigned(void) {
 
 @end
 
-#pragma mark - Main
+#pragma mark - Signal Handling
 
-/// Handle SIGTERM for graceful shutdown - restore AWDL before exiting
-static void handleSIGTERM(int sig) {
-    os_log(LOG, "Received SIGTERM, performing graceful shutdown");
-    if (sharedService && sharedService.monitor) {
-        [sharedService.monitor setAwdlEnabled:YES];
-        [sharedService.monitor invalidate];
+/// Set up dispatch source for SIGTERM handling (async-signal-safe)
+/// This is the modern, safe approach for handling signals in dispatch-based apps
+static dispatch_source_t setupSignalHandler(AWDLService *service) {
+    // Block SIGTERM so we can handle it via dispatch
+    signal(SIGTERM, SIG_IGN);
+
+    dispatch_source_t signalSource = dispatch_source_create(
+        DISPATCH_SOURCE_TYPE_SIGNAL,
+        SIGTERM,
+        0,
+        dispatch_get_main_queue()
+    );
+
+    if (signalSource) {
+        dispatch_source_set_event_handler(signalSource, ^{
+            os_log(LOG, "Received SIGTERM via dispatch, performing graceful shutdown");
+            if (service && service.monitor) {
+                [service.monitor setAwdlEnabled:YES];
+                [service.monitor invalidate];
+            }
+            os_log(LOG, "AWDLControlHelper exiting due to SIGTERM");
+            // Give a moment for cleanup
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                exit(0);
+            });
+        });
+        dispatch_resume(signalSource);
     }
-    os_log(LOG, "AWDLControlHelper exiting due to SIGTERM");
-    exit(0);
+
+    return signalSource;
 }
+
+#pragma mark - Main
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
@@ -251,16 +274,12 @@ int main(int argc, const char * argv[]) {
         os_log(LOG, "AWDLControlHelper v%{public}@ starting (%{public}s)",
                HELPER_VERSION, isSigned ? "signed" : "unsigned/ad-hoc");
 
-        // Set up signal handler for graceful shutdown
-        signal(SIGTERM, handleSIGTERM);
-
         // Initialize thread-safe queue for connection counting
         connectionCountQueue = dispatch_queue_create("com.awdlcontrol.helper.connectionCount",
                                                      DISPATCH_QUEUE_SERIAL);
 
         // Initialize the service
         AWDLService *service = [AWDLService new];
-        sharedService = service;  // Store for signal handler
         if (!service) {
             os_log_error(LOG, "Failed to create AWDLService, exiting");
             return EXIT_FAILURE;
@@ -297,7 +316,17 @@ int main(int argc, const char * argv[]) {
         listener.delegate = service;
         [listener activate];
 
-        os_log(LOG, "XPC listener activated on com.awdlcontrol.xpc.helper, entering run loop");
+        os_log(LOG, "XPC listener activated on com.awdlcontrol.xpc.helper");
+
+        // Set up signal handler for graceful shutdown (async-signal-safe via dispatch)
+        // The dispatch source is retained by GCD internally, so we don't need to keep a reference
+        dispatch_source_t signalSource = setupSignalHandler(service);
+        if (!signalSource) {
+            os_log_error(LOG, "Failed to set up signal handler - graceful SIGTERM handling disabled");
+        }
+        (void)signalSource;  // Suppress unused variable warning - dispatch retains internally
+
+        os_log(LOG, "Entering run loop");
 
         // Enter the main run loop - we'll exit when all connections are closed
         dispatch_main();

@@ -24,6 +24,7 @@
 #import <err.h>
 #import <fcntl.h>
 #import <string.h>
+#import <stdatomic.h>
 
 #define LOG OS_LOG_DEFAULT
 
@@ -45,7 +46,9 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     int _msgfds[2];
 
     BOOL _exit;
-    BOOL _threadRunning;
+    // Thread-safe flag for tracking background thread state
+    // Use atomic_bool to prevent data races between main thread and pollIoctl thread
+    atomic_bool _threadRunning;
 
     dispatch_semaphore_t _ioctlThreadExitSemaphore;
 }
@@ -70,7 +73,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         _iocfd = INVALID_FD;
         _msgfds[0] = INVALID_FD;
         _msgfds[1] = INVALID_FD;
-        _threadRunning = NO;
+        atomic_store(&_threadRunning, false);
 
         // Start off allowing AWDL to be active
         _awdlEnabled = YES;
@@ -113,7 +116,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         _ioctlThreadExitSemaphore = dispatch_semaphore_create(0);
         _ioctlThread = [[NSThread alloc] initWithTarget:self selector:@selector(pollIoctl) object:nil];
         _ioctlThread.name = @"AWDLMonitor.pollIoctl";
-        _threadRunning = YES;
+        atomic_store(&_threadRunning, true);
         [_ioctlThread start];
 
         os_log(LOG, "AWDLMonitor initialized successfully");
@@ -324,7 +327,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         }
     }
 
-    _threadRunning = NO;
+    atomic_store(&_threadRunning, false);
     dispatch_semaphore_signal(_ioctlThreadExitSemaphore);
     os_log(LOG, "pollIoctl thread exiting");
 }
@@ -368,8 +371,8 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
 - (void)invalidate {
     os_log(LOG, "AWDLMonitor invalidating...");
 
-    // Only send quit if thread is running
-    if (_threadRunning && _msgfds[1] != INVALID_FD) {
+    // Only send quit if thread is running (atomic read)
+    if (atomic_load(&_threadRunning) && _msgfds[1] != INVALID_FD) {
         // Send quit message to background thread with retry
         if (![self writeMessageToPipe:"Q"]) {
             os_log_error(LOG, "Failed to send quit message to pipe - thread may not exit cleanly");
@@ -381,8 +384,8 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         long result = dispatch_semaphore_wait(_ioctlThreadExitSemaphore, timeout);
         if (result != 0) {
             os_log_error(LOG, "Timeout waiting for pollIoctl thread to exit");
-            // Mark thread as not running to prevent further issues
-            _threadRunning = NO;
+            // Mark thread as not running to prevent further issues (atomic write)
+            atomic_store(&_threadRunning, false);
         }
     }
 
@@ -393,8 +396,8 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
 }
 
 - (void)dealloc {
-    // Ensure thread is stopped and resources cleaned up
-    if (_threadRunning) {
+    // Ensure thread is stopped and resources cleaned up (atomic read)
+    if (atomic_load(&_threadRunning)) {
         [self invalidate];
     } else {
         [self cleanupFileDescriptors];
