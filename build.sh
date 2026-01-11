@@ -23,9 +23,11 @@ xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
            > /tmp/xcodebuild.log 2>&1
 XCODE_EXIT=$?
 
-# If full build fails (likely due to signing), try without widget and entitlements
+# If full build fails (likely due to signing), try without widget but keep entitlements
 if [ $XCODE_EXIT -ne 0 ]; then
     echo "   ⚠️  Full build failed, trying without widget (requires Developer ID)..."
+    # Note: We use ad-hoc signing (-) but preserve entitlements for SMAppService to work
+    # The entitlements file contains App Groups which is needed for preferences
     xcodebuild -project AWDLControl/AWDLControl.xcodeproj \
                -target AWDLControl \
                -target AWDLControlHelper \
@@ -34,7 +36,6 @@ if [ $XCODE_EXIT -ne 0 ]; then
                CODE_SIGN_IDENTITY="-" \
                CODE_SIGNING_REQUIRED=NO \
                CODE_SIGNING_ALLOWED=YES \
-               CODE_SIGN_ENTITLEMENTS="" \
                > /tmp/xcodebuild.log 2>&1
     XCODE_EXIT=$?
 fi
