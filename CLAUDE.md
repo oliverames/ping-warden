@@ -224,7 +224,7 @@ Or from the app: Settings → Advanced → Uninstall
 
 GitHub Actions workflow (`.github/workflows/build.yml`):
 - Runs on: `macos-14` with Xcode 16
-- Builds app, widget, and helper
+- Builds app and helper (widget skipped - requires macOS 26 SDK)
 - Verifies build artifacts exist
 
 ## Code Patterns
@@ -275,7 +275,8 @@ NotificationCenter.default.post(name: .awdlMonitoringStateChanged, object: nil)
 
 - macOS 13.0+ (Ventura or later)
 - macOS 26.0+ (Tahoe or later) for Control Center Widget
-- Xcode 16.0+ (for building)
+- Xcode 16.0+ (for building app and helper)
+- Xcode 26.0+ (for building Control Center Widget - requires macOS 26 SDK)
 
 ## Common Issues
 
