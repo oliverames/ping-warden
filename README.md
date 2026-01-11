@@ -109,21 +109,23 @@ When enabled, Ping Warden automatically activates AWDL blocking when it detects 
 
 ## Requirements
 
-- macOS 13.0+ (Ventura or later)
-- macOS 26.0+ (Tahoe or later) for Control Center Widget
-- Xcode 16.0+ (for building app and helper)
-- Xcode 26.0+ (for building Control Center Widget - requires macOS 26 SDK)
+- macOS 13.0+ (Ventura) or later
+- macOS 26.0 (Tahoe) or later for Control Center Widget
+- Xcode 16.0+ for building app and helper
+- Xcode 26.0+ for building Control Center Widget (requires macOS Tahoe SDK)
 
-> **Tip**: For the best app icon rendering, build from Xcode IDE rather than the command-line script. Xcode properly processes Icon Composer `.icon` files.
+> **Tip**: For proper app icon rendering, build from Xcode IDE rather than the command-line script. Xcode properly processes the modern `.icon` asset format.
 
 ## How It Works
 
-Ping Warden v2.0 uses a modern architecture:
+Ping Warden v2.0 uses a modern architecture based on the original [awdlkiller](https://github.com/jamestut/awdlkiller) approach:
 
 1. **Helper daemon** bundled inside the app (Contents/MacOS/AWDLControlHelper)
 2. **SMAppService** registers the helper as a LaunchDaemon with one-time system approval
 3. **XPC communication** between the app and helper for control commands
-4. **AF_ROUTE sockets** monitor the network stack and instantly bring awdl0 down when macOS enables it
+4. **AF_ROUTE sockets** monitor kernel routing messages and instantly bring awdl0 down via `ioctl(SIOCSIFFLAGS)` when macOS enables it
+
+The core monitoring algorithm uses `poll()` with infinite timeout for true 0% CPU usage when idle. When the kernel sends an `RTM_IFINFO` message indicating awdl0 is UP, the helper immediately clears the `IFF_UP` flag before any network activity can occur (response time <1ms).
 
 The helper only runs while the app is running. When you quit Ping Warden, the helper exits and AWDL is automatically restored.
 
