@@ -147,10 +147,26 @@ if [ $XCODE_EXIT -eq 0 ]; then
 
     echo ""
 
-    # Re-sign the app bundle after adding helper with proper Developer ID
-    echo "🔏 Signing app bundle with $SIGNING_IDENTITY..."
-    codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
-    echo "   ✅ App bundle signed"
+    # Re-sign components individually (--deep is deprecated since macOS 13)
+    # Sign from deepest nested component outward per Apple best practices
+    echo "🔏 Signing components individually with $SIGNING_IDENTITY..."
+
+    # Sign the helper binary first (deepest component)
+    echo "   Signing helper binary..."
+    codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE/Contents/MacOS/AWDLControlHelper"
+
+    # Sign the widget extension if present (nested component)
+    WIDGET_BUNDLE="$APP_BUNDLE/Contents/PlugIns/AWDLControlWidget.appex"
+    if [ -d "$WIDGET_BUNDLE" ]; then
+        echo "   Signing widget extension..."
+        codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$WIDGET_BUNDLE"
+    fi
+
+    # Sign the main app bundle last (outermost)
+    echo "   Signing main app bundle..."
+    codesign --force --options runtime --sign "$SIGNING_IDENTITY" "$APP_BUNDLE"
+
+    echo "   ✅ All components signed"
 
     echo ""
 
@@ -179,9 +195,12 @@ if [ $XCODE_EXIT -eq 0 ]; then
         exit 1
     fi
 
-    # Verify code signature
+    # Verify code signature (--deep is correct for verification)
     echo ""
-    echo "🔏 Verifying code signature..."
+    echo "🔏 Verifying code signatures..."
+    codesign --verify --deep --strict "$APP_BUNDLE" 2>&1 && echo "   ✅ Signature verification passed" || echo "   ⚠️  Signature verification had warnings"
+    echo ""
+    echo "   Signature details:"
     codesign -dvvv "$APP_BUNDLE" 2>&1 | grep -E "Authority|Identifier|TeamIdentifier" || true
 
     echo ""

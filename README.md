@@ -74,6 +74,8 @@ Ping Warden v2.0 uses SMAppService which requires proper code signing. The build
 ./build.sh  # Automatically uses your Developer ID certificate
 ```
 
+The build script signs components individually (helper, widget, then app) per Apple's best practices for code signing nested bundles.
+
 > **Note**: The build script will fail if no valid signing certificate is found. Ensure you're signed into Xcode with your Apple Developer account.
 
 ## Usage
