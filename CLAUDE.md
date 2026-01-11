@@ -279,6 +279,19 @@ codesign --force --options runtime --sign "$IDENTITY" "$APP"
 codesign --verify --deep --strict "$APP"
 ```
 
+### XPC Code Signing Requirement
+
+The helper daemon enforces code signing verification for XPC connections (macOS 13+):
+```objc
+// In main.m - only accept connections from the main app or widget
+NSString *requirement = @"anchor apple generic "
+    @"and (identifier \"com.awdlcontrol.app\" or identifier \"com.awdlcontrol.app.widget\") "
+    @"and certificate leaf[subject.OU] = \"TEAM_ID\"";
+listener.connectionCodeSigningRequirement = requirement;
+```
+
+This prevents unauthorized processes from connecting to the privileged helper.
+
 ## Code Patterns
 
 ### SMAppService Registration
@@ -293,7 +306,8 @@ try helperService.register()
 ### XPC Communication
 
 ```swift
-let connection = NSXPCConnection(machServiceName: "com.awdlcontrol.xpc.helper", options: [])
+// Use .privileged option for daemons registered via SMAppService
+let connection = NSXPCConnection(machServiceName: "com.awdlcontrol.xpc.helper", options: .privileged)
 connection.remoteObjectInterface = NSXPCInterface(with: AWDLHelperProtocol.self)
 connection.activate()
 
@@ -302,6 +316,8 @@ proxy?.setAWDLEnabled(false) { success in
     // AWDL is now disabled
 }
 ```
+
+**Important**: Always use `.privileged` when connecting to a daemon (as opposed to an agent). This is required because the daemon runs as root.
 
 ### State Synchronization
 
@@ -325,10 +341,10 @@ NotificationCenter.default.post(name: .awdlMonitoringStateChanged, object: nil)
 
 ## Requirements
 
-- macOS 13.0+ (Ventura or later)
-- macOS 26.0+ (Tahoe or later) for Control Center Widget
-- Xcode 16.0+ (for building app and helper)
-- Xcode 26.0+ (for building Control Center Widget - requires macOS 26 SDK)
+- macOS 13.0+ (Ventura) or later
+- macOS 26.0 (Tahoe) or later for Control Center Widget
+- Xcode 16.0+ for building app and helper
+- Xcode 26.0+ for building Control Center Widget (requires macOS Tahoe SDK)
 
 ## Common Issues
 
