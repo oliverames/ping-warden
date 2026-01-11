@@ -1,6 +1,9 @@
 import Foundation
 
 /// Manages shared state between app and widget using App Groups
+/// Note: This file should be kept in sync with AWDLControl/AWDLPreferences.swift
+/// The widget only uses isMonitoringEnabled and lastKnownState, but all properties
+/// are included for consistency and to ensure key names match.
 class AWDLPreferences {
     static let shared = AWDLPreferences()
 
@@ -8,11 +11,14 @@ class AWDLPreferences {
     private let monitoringEnabledKey = "AWDLMonitoringEnabled"
     private let lastStateKey = "AWDLLastState"
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
+    private let gameModeAutoDetectKey = "GameModeAutoDetect"
+    private let showDockIconKey = "ShowDockIcon"
 
     private lazy var defaults: UserDefaults? = {
         guard let suite = UserDefaults(suiteName: appGroupID) else {
             // Fallback to standard defaults if app group fails
             // This matches the main app's behavior for consistency
+            print("AWDLPreferences: Failed to create App Group suite, using standard defaults")
             return UserDefaults.standard
         }
         return suite
@@ -49,17 +55,44 @@ class AWDLPreferences {
         }
     }
 
-    /// Whether Control Center widget mode is enabled
+    /// Whether Control Center widget mode is enabled (hides menu bar icon)
     var controlCenterWidgetEnabled: Bool {
         get {
             return defaults?.bool(forKey: controlCenterEnabledKey) ?? false
         }
         set {
             defaults?.set(newValue, forKey: controlCenterEnabledKey)
+            // Note: Widget doesn't post this notification as it's only used by main app
+        }
+    }
+
+    /// Whether to auto-enable AWDL blocking when Game Mode is active
+    var gameModeAutoDetect: Bool {
+        get {
+            return defaults?.bool(forKey: gameModeAutoDetectKey) ?? false
+        }
+        set {
+            defaults?.set(newValue, forKey: gameModeAutoDetectKey)
+            // Note: Widget doesn't post this notification as it's only used by main app
+        }
+    }
+
+    /// Whether to show the app icon in the Dock
+    var showDockIcon: Bool {
+        get {
+            return defaults?.bool(forKey: showDockIconKey) ?? false
+        }
+        set {
+            defaults?.set(newValue, forKey: showDockIconKey)
+            // Note: Widget doesn't post this notification as it's only used by main app
         }
     }
 }
 
 extension Notification.Name {
     static let awdlMonitoringStateChanged = Notification.Name("AWDLMonitoringStateChanged")
+    // These are defined in the main app but included here for reference:
+    // static let controlCenterModeChanged = Notification.Name("ControlCenterModeChanged")
+    // static let gameModeAutoDetectChanged = Notification.Name("GameModeAutoDetectChanged")
+    // static let dockIconVisibilityChanged = Notification.Name("DockIconVisibilityChanged")
 }

@@ -42,6 +42,10 @@ class AWDLMonitor {
     /// Flag to prevent recursive registration
     private var _isRegisteringHelper = false
 
+    /// Counter to prevent infinite registration retries
+    private var _registrationAttempts = 0
+    private let maxRegistrationAttempts = 3
+
     /// Thread-safe access to XPC connection
     private var xpcConnection: NSXPCConnection? {
         get {
@@ -203,10 +207,27 @@ class AWDLMonitor {
                 log.debug("Already registering helper, skipping")
                 return
             }
+
+            // Prevent infinite retry loops
+            stateLock.lock()
+            _registrationAttempts += 1
+            let attempts = _registrationAttempts
+            stateLock.unlock()
+
+            if attempts > maxRegistrationAttempts {
+                log.error("Max registration attempts (\(maxRegistrationAttempts)) exceeded, giving up")
+                showError("Helper registration failed after multiple attempts.\n\nPlease try restarting the app or check System Settings → Login Items.")
+                return
+            }
+
             isRegisteringHelper = true
             registerHelper { success in
                 self.isRegisteringHelper = false
                 if success && self.isHelperRegistered {
+                    // Reset attempts on success
+                    self.stateLock.lock()
+                    self._registrationAttempts = 0
+                    self.stateLock.unlock()
                     self.startMonitoring()
                 }
             }
@@ -295,9 +316,11 @@ class AWDLMonitor {
             return (false, "Cannot connect to helper via XPC")
         }
 
-        // Check 3: Query helper status
+        // Check 3: Query helper status with proper timeout handling
         var helperStatus = "Unknown"
         var helperVersion = "Unknown"
+        var statusTimedOut = false
+        var versionTimedOut = false
         let statusSemaphore = DispatchSemaphore(value: 0)
         let versionSemaphore = DispatchSemaphore(value: 0)
 
@@ -305,13 +328,24 @@ class AWDLMonitor {
             helperStatus = status
             statusSemaphore.signal()
         })
-        _ = statusSemaphore.wait(timeout: .now() + 2.0)
+        if statusSemaphore.wait(timeout: .now() + 2.0) == .timedOut {
+            log.warning("Health check: getAWDLStatus timed out")
+            statusTimedOut = true
+        }
 
         proxy.getVersion(reply: { version in
             helperVersion = version
             versionSemaphore.signal()
         })
-        _ = versionSemaphore.wait(timeout: .now() + 2.0)
+        if versionSemaphore.wait(timeout: .now() + 2.0) == .timedOut {
+            log.warning("Health check: getVersion timed out")
+            versionTimedOut = true
+        }
+
+        // If both timed out, helper is not responding
+        if statusTimedOut && versionTimedOut {
+            return (false, "Helper not responding to XPC calls (timed out)")
+        }
 
         // Check 4: Check actual AWDL interface status
         let awdlStatus = getAWDLInterfaceStatus()
@@ -332,8 +366,21 @@ class AWDLMonitor {
     }
 
     /// Test the helper response time (for Testing Mode feature)
+    /// Note: This test only works when monitoring is active, as it relies on
+    /// the helper bringing AWDL back down after we bring it up.
     func testHelperResponseTime(iterations: Int = 5, completion: @escaping ([(passed: Bool, responseTime: TimeInterval)]) -> Void) {
         log.info("Testing helper response time (\(iterations) iterations)...")
+
+        // Warn if monitoring is not active - test results won't be meaningful
+        guard isMonitoringActive else {
+            log.warning("testHelperResponseTime called but monitoring is not active - test will fail")
+            DispatchQueue.main.async {
+                // Return all failures since monitoring isn't active
+                let results = (0..<iterations).map { _ in (passed: false, responseTime: 0.0) }
+                completion(results)
+            }
+            return
+        }
 
         var results: [(passed: Bool, responseTime: TimeInterval)] = []
 
@@ -448,6 +495,7 @@ class AWDLMonitor {
     }
 
     /// Get the helper proxy for making XPC calls (thread-safe)
+    /// Uses remoteObjectProxyWithErrorHandler to properly handle XPC errors
     private func getHelperProxy() -> AWDLHelperProtocol? {
         // Get connection under lock to avoid TOCTOU race
         stateLock.lock()
@@ -459,7 +507,12 @@ class AWDLMonitor {
             return nil
         }
 
-        return connection.remoteObjectProxy as? AWDLHelperProtocol
+        return connection.remoteObjectProxyWithErrorHandler { error in
+            log.error("XPC proxy error: \(error.localizedDescription)")
+            DispatchQueue.main.async { [weak self] in
+                self?.handleXPCDisconnect()
+            }
+        } as? AWDLHelperProtocol
     }
 
     // MARK: - Registration Polling

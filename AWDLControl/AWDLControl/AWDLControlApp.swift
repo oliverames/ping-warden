@@ -588,8 +588,10 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 // MARK: - AppKit Split View Controller for Finder-style Sidebar
 
 class SettingsSplitViewController: NSSplitViewController {
-    private var sidebarVC: NSViewController!
-    private var detailVC: NSViewController!
+    // Use regular optionals instead of implicitly unwrapped to prevent crashes
+    // if properties are accessed before viewDidLoad()
+    private var sidebarVC: NSViewController?
+    private var detailVC: NSViewController?
     private var selectedSection: SettingsSection = .general
 
     override func viewDidLoad() {
@@ -605,20 +607,22 @@ class SettingsSplitViewController: NSSplitViewController {
                 }
             )
         )
-        sidebarVC = NSHostingController(rootView: sidebarView)
+        let sidebarController = NSHostingController(rootView: sidebarView)
+        sidebarVC = sidebarController
 
         // Create detail view
         let detailView = SettingsDetailView(section: selectedSection)
-        detailVC = NSHostingController(rootView: detailView)
+        let detailController = NSHostingController(rootView: detailView)
+        detailVC = detailController
 
         // Create split view items
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarVC)
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarController)
         sidebarItem.canCollapse = false
         sidebarItem.minimumThickness = 180
         sidebarItem.maximumThickness = 220
         sidebarItem.allowsFullHeightLayout = true
 
-        let detailItem = NSSplitViewItem(viewController: detailVC)
+        let detailItem = NSSplitViewItem(viewController: detailController)
         detailItem.minimumThickness = 400
 
         addSplitViewItem(sidebarItem)
@@ -629,14 +633,17 @@ class SettingsSplitViewController: NSSplitViewController {
 
     private func updateDetailView() {
         let newDetailView = SettingsDetailView(section: selectedSection)
-        detailVC = NSHostingController(rootView: newDetailView)
+        let newDetailController = NSHostingController(rootView: newDetailView)
 
-        // Replace the detail split view item
+        // Remove old detail view item first, then add new one
         if splitViewItems.count > 1 {
             removeSplitViewItem(splitViewItems[1])
         }
 
-        let detailItem = NSSplitViewItem(viewController: detailVC)
+        // Update the reference
+        detailVC = newDetailController
+
+        let detailItem = NSSplitViewItem(viewController: newDetailController)
         detailItem.minimumThickness = 400
         addSplitViewItem(detailItem)
     }

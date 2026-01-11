@@ -25,6 +25,10 @@
 
 static const char *TARGETIFNAM = "awdl0";
 
+// Routing messages can contain rt_msghdr + if_msghdr + multiple sockaddr structures
+// Use a generous buffer size to handle all message types safely
+#define RTMSG_BUFFER_SIZE 512
+
 @interface AWDLMonitor () {
     // Pipe file descriptors for internal state change communication
     int _msgfds[2];
@@ -159,7 +163,9 @@ static const char *TARGETIFNAM = "awdl0";
         if (fds[0].revents) {
             os_log_debug(LOG, "Network route changed");
             int ifflag = 0;
-            uint8_t rtmsgbuff[sizeof(struct rt_msghdr) + sizeof(struct if_msghdr)] = {0};
+            // Use larger buffer to handle all routing message types
+            // Messages can include sockaddr structures appended after headers
+            uint8_t rtmsgbuff[RTMSG_BUFFER_SIZE] = {0};
 
             for (ssize_t len = 0; !quit;) {
                 len = read(_rtfd, rtmsgbuff, sizeof(rtmsgbuff));
@@ -176,8 +182,20 @@ static const char *TARGETIFNAM = "awdl0";
                     break;  // Socket closed
                 }
 
+                // Validate message length before casting
+                if (len < (ssize_t)sizeof(struct rt_msghdr)) {
+                    os_log_debug(LOG, "Routing message too short: %zd bytes", len);
+                    continue;
+                }
+
                 struct rt_msghdr *rtmsg = (void *)rtmsgbuff;
                 if (rtmsg->rtm_type != RTM_IFINFO) {
+                    continue;
+                }
+
+                // Validate we have enough data for if_msghdr
+                if (len < (ssize_t)sizeof(struct if_msghdr)) {
+                    os_log_debug(LOG, "IFINFO message too short: %zd bytes", len);
                     continue;
                 }
 

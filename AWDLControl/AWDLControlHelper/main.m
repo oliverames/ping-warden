@@ -130,6 +130,12 @@ int main(int argc, const char * argv[]) {
         // The service name must match the MachServices key in the plist
         NSXPCListener *listener = [[NSXPCListener alloc] initWithMachServiceName:@"com.awdlcontrol.xpc.helper"];
 
+        if (!listener) {
+            os_log_error(LOG, "Failed to create XPC listener - Mach service may not be registered");
+            os_log_error(LOG, "Ensure the helper plist is in Contents/Library/LaunchDaemons/");
+            return EXIT_FAILURE;
+        }
+
         // IMPORTANT: For unsigned builds, we do NOT set connectionCodeSigningRequirement
         // This allows any local process to connect. For signed distribution builds,
         // you would add:
