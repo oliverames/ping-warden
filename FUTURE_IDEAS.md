@@ -42,7 +42,7 @@ This document captures ideas for future development that have been discussed but
 
 ## Security Enhancements
 
-- Add option for stricter XPC code signing requirements
+- ✅ XPC code signing requirements implemented in helper (enforces Team ID verification)
 - Consider certificate pinning for release builds
 - Audit for potential TOCTOU race conditions in permission checks
 
@@ -54,4 +54,4 @@ This document captures ideas for future development that have been discussed but
 
 ---
 
-*Last updated: 2026*
+*Last updated: January 2026*

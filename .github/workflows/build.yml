@@ -72,7 +72,47 @@ jobs:
         ls -la "AWDLControl/build/Release/Ping Warden.app/Contents/MacOS/" || true
         echo ""
 
+        echo "Helper plist (source):"
+        ls -la "AWDLControl/AWDLControlHelper/com.awdlcontrol.helper.plist"
+        echo ""
+
         echo "=== Build verification passed ==="
         echo ""
         echo "Note: This is a CI verification build without code signing."
         echo "For a distributable app, build locally with a Developer ID certificate."
+
+    - name: Verify Bundle Structure Requirements
+      run: |
+        # Verify all required source files exist for proper bundling
+        echo "Checking required files for app bundling..."
+
+        # Check helper binary exists
+        if [ ! -f "AWDLControl/build/Release/AWDLControlHelper" ]; then
+          echo "ERROR: Helper binary missing"
+          exit 1
+        fi
+        echo "✓ Helper binary present"
+
+        # Check helper plist exists
+        if [ ! -f "AWDLControl/AWDLControlHelper/com.awdlcontrol.helper.plist" ]; then
+          echo "ERROR: Helper plist missing"
+          exit 1
+        fi
+        echo "✓ Helper plist present"
+
+        # Check app bundle exists
+        if [ ! -d "AWDLControl/build/Release/Ping Warden.app" ]; then
+          echo "ERROR: App bundle missing"
+          exit 1
+        fi
+        echo "✓ App bundle present"
+
+        # Verify main binary exists in app
+        if [ ! -f "AWDLControl/build/Release/Ping Warden.app/Contents/MacOS/Ping Warden" ]; then
+          echo "ERROR: Main binary missing from app bundle"
+          exit 1
+        fi
+        echo "✓ Main binary present in app bundle"
+
+        echo ""
+        echo "All bundle structure requirements verified."

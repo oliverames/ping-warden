@@ -63,6 +63,37 @@ SMAppService + XPC architecture inspired by [james-howard/AWDLControl](https://g
 8. Response time: <1ms (kernel-level event-driven)
 9. When app quits, helper exits and AWDL is restored
 
+### Core Monitoring Algorithm
+
+The helper daemon uses the same proven approach as the original [awdlkiller](https://github.com/jamestut/awdlkiller):
+
+```c
+// 1. Create AF_ROUTE socket for kernel routing notifications
+int rtfd = socket(AF_ROUTE, SOCK_RAW, 0);
+fcntl(rtfd, F_SETFL, O_NONBLOCK);
+
+// 2. Create socket for ioctl interface control
+int iocfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+// 3. Poll with infinite timeout (0% CPU when idle)
+while (running) {
+    poll(fds, nfds, -1);  // Blocks until event
+
+    // 4. Check for RTM_IFINFO messages about awdl0
+    if (rtmsg->rtm_type == RTM_IFINFO && ifmsg->ifm_index == awdl0_index) {
+        // 5. If AWDL is UP but we want it DOWN, disable it immediately
+        if ((ifmsg->ifm_flags & IFF_UP) && !enable) {
+            ioctl(iocfd, SIOCSIFFLAGS, &ifr);  // Clear IFF_UP flag
+        }
+    }
+}
+```
+
+This achieves true instant response (<1ms) because:
+- `poll()` blocks efficiently with zero CPU usage
+- Kernel routing messages are delivered synchronously
+- `ioctl()` disables the interface before any network activity can occur
+
 ## Directory Structure
 
 ```
@@ -92,14 +123,16 @@ AWDLControl/
 ### App Bundle Structure (after build)
 
 ```
-AWDLControl.app/
+Ping Warden.app/
 ├── Contents/
 │   ├── MacOS/
-│   │   ├── AWDLControl          # Main app binary
+│   │   ├── Ping Warden          # Main app binary
 │   │   └── AWDLControlHelper    # Helper binary (copied by build.sh)
 │   ├── Library/
 │   │   └── LaunchDaemons/
 │   │       └── com.awdlcontrol.helper.plist  # SMAppService config
+│   ├── PlugIns/
+│   │   └── AWDLControlWidget.appex  # Widget extension (macOS 26+ only)
 │   ├── Info.plist
 │   └── Resources/
 ```
@@ -116,7 +149,8 @@ This:
 1. Builds Swift app + widget + helper with `xcodebuild`
 2. Copies helper binary to `Contents/MacOS/`
 3. Copies helper plist to `Contents/Library/LaunchDaemons/`
-4. Verifies bundle structure
+4. Signs components individually (depth-first per Apple best practices)
+5. Verifies bundle structure and code signatures
 
 ### Build Output
 
@@ -225,7 +259,25 @@ Or from the app: Settings → Advanced → Uninstall
 GitHub Actions workflow (`.github/workflows/build.yml`):
 - Runs on: `macos-14` with Xcode 16
 - Builds app and helper (widget skipped - requires macOS 26 SDK)
-- Verifies build artifacts exist
+- Verifies build artifacts and bundle structure
+
+## Code Signing
+
+The build script signs components individually per Apple best practices (depth-first):
+
+1. Sign helper binary (`AWDLControlHelper`)
+2. Sign widget extension (`AWDLControlWidget.appex`) if present
+3. Sign main app bundle (`Ping Warden.app`)
+
+**Note**: The `--deep` codesign flag is deprecated since macOS 13 for signing. It should only be used for verification:
+```bash
+# For signing: sign components individually (build.sh does this)
+codesign --force --options runtime --sign "$IDENTITY" "$APP/Contents/MacOS/AWDLControlHelper"
+codesign --force --options runtime --sign "$IDENTITY" "$APP"
+
+# For verification: --deep is correct
+codesign --verify --deep --strict "$APP"
+```
 
 ## Code Patterns
 
