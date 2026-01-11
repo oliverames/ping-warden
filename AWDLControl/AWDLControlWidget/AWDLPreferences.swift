@@ -4,7 +4,7 @@
 //
 //  Manages shared state between app and widget using App Groups.
 //
-//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 //  Licensed under the MIT License.
 //
 

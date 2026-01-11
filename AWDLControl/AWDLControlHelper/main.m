@@ -6,7 +6,7 @@
 //  Registered via SMAppService, runs as LaunchDaemon.
 //  Based on james-howard/AWDLControl architecture.
 //
-//  Copyright (c) 2025 Oliver Ames. All rights reserved.
+//  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 //  Licensed under the MIT License.
 //
 
