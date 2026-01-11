@@ -171,9 +171,7 @@ class AWDLMonitor {
 
     /// Validate that the helper binary and plist exist in the app bundle
     private func validateHelperBundle() -> (valid: Bool, error: String?) {
-        guard let appBundle = Bundle.main.bundlePath as String? else {
-            return (false, "Could not determine app bundle path")
-        }
+        let appBundle = Bundle.main.bundlePath
 
         let helperBinaryPath = "\(appBundle)/Contents/MacOS/AWDLControlHelper"
         let helperPlistPath = "\(appBundle)/Contents/Library/LaunchDaemons/\(helperPlistName)"
