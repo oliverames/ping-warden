@@ -6,6 +6,16 @@ A macOS menu bar app that disables AWDL to eliminate network latency spikes duri
 
 <a href="https://www.buymeacoffee.com/oliverames" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 
+## Download
+
+**[Download Ping Warden v2.0.1](https://github.com/oliverames/cloud-gaming-optimizer/releases/latest/download/Ping.Warden.dmg)** (macOS 13.0+)
+
+1. Open the DMG and drag **Ping Warden** to **Applications**
+2. Launch from Applications
+3. Click **Set Up Now** and approve in System Settings (one-time)
+
+That's it! No password prompts after initial setup.
+
 ## The Problem
 
 AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff. It also causes:
@@ -37,13 +47,22 @@ Ping Warden keeps AWDL disabled with **<1ms response time** and **0% CPU** when 
 
 ## Installation
 
+### Download (Recommended)
+
+Download the latest release from the [Releases page](https://github.com/oliverames/cloud-gaming-optimizer/releases/latest) or use the direct link above.
+
 ### Building from Source
 
+If you prefer to build from source:
+
 ```bash
-git clone https://github.com/oliverames/ping-warden.git
-cd ping-warden
+git clone https://github.com/oliverames/cloud-gaming-optimizer.git
+cd cloud-gaming-optimizer/AWDLControl
+# Open in Xcode for best results (proper icon processing)
+open AWDLControl.xcodeproj
+# Or build from command line:
 ./build.sh
-cp -r "AWDLControl/build/Release/Ping Warden.app" /Applications/
+cp -r "build/Release/Ping Warden.app" /Applications/
 ```
 
 ### First Launch
