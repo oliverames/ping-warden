@@ -47,7 +47,7 @@ class AWDLPreferences {
         }
         set {
             guard let defaults = defaults else {
-                log.error("Cannot set \(monitoringEnabledKey): defaults is nil")
+                log.error("Cannot set \(self.monitoringEnabledKey): defaults is nil")
                 return
             }
             defaults.set(newValue, forKey: monitoringEnabledKey)
@@ -72,7 +72,7 @@ class AWDLPreferences {
         }
         set {
             guard let defaults = defaults else {
-                log.error("Cannot set \(lastStateKey): defaults is nil")
+                log.error("Cannot set \(self.lastStateKey): defaults is nil")
                 return
             }
             defaults.set(newValue, forKey: lastStateKey)
@@ -86,7 +86,7 @@ class AWDLPreferences {
         }
         set {
             guard let defaults = defaults else {
-                log.error("Cannot set \(controlCenterEnabledKey): defaults is nil")
+                log.error("Cannot set \(self.controlCenterEnabledKey): defaults is nil")
                 return
             }
             defaults.set(newValue, forKey: controlCenterEnabledKey)
@@ -101,7 +101,7 @@ class AWDLPreferences {
         }
         set {
             guard let defaults = defaults else {
-                log.error("Cannot set \(gameModeAutoDetectKey): defaults is nil")
+                log.error("Cannot set \(self.gameModeAutoDetectKey): defaults is nil")
                 return
             }
             defaults.set(newValue, forKey: gameModeAutoDetectKey)
@@ -116,7 +116,7 @@ class AWDLPreferences {
         }
         set {
             guard let defaults = defaults else {
-                log.error("Cannot set \(showDockIconKey): defaults is nil")
+                log.error("Cannot set \(self.showDockIconKey): defaults is nil")
                 return
             }
             defaults.set(newValue, forKey: showDockIconKey)

@@ -13,13 +13,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		815E03182EAEA562006913A8 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = RootObject /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = WidgetTarget;
-			remoteInfo = AWDLControlWidget;
-		};
 		HelperProxy /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = RootObject /* Project object */;
@@ -355,11 +348,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		815E03192EAEA562006913A8 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = WidgetTarget /* AWDLControlWidget */;
-			targetProxy = 815E03182EAEA562006913A8 /* PBXContainerItemProxy */;
-		};
 		HelperDep /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = HelperTarget /* AWDLControlHelper */;

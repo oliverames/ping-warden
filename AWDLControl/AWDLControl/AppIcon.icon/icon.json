@@ -12,7 +12,7 @@
     {
       "layers" : [
         {
-          "image-name" : "Assets/network-error-svgrepo-com.svg",
+          "image-name" : "network-error-svgrepo-com.svg",
           "name" : "network-error-svgrepo-com",
           "position" : {
             "scale" : 1,

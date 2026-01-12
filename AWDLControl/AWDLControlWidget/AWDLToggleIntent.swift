@@ -9,6 +9,7 @@
 //
 
 import AppIntents
+import AppKit
 import Foundation
 import os.log
 

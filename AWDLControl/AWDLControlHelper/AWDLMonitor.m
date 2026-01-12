@@ -354,7 +354,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
             return NO;
         }
         // written == 0 means nothing was written
-        os_log_warning(LOG, "Partial write to message pipe: wrote %zd bytes", written);
+        os_log_info(LOG, "Partial write to message pipe: wrote %zd bytes", written);
     }
     os_log_error(LOG, "Failed to write message after 3 retries");
     return NO;

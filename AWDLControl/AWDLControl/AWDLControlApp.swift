@@ -228,7 +228,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
-        guard let button = statusItem?.button else {
+        guard statusItem?.button != nil else {
             log.error("Failed to create status item button")
             return
         }
@@ -489,10 +489,18 @@ struct WelcomeView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 16) {
-                Image(systemName: "antenna.radiowaves.left.and.right.slash")
-                    .font(.system(size: 56, weight: .thin))
-                    .foregroundStyle(.tint)
-                    .symbolEffect(.pulse, options: .repeating)
+                Group {
+                    if #available(macOS 14.0, *) {
+                        Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                            .font(.system(size: 56, weight: .thin))
+                            .foregroundStyle(.tint)
+                            .symbolEffect(.pulse, options: .repeating)
+                    } else {
+                        Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                            .font(.system(size: 56, weight: .thin))
+                            .foregroundStyle(.tint)
+                    }
+                }
 
                 Text("Welcome to Ping Warden")
                     .font(.largeTitle)
@@ -583,6 +591,22 @@ struct FeatureRow: View {
 }
 
 // MARK: - Settings View
+
+struct SettingsView: View {
+    var body: some View {
+        SettingsViewRepresentable()
+            .frame(width: 600, height: 400)
+    }
+}
+
+struct SettingsViewRepresentable: NSViewControllerRepresentable {
+    func makeNSViewController(context: Context) -> SettingsSplitViewController {
+        return SettingsSplitViewController()
+    }
+
+    func updateNSViewController(_ nsViewController: SettingsSplitViewController, context: Context) {
+    }
+}
 
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "General"
@@ -879,7 +903,7 @@ struct GeneralSettingsContent: View {
                     Toggle("", isOn: $showDockIcon)
                         .toggleStyle(.switch)
                         .controlSize(.small)
-                        .onChange(of: showDockIcon) { _, newValue in
+                        .onChange(of: showDockIcon) { newValue in
                             AWDLPreferences.shared.showDockIcon = newValue
                         }
                 }
@@ -971,7 +995,7 @@ struct AutomationSettingsContent: View {
                         Toggle("", isOn: $gameModeAutoDetect)
                             .toggleStyle(.switch)
                             .controlSize(.small)
-                            .onChange(of: gameModeAutoDetect) { _, newValue in
+                            .onChange(of: gameModeAutoDetect) { newValue in
                                 AWDLPreferences.shared.gameModeAutoDetect = newValue
                             }
                     }
@@ -1006,7 +1030,7 @@ struct AutomationSettingsContent: View {
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .disabled(!isControlCenterAvailable)
-                            .onChange(of: controlCenterEnabled) { _, newValue in
+                            .onChange(of: controlCenterEnabled) { newValue in
                                 AWDLPreferences.shared.controlCenterWidgetEnabled = newValue
                             }
                     }
@@ -1043,7 +1067,7 @@ struct AdvancedSettingsContent: View {
             SettingsSectionHeader(title: "DIAGNOSTICS")
 
             SettingsGroup {
-                SettingsRow("Test Helper Response", description: "Verify the helper is responding quickly") {
+                SettingsRow("Test Helper Response", description: "Verify the helper is responding quickly (password required)") {
                     Button("Run Test") {
                         runHelperTest()
                     }

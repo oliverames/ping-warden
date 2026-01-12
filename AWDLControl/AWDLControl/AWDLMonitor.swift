@@ -244,14 +244,29 @@ class AWDLMonitor {
                 log.info("Registration request submitted")
                 // Start polling for approval
                 startPollingForRegistration(completion: completion)
-            } catch {
-                log.error("Registration failed: \(error.localizedDescription)")
+            } catch let error as NSError {
+                log.error("Registration failed: \(error.localizedDescription) (code: \(error.code))")
                 signposter.endInterval("RegisterHelper", state)
 
-                DispatchQueue.main.async {
-                    self.showError("Failed to register helper.\n\nError: \(error.localizedDescription)")
+                // Check if this is "Operation not permitted" - means user needs to approve first
+                // Error domain is NSPOSIXErrorDomain with code 1 (EPERM), or
+                // SMAppService may throw with domain NSCocoaErrorDomain
+                let isPermissionError = error.localizedDescription.contains("Operation not permitted") ||
+                                        error.localizedDescription.contains("not permitted") ||
+                                        (error.domain == NSPOSIXErrorDomain && error.code == 1)
+
+                if isPermissionError {
+                    log.info("Registration requires user approval first - opening System Settings")
+                    // Open System Settings to Login Items so user can approve
+                    SMAppService.openSystemSettingsLoginItems()
+                    // Start polling for the user to approve
+                    startPollingForRegistration(completion: completion)
+                } else {
+                    DispatchQueue.main.async {
+                        self.showError("Failed to register helper.\n\nError: \(error.localizedDescription)")
+                    }
+                    completion?(false)
                 }
-                completion?(false)
             }
 
         @unknown default:
@@ -283,7 +298,7 @@ class AWDLMonitor {
             stateLock.unlock()
 
             if attempts > maxRegistrationAttempts {
-                log.error("Max registration attempts (\(maxRegistrationAttempts)) exceeded, giving up")
+                log.error("Max registration attempts (\(self.maxRegistrationAttempts)) exceeded, giving up")
                 showError("Helper registration failed after multiple attempts.\n\nPlease try restarting the app or check System Settings → Login Items.")
                 return
             }
@@ -627,7 +642,7 @@ class AWDLMonitor {
             xpcRetryCount += 1
             if xpcRetryCount <= maxXPCRetries {
                 let delay = pow(2.0, Double(xpcRetryCount - 1)) // 1s, 2s, 4s
-                log.info("Attempting XPC reconnect in \(delay)s (attempt \(xpcRetryCount)/\(maxXPCRetries))")
+                log.info("Attempting XPC reconnect in \(delay)s (attempt \(self.xpcRetryCount)/\(self.maxXPCRetries))")
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     self?.connectXPC()
                 }
@@ -669,7 +684,7 @@ class AWDLMonitor {
 
     /// Poll for registration status change with timeout
     private func startPollingForRegistration(completion: ((Bool) -> Void)?) {
-        log.debug("Starting registration polling (timeout: \(registrationTimeoutSeconds)s)...")
+        log.debug("Starting registration polling (timeout: \(self.registrationTimeoutSeconds)s)...")
 
         // Cancel any existing timers
         registrationTimer?.invalidate()
