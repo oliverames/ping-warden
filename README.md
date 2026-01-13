@@ -16,6 +16,39 @@ A macOS menu bar app that disables AWDL to eliminate network latency spikes duri
 
 That's it! No password prompts after initial setup.
 
+### Homebrew
+
+```bash
+brew tap oliverames/tap
+brew install --cask ping-warden
+```
+
+### Gatekeeper Warning
+
+Since Ping Warden is not notarized with Apple, macOS may show a warning:
+> "Ping Warden.app" cannot be opened because it cannot be verified as free of malware.
+
+**To open the app anyway:**
+
+**Option 1 - Right-click method:**
+1. Right-click (or Control-click) on **Ping Warden.app** in Applications
+2. Select **Open** from the context menu
+3. Click **Open** in the dialog that appears
+
+**Option 2 - Terminal method:**
+```bash
+xattr -cr "/Applications/Ping Warden.app"
+```
+Then open the app normally.
+
+**Option 3 - System Settings:**
+1. Try to open the app (it will be blocked)
+2. Go to **System Settings → Privacy & Security**
+3. Scroll down to find the message about Ping Warden being blocked
+4. Click **Open Anyway**
+
+> **Why this happens**: Apple requires a $99/year Developer Program membership to notarize apps. Ping Warden is open source and free, so it's distributed without notarization. The app is safe - you can [review the source code](https://github.com/oliverames/cloud-gaming-optimizer) yourself.
+
 ## The Problem
 
 AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff. It also causes:
