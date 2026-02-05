@@ -173,7 +173,7 @@ struct PingGraphCard: View {
                 .frame(width: 250)
             }
             
-            if viewModel.pingHistory.isEmpty {
+            if viewModel.filteredHistory.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.system(size: 48))
@@ -184,7 +184,7 @@ struct PingGraphCard: View {
                 .frame(height: 180)
                 .frame(maxWidth: .infinity)
             } else {
-                Chart(viewModel.pingHistory) { dataPoint in
+                Chart(viewModel.filteredHistory) { dataPoint in
                     LineMark(
                         x: .value("Time", dataPoint.timestamp),
                         y: .value("Ping", dataPoint.latencyMs)
@@ -411,9 +411,16 @@ class DashboardViewModel: ObservableObject {
     private let pingMonitor = PingMonitor()
     private var interventionTimer: Timer?
     
+    /// Filtered ping history based on selected timeframe
+    var filteredHistory: [PingMonitor.PingResult] {
+        let cutoff = Date().addingTimeInterval(-TimeInterval(selectedTimeframe * 60))
+        return pingHistory.filter { $0.timestamp > cutoff }
+    }
+    
     var maxPingInView: Double {
-        let filtered = pingHistory.suffix(selectedTimeframe * 30) // Approximate data points
-        return filtered.map(\.latencyMs).max() ?? 100
+        let max = filteredHistory.map(\.latencyMs).max() ?? 0
+        // Add some headroom and ensure minimum scale
+        return Swift.max(100, max * 1.1)
     }
     
     func start() {

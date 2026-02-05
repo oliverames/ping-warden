@@ -46,7 +46,7 @@ struct AWDLControlApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // TODO: Uncomment once Sparkle is added:
     // private var updaterController: SPUStandardUpdaterController?
     
@@ -183,10 +183,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateDockIconVisibility() {
-        if AWDLPreferences.shared.showDockIcon {
+        // Show dock icon if preference is set OR if settings window is visible
+        let settingsVisible = settingsWindow?.isVisible ?? false
+        let aboutVisible = aboutWindow?.isVisible ?? false
+        let welcomeVisible = welcomeWindow?.isVisible ?? false
+        
+        if AWDLPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible {
             NSApp.setActivationPolicy(.regular)
         } else {
             NSApp.setActivationPolicy(.accessory)
+        }
+    }
+    
+    // MARK: - NSWindowDelegate
+    
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        
+        // Update dock icon visibility when any window closes
+        if window === settingsWindow || window === aboutWindow || window === welcomeWindow {
+            // Delay slightly to let the window actually close
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.updateDockIconVisibility()
+            }
         }
     }
 
@@ -235,10 +254,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let welcomeView = WelcomeView {
             self.welcomeWindow?.close()
             self.welcomeWindow = nil
+            self.updateDockIconVisibility()
             AWDLMonitor.shared.installAndStartMonitoring()
         } onDismiss: {
             self.welcomeWindow?.close()
             self.welcomeWindow = nil
+            self.updateDockIconVisibility()
         }
 
         let hostingController = NSHostingController(rootView: welcomeView)
@@ -250,8 +271,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.backgroundColor = .clear
         window.center()
         window.isReleasedWhenClosed = false
+        window.delegate = self
 
         welcomeWindow = window
+        
+        // Show dock icon when welcome window opens
+        NSApp.setActivationPolicy(.regular)
+        
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -378,6 +404,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.setContentSize(windowSize)
         window.center()
         window.isReleasedWhenClosed = false
+        window.delegate = self
 
         // Add an empty toolbar to enable the unified toolbar style
         // This is what allows the sidebar to extend under the titlebar
@@ -387,6 +414,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.toolbar = toolbar
 
         settingsWindow = window
+        
+        // Show dock icon when settings window opens
+        NSApp.setActivationPolicy(.regular)
+        
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
@@ -411,8 +442,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.backgroundColor = .clear
         window.center()
         window.isReleasedWhenClosed = false
+        window.delegate = self
 
         aboutWindow = window
+        
+        // Show dock icon when about window opens
+        NSApp.setActivationPolicy(.regular)
+        
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
