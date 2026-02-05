@@ -1681,3 +1681,31 @@ class GameModeDetector {
         return false
     }
 }
+// MARK: - Previews
+
+#Preview("General Settings") {
+    GeneralSettingsContent()
+        .frame(width: 450, height: 400)
+        .background(.regularMaterial)
+}
+
+#Preview("Automation Settings") {
+    AutomationSettingsContent()
+        .frame(width: 450, height: 300)
+        .background(.regularMaterial)
+}
+
+#Preview("Advanced Settings") {
+    AdvancedSettingsContent()
+        .frame(width: 450, height: 350)
+        .background(.regularMaterial)
+}
+
+#Preview("About View") {
+    AboutView()
+}
+
+#Preview("Welcome View") {
+    WelcomeView(onSetup: {}, onDismiss: {})
+}
+

@@ -77,27 +77,47 @@ struct StatusCard: View {
                     .frame(height: 80)
                 
                 // Stats Grid
-                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
+                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
                     GridRow {
-                        StatLabel(label: "Average")
-                        StatValue(value: String(format: "%.0f ms", viewModel.stats.averagePing))
-                        StatLabel(label: "Jitter")
-                        StatValue(value: String(format: "%.1f ms", viewModel.stats.jitter))
+                        Text("Average")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .gridColumnAlignment(.leading)
+                        Text(String(format: "%.0f ms", viewModel.stats.averagePing))
+                            .font(.callout.monospacedDigit())
+                            .gridColumnAlignment(.trailing)
+                        Text("Jitter")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .gridColumnAlignment(.leading)
+                        Text(String(format: "%.1f ms", viewModel.stats.jitter))
+                            .font(.callout.monospacedDigit())
+                            .gridColumnAlignment(.trailing)
                     }
                     GridRow {
-                        StatLabel(label: "Best")
-                        StatValue(value: String(format: "%.0f ms", viewModel.stats.minimumPing))
-                        StatLabel(label: "Packet Loss")
-                        StatValue(value: String(format: "%.1f%%", viewModel.stats.packetLoss))
+                        Text("Best")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(String(format: "%.0f ms", viewModel.stats.minimumPing))
+                            .font(.callout.monospacedDigit())
+                        Text("Packet Loss")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(String(format: "%.1f%%", viewModel.stats.packetLoss))
+                            .font(.callout.monospacedDigit())
                     }
                     GridRow {
-                        StatLabel(label: "Worst")
-                        StatValue(value: String(format: "%.0f ms", viewModel.stats.maximumPing))
-                        StatLabel(label: "AWDL")
-                        StatValue(
-                            value: viewModel.isAWDLBlocking ? "Blocking" : "Allowed",
-                            color: viewModel.isAWDLBlocking ? .green : .orange
-                        )
+                        Text("Worst")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(String(format: "%.0f ms", viewModel.stats.maximumPing))
+                            .font(.callout.monospacedDigit())
+                        Text("AWDL")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(viewModel.isAWDLBlocking ? "Blocking" : "Allowed")
+                            .font(.callout)
+                            .foregroundStyle(viewModel.isAWDLBlocking ? .green : .orange)
                     }
                 }
             }
@@ -126,30 +146,6 @@ struct StatusCard: View {
     }
 }
 
-struct StatLabel: View {
-    let label: String
-    
-    var body: some View {
-        Text(label)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .frame(width: 70, alignment: .leading)
-    }
-}
-
-struct StatValue: View {
-    let value: String
-    var color: Color = .primary
-    
-    var body: some View {
-        Text(value)
-            .font(.callout)
-            .fontWeight(.medium)
-            .foregroundStyle(color)
-            .frame(width: 80, alignment: .trailing)
-    }
-}
-
 // MARK: - Ping Graph Card
 
 struct PingGraphCard: View {
@@ -163,14 +159,15 @@ struct PingGraphCard: View {
                 
                 Spacer()
                 
-                Picker("Timeframe", selection: $viewModel.selectedTimeframe) {
+                Picker("", selection: $viewModel.selectedTimeframe) {
                     Text("5 min").tag(5)
                     Text("15 min").tag(15)
                     Text("30 min").tag(30)
                     Text("1 hour").tag(60)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 250)
+                .labelsHidden()
+                .fixedSize()
             }
             
             if viewModel.filteredHistory.isEmpty {
@@ -484,4 +481,11 @@ class DashboardViewModel: ObservableObject {
     private func updateAWDLStatus() {
         isAWDLBlocking = AWDLMonitor.shared.isMonitoringActive
     }
+}
+
+// MARK: - Previews
+
+#Preview("Dashboard") {
+    DashboardSettingsContent()
+        .frame(width: 500, height: 700)
 }
