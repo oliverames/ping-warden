@@ -361,13 +361,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let window = NSWindow(contentViewController: splitVC)
         window.title = "Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.toolbarStyle = .unified
 
+        // Set minimum and default window size
+        window.minSize = NSSize(width: 600, height: 450)
+        
         // Ensure window fits on screen
-        var windowSize = NSSize(width: 650, height: 500)
+        var windowSize = NSSize(width: 720, height: 580)
         if let screen = NSScreen.main {
             windowSize.width = min(windowSize.width, screen.visibleFrame.width - 40)
             windowSize.height = min(windowSize.height, screen.visibleFrame.height - 40)
@@ -645,7 +648,7 @@ struct FeatureRow: View {
 struct SettingsView: View {
     var body: some View {
         SettingsViewRepresentable()
-            .frame(width: 600, height: 400)
+            .frame(minWidth: 600, minHeight: 400)
     }
 }
 

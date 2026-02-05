@@ -19,7 +19,7 @@ struct DashboardSettingsContent: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 16) {
                 // Current Status Card
                 StatusCard(viewModel: viewModel)
                 
@@ -35,7 +35,6 @@ struct DashboardSettingsContent: View {
             .padding(20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             viewModel.start()
         }
@@ -53,51 +52,59 @@ struct StatusCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Network Quality")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(.headline)
             
-            HStack(spacing: 30) {
-                // Current Ping
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Current Ping")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            HStack(spacing: 24) {
+                // Current Ping - Main display
+                VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(String(format: "%.0f", viewModel.stats.currentPing))
-                            .font(.system(size: 36, weight: .bold))
+                            .font(.system(size: 48, weight: .bold, design: .rounded))
                             .foregroundStyle(colorForQuality(viewModel.stats.quality))
+                            .contentTransition(.numericText())
                         Text("ms")
-                            .font(.title3)
+                            .font(.title2)
                             .foregroundStyle(.secondary)
                     }
                     
                     Label(viewModel.stats.qualityDescription, systemImage: qualityIcon(viewModel.stats.quality))
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(colorForQuality(viewModel.stats.quality))
                 }
+                .frame(minWidth: 120)
                 
                 Divider()
+                    .frame(height: 80)
                 
                 // Stats Grid
-                VStack(alignment: .leading, spacing: 12) {
-                    StatRow(label: "Average", value: String(format: "%.0f ms", viewModel.stats.averagePing))
-                    StatRow(label: "Best", value: String(format: "%.0f ms", viewModel.stats.minimumPing))
-                    StatRow(label: "Worst", value: String(format: "%.0f ms", viewModel.stats.maximumPing))
-                }
-                
-                Divider()
-                
-                VStack(alignment: .leading, spacing: 12) {
-                    StatRow(label: "Jitter", value: String(format: "%.1f ms", viewModel.stats.jitter))
-                    StatRow(label: "Packet Loss", value: String(format: "%.1f%%", viewModel.stats.packetLoss))
-                    StatRow(label: "AWDL Status", value: viewModel.isAWDLBlocking ? "Blocking" : "Allowed", 
-                           valueColor: viewModel.isAWDLBlocking ? .green : .orange)
+                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
+                    GridRow {
+                        StatLabel(label: "Average")
+                        StatValue(value: String(format: "%.0f ms", viewModel.stats.averagePing))
+                        StatLabel(label: "Jitter")
+                        StatValue(value: String(format: "%.1f ms", viewModel.stats.jitter))
+                    }
+                    GridRow {
+                        StatLabel(label: "Best")
+                        StatValue(value: String(format: "%.0f ms", viewModel.stats.minimumPing))
+                        StatLabel(label: "Packet Loss")
+                        StatValue(value: String(format: "%.1f%%", viewModel.stats.packetLoss))
+                    }
+                    GridRow {
+                        StatLabel(label: "Worst")
+                        StatValue(value: String(format: "%.0f ms", viewModel.stats.maximumPing))
+                        StatLabel(label: "AWDL")
+                        StatValue(
+                            value: viewModel.isAWDLBlocking ? "Blocking" : "Allowed",
+                            color: viewModel.isAWDLBlocking ? .green : .orange
+                        )
+                    }
                 }
             }
         }
         .padding(20)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
     
     private func colorForQuality(_ quality: PingMonitor.Quality) -> Color {
@@ -119,23 +126,27 @@ struct StatusCard: View {
     }
 }
 
-struct StatRow: View {
+struct StatLabel: View {
     let label: String
-    let value: String
-    var valueColor: Color = .primary
     
     var body: some View {
-        HStack {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.callout)
-                .fontWeight(.medium)
-                .foregroundStyle(valueColor)
-        }
-        .frame(width: 150)
+        Text(label)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(width: 70, alignment: .leading)
+    }
+}
+
+struct StatValue: View {
+    let value: String
+    var color: Color = .primary
+    
+    var body: some View {
+        Text(value)
+            .font(.callout)
+            .fontWeight(.medium)
+            .foregroundStyle(color)
+            .frame(width: 80, alignment: .trailing)
     }
 }
 
@@ -159,7 +170,7 @@ struct PingGraphCard: View {
                     Text("1 hour").tag(60)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 280)
+                .frame(width: 250)
             }
             
             if viewModel.pingHistory.isEmpty {
@@ -170,7 +181,7 @@ struct PingGraphCard: View {
                     Text("Collecting ping data...")
                         .foregroundStyle(.secondary)
                 }
-                .frame(height: 200)
+                .frame(height: 180)
                 .frame(maxWidth: .infinity)
             } else {
                 Chart(viewModel.pingHistory) { dataPoint in
@@ -195,7 +206,7 @@ struct PingGraphCard: View {
                 }
                 .chartYScale(domain: 0...max(100, viewModel.maxPingInView))
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 6)) { value in
+                    AxisMarks(values: .automatic(desiredCount: 5)) { value in
                         AxisGridLine()
                         AxisTick()
                         if let date = value.as(Date.self) {
@@ -218,11 +229,11 @@ struct PingGraphCard: View {
                         }
                     }
                 }
-                .frame(height: 200)
+                .frame(height: 180)
             }
             
             // Legend
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
                 LegendItem(color: .green, label: "Excellent", range: "<20ms")
                 LegendItem(color: .yellow, label: "Good", range: "20-50ms")
                 LegendItem(color: .orange, label: "Fair", range: "50-100ms")
@@ -231,8 +242,8 @@ struct PingGraphCard: View {
             .font(.caption)
         }
         .padding(20)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
     
     private func colorForLatency(_ latency: Double) -> Color {
@@ -269,7 +280,7 @@ struct InterventionsCard: View {
             Text("AWDL Protection")
                 .font(.headline)
             
-            HStack(spacing: 40) {
+            HStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Interventions Today")
                         .font(.caption)
@@ -277,8 +288,9 @@ struct InterventionsCard: View {
                     
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(viewModel.interventionCount)")
-                            .font(.system(size: 48, weight: .bold))
+                            .font(.system(size: 48, weight: .bold, design: .rounded))
                             .foregroundStyle(.green)
+                            .contentTransition(.numericText())
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text("lag spikes")
@@ -303,14 +315,13 @@ struct InterventionsCard: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(12)
-                    .background(Color.orange.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         }
         .padding(20)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -324,7 +335,7 @@ struct ServerSelectionCard: View {
             Text("Settings")
                 .font(.headline)
             
-            HStack(spacing: 20) {
+            HStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Ping Server")
                         .font(.caption)
@@ -337,7 +348,7 @@ struct ServerSelectionCard: View {
                         Text("GeForce NOW (US East)").tag("gfn-us-east.nvidia.com")
                     }
                     .pickerStyle(.menu)
-                    .frame(width: 250)
+                    .frame(minWidth: 200)
                 }
                 
                 VStack(alignment: .leading, spacing: 8) {
@@ -352,13 +363,15 @@ struct ServerSelectionCard: View {
                         Text("10 seconds").tag(10.0)
                     }
                     .pickerStyle(.menu)
-                    .frame(width: 150)
+                    .frame(minWidth: 120)
                 }
+                
+                Spacer()
             }
         }
         .padding(20)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
