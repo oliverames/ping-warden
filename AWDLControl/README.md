@@ -105,7 +105,6 @@ Ping Warden uses a privileged helper daemon that:
 
 **Optional features:**
 - Game Mode Auto-Detect: macOS 15.0+ (requires Screen Recording permission)
-- Control Center Widget: Requires code-signed app
 
 ## Troubleshooting
 

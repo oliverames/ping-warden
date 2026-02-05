@@ -2,48 +2,6 @@
 
 This guide covers common issues and their solutions.
 
-## Installation Issues
-
-### ❌ "Ping Warden.app can't be opened"
-
-**Cause:** macOS Gatekeeper blocking unsigned/unnotarized apps
-
-**Solutions:**
-
-1. **Right-click method** (Easiest):
-   - Right-click (or Control-click) on `Ping Warden.app`
-   - Select "Open" from the menu
-   - Click "Open" in the dialog
-   - Only needed once!
-
-2. **Terminal method**:
-   ```bash
-   xattr -cr "/Applications/Ping Warden.app"
-   open "/Applications/Ping Warden.app"
-   ```
-
-3. **Use the installer script**:
-   ```bash
-   chmod +x install.sh
-   ./install.sh
-   ```
-
-### ❌ "cannot be verified as free of malware"
-
-This is the same issue as above. See solutions above.
-
-**Why does this happen?**
-- The app is not notarized by Apple (requires $99/year developer account)
-- macOS marks downloaded files with a "quarantine" flag
-- Gatekeeper blocks quarantined, unnotarized apps
-
-**Is it safe?**
-- Yes! The source code is available for inspection
-- The app only controls the AWDL network interface
-- No data collection, no network requests, no telemetry
-
----
-
 ## Helper Installation Issues
 
 ### ❌ Helper not registering / "Not Set Up" status
@@ -198,16 +156,13 @@ If tests fail:
 
 ### ❌ Control Center widget not appearing
 
-**Cause:** Requires code-signed app (Developer ID certificate)
+**Solutions:**
 
-**Check if available:**
 1. Open Settings → Automation
-2. Look at "Control Center Widget" toggle
-3. If it shows "Unavailable" badge, the app isn't properly signed
-
-**Workaround:**
-- Use menu bar interface instead
-- Control Center widget requires $99/year Apple Developer Program
+2. Enable "Control Center Widget"
+3. Go to System Settings → Control Center
+4. Scroll to find "Ping Warden"
+5. Add it to Control Center or menu bar
 
 ---
 
@@ -312,9 +267,6 @@ ps aux | grep AWDLControlHelper
 # Check AWDL interface status
 ifconfig awdl0
 
-# Remove quarantine flag
-xattr -cr "/Applications/Ping Warden.app"
-
 # View logs in real-time
 log stream --predicate 'subsystem == "com.amesvt.pingwarden.app"' --level debug
 
@@ -326,11 +278,10 @@ defaults delete com.amesvt.pingwarden.app
 
 ## Known Limitations
 
-1. **Control Center widget** - Requires code signing (Developer ID)
-2. **Game Mode detection** - Only works with apps marked as games
-3. **Screen Recording permission** - Required for Game Mode detection
-4. **macOS 13.0+** - Older macOS versions not supported (SMAppService requirement)
-5. **AWDL availability** - Some Mac models may not have AWDL interface
+1. **Game Mode detection** - Only works with apps marked as games
+2. **Screen Recording permission** - Required for Game Mode detection
+3. **macOS 13.0+** - Older macOS versions not supported (SMAppService requirement)
+4. **AWDL availability** - Some Mac models may not have AWDL interface
 
 ---
 

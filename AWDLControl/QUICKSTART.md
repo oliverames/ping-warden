@@ -4,16 +4,10 @@
 
 ### 1️⃣ Install
 
-**Option A: Automated** (Recommended)
-```bash
-chmod +x install.sh
-./install.sh
-```
-
-**Option B: Manual**
-1. Drag `Ping Warden.app` to Applications
-2. Right-click → Open
-3. Click "Open" in the dialog
+1. [Download the DMG](https://github.com/oliverames/ping-warden/releases/latest)
+2. Open the DMG
+3. Drag `Ping Warden.app` to Applications
+4. Launch from Applications or Spotlight
 
 ---
 
@@ -38,21 +32,6 @@ Click the antenna icon `📡` in your menu bar to:
 
 ---
 
-## ⚠️ Getting "Can't be opened" error?
-
-This is normal for unnotarized apps. Fix:
-
-**Quick fix:**
-```bash
-xattr -cr "/Applications/Ping Warden.app"
-```
-
-**Or:** Right-click → Open (instead of double-clicking)
-
-See [README.md](README.md#installation) for full details.
-
----
-
 ## 🎮 Gaming Setup
 
 For automatic activation during games:
@@ -72,8 +51,6 @@ For quick toggle from Control Center:
 2. System Settings → Control Center
 3. Scroll to "Ping Warden"
 4. Add to menu bar or Control Center
-
-**Note:** Requires code-signed app
 
 ---
 
@@ -105,7 +82,7 @@ ping -c 10 8.8.8.8
 
 - 📖 [Full README](README.md)
 - 🔧 [Troubleshooting Guide](TROUBLESHOOTING.md)
-- 🐛 [Report an Issue](https://github.com/yourusername/ping-warden/issues)
+- 🐛 [Report an Issue](https://github.com/oliverames/ping-warden/issues)
 
 ---
 
