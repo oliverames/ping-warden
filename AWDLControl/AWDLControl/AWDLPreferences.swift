@@ -11,13 +11,13 @@
 import Foundation
 import os.log
 
-private let log = Logger(subsystem: "com.awdlcontrol.app", category: "Preferences")
+private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "Preferences")
 
 /// Manages shared state between app and widget using App Groups
 class AWDLPreferences {
     static let shared = AWDLPreferences()
 
-    private let appGroupID = "group.com.awdlcontrol.app"
+    private let appGroupID = "group.com.amesvt.pingwarden"
     private let monitoringEnabledKey = "AWDLMonitoringEnabled"
     private let lastStateKey = "AWDLLastState"
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
@@ -121,8 +121,8 @@ class AWDLPreferences {
 
 extension Notification.Name {
     // Use namespaced notification names to avoid collisions with other apps
-    static let awdlMonitoringStateChanged = Notification.Name("com.awdlcontrol.notification.MonitoringStateChanged")
-    static let controlCenterModeChanged = Notification.Name("com.awdlcontrol.notification.ControlCenterModeChanged")
-    static let gameModeAutoDetectChanged = Notification.Name("com.awdlcontrol.notification.GameModeAutoDetectChanged")
-    static let dockIconVisibilityChanged = Notification.Name("com.awdlcontrol.notification.DockIconVisibilityChanged")
+    static let awdlMonitoringStateChanged = Notification.Name("com.amesvt.pingwarden.notification.MonitoringStateChanged")
+    static let controlCenterModeChanged = Notification.Name("com.amesvt.pingwarden.notification.ControlCenterModeChanged")
+    static let gameModeAutoDetectChanged = Notification.Name("com.amesvt.pingwarden.notification.GameModeAutoDetectChanged")
+    static let dockIconVisibilityChanged = Notification.Name("com.amesvt.pingwarden.notification.DockIconVisibilityChanged")
 }

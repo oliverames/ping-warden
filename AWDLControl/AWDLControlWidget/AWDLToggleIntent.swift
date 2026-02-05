@@ -13,7 +13,7 @@ import AppKit
 import Foundation
 import os.log
 
-private let log = Logger(subsystem: "com.awdlcontrol.app", category: "WidgetIntent")
+private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetIntent")
 
 /// App Intent to toggle AWDL monitoring (used by Control Widget button)
 /// When enabled, continuously monitors and keeps AWDL down.
@@ -55,7 +55,7 @@ struct ToggleAWDLMonitoringIntent: AppIntent {
 
     /// Launch the main app if it's not already running
     private func launchMainAppIfNeeded() async {
-        let bundleIdentifier = "com.awdlcontrol.app"
+        let bundleIdentifier = "com.amesvt.pingwarden"
 
         // Check if app is already running
         let runningApps = NSWorkspace.shared.runningApplications

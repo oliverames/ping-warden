@@ -51,6 +51,9 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     atomic_bool _threadRunning;
 
     dispatch_semaphore_t _ioctlThreadExitSemaphore;
+    
+    // Counter for AWDL interventions (how many times we brought it down)
+    atomic_int _interventionCount;
 }
 
 /// Background thread watching AWDL state
@@ -74,6 +77,9 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         _msgfds[0] = INVALID_FD;
         _msgfds[1] = INVALID_FD;
         atomic_store(&_threadRunning, false);
+        
+        // Initialize intervention counter
+        atomic_store(&_interventionCount, 0);
 
         // Start off allowing AWDL to be active
         _awdlEnabled = YES;
@@ -281,7 +287,9 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
             // If AWDL was brought UP by the system but we want it DOWN
             // Use the ifconfig method to ensure proper thread-safety checks
             if ((ifflag & IFF_UP) && !enable) {
-                os_log_debug(LOG, "AWDL interface was brought UP by system, bringing it back DOWN");
+                // Increment intervention counter (thread-safe atomic operation)
+                int count = atomic_fetch_add(&_interventionCount, 1) + 1;
+                os_log(LOG, "AWDL intervention #%d - System tried to bring interface UP, blocking it", count);
                 [self ifconfig:NO];
             }
         }
@@ -402,6 +410,17 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     } else {
         [self cleanupFileDescriptors];
     }
+}
+
+#pragma mark - Intervention Counter
+
+- (NSInteger)getInterventionCount {
+    return atomic_load(&_interventionCount);
+}
+
+- (void)resetInterventionCount {
+    atomic_store(&_interventionCount, 0);
+    os_log(LOG, "Intervention counter reset to 0");
 }
 
 @end

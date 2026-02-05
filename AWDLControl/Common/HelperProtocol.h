@@ -32,4 +32,12 @@
 /// @param reply Callback with version string
 - (void)getVersionWithReply:(void (^_Nonnull)(NSString *_Nonnull version))reply NS_SWIFT_NAME(getVersion(reply:));
 
+/// Get the number of AWDL interventions (how many times AWDL was blocked from coming up)
+/// @param reply Callback with intervention count
+- (void)getAWDLInterventionCountWithReply:(void (^_Nonnull)(NSInteger count))reply NS_SWIFT_NAME(getAWDLInterventionCount(reply:));
+
+/// Reset the AWDL intervention counter to zero
+/// @param reply Callback with success status
+- (void)resetAWDLInterventionCountWithReply:(void (^_Nonnull)(BOOL success))reply NS_SWIFT_NAME(resetAWDLInterventionCount(reply:));
+
 @end

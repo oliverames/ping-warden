@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  com.awdlcontrol.helper.plist
-  SMAppService daemon configuration for AWDLControlHelper
+  com.amesvt.pingwarden.helper.plist
+  SMAppService daemon configuration for AWDLControlHelper (Ping Warden)
 
   Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
   Licensed under the MIT License.
@@ -10,20 +10,20 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.awdlcontrol.helper</string>
+	<string>com.amesvt.pingwarden.helper</string>
 
 	<key>BundleProgram</key>
 	<string>Contents/MacOS/AWDLControlHelper</string>
 
 	<key>AssociatedBundleIdentifiers</key>
 	<array>
-		<string>com.awdlcontrol.app</string>
-		<string>com.awdlcontrol.app.widget</string>
+		<string>com.amesvt.pingwarden</string>
+		<string>com.amesvt.pingwarden.widget</string>
 	</array>
 
 	<key>MachServices</key>
 	<dict>
-		<key>com.awdlcontrol.xpc.helper</key>
+		<key>com.amesvt.pingwarden.xpc</key>
 		<true/>
 	</dict>
 
