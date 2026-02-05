@@ -73,7 +73,7 @@ jobs:
         echo ""
 
         echo "Helper plist (source):"
-        ls -la "AWDLControl/AWDLControlHelper/com.awdlcontrol.helper.plist"
+        ls -la "AWDLControl/AWDLControlHelper/com.amesvt.pingwarden.helper.plist"
         echo ""
 
         echo "=== Build verification passed ==="
@@ -94,7 +94,7 @@ jobs:
         echo "✓ Helper binary present"
 
         # Check helper plist exists
-        if [ ! -f "AWDLControl/AWDLControlHelper/com.awdlcontrol.helper.plist" ]; then
+        if [ ! -f "AWDLControl/AWDLControlHelper/com.amesvt.pingwarden.helper.plist" ]; then
           echo "ERROR: Helper plist missing"
           exit 1
         fi

@@ -1,195 +1,68 @@
 # Ping Warden
 
-A macOS menu bar app that disables AWDL to eliminate network latency spikes during gaming and video calls.
+**Eliminate network latency spikes on macOS by controlling AWDL (Apple Wireless Direct Link)**
 
-*(Internally known as AWDLControl)*
+Perfect for gaming, video calls, and any latency-sensitive applications.
 
 <a href="https://www.buymeacoffee.com/oliverames" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 
 ## Download
 
-**[Download Ping Warden v2.0.1](https://github.com/oliverames/cloud-gaming-optimizer/releases/latest/download/Ping.Warden.dmg)** (macOS 13.0+)
+**[Download Ping Warden v2.0.3](https://github.com/oliverames/ping-warden/releases/latest)** (macOS 13.0+)
 
-1. Open the DMG and drag **Ping Warden** to **Applications**
-2. Launch from Applications
-3. Click **Set Up Now** and approve in System Settings (one-time)
-
-That's it! No password prompts after initial setup.
-
-### Homebrew
-
-```bash
-brew tap oliverames/tap
-brew install --cask ping-warden
-```
-
-### Gatekeeper Warning
-
-Since Ping Warden is not notarized with Apple, macOS may show a warning:
-> "Ping Warden.app" cannot be opened because it cannot be verified as free of malware.
-
-**To open the app anyway:**
-
-**Option 1 - Right-click method:**
-1. Right-click (or Control-click) on **Ping Warden.app** in Applications
-2. Select **Open** from the context menu
-3. Click **Open** in the dialog that appears
-
-**Option 2 - Terminal method:**
-```bash
-xattr -cr "/Applications/Ping Warden.app"
-```
-Then open the app normally.
-
-**Option 3 - System Settings:**
-1. Try to open the app (it will be blocked)
-2. Go to **System Settings → Privacy & Security**
-3. Scroll down to find the message about Ping Warden being blocked
-4. Click **Open Anyway**
-
-> **Why this happens**: Apple requires a $99/year Developer Program membership to notarize apps. Ping Warden is open source and free, so it's distributed without notarization. The app is safe - you can [review the source code](https://github.com/oliverames/cloud-gaming-optimizer) yourself.
-
-## The Problem
-
-AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff. It also causes:
-
-- **100-300ms ping spikes** during gaming or video calls
-- Wi-Fi performance degradation
-- Intermittent connection drops
-
-## The Solution
-
-Ping Warden keeps AWDL disabled with **<1ms response time** and **0% CPU** when idle.
-
-> **Trade-off**: While active, AirDrop/AirPlay/Handoff won't work. Toggle off when needed.
-
-## What's New in v2.0
-
-- **No more password prompts!** Uses modern SMAppService APIs for one-time system approval
-- **Clean uninstall** - Just drag the app to Trash, macOS handles the rest
-- **Helper bundled inside app** - Everything is self-contained
-- **Simpler architecture** - XPC communication instead of launchctl scripts
-
-## Features
-
-- **Menu Bar Control** - Quick toggle from the menu bar antenna icon
-- **Control Center Widget** (Beta) - Native macOS Control Center integration
-- **Game Mode Auto-Detect** (Beta) - Automatically enables blocking when fullscreen games are detected
-- **Launch at Login** - Start automatically with your Mac
-- **Show/Hide Dock Icon** - Run as a background app or show in the Dock
+The app is **code-signed and notarized by Apple**, so it will open without any security warnings.
 
 ## Installation
 
-### Download (Recommended)
+1. Download the DMG from the link above
+2. Open the DMG file
+3. Drag **Ping Warden** to **Applications**
+4. Launch from Applications or Spotlight
 
-Download the latest release from the [Releases page](https://github.com/oliverames/cloud-gaming-optimizer/releases/latest) or use the direct link above.
+That's it! No terminal commands or workarounds needed.
 
-### Building from Source
+## Features
 
-If you prefer to build from source:
+- **<1ms response time** - Kernel-level AWDL monitoring
+- **Zero performance impact** - 0% CPU when idle
+- **No password prompts** - One-time system approval
+- **Game Mode detection** - Auto-enable for fullscreen games (Beta)
+- **Control Center widget** - Quick toggle from Control Center (Beta)
+- **Launch at login** - Set it and forget it
 
-```bash
-git clone https://github.com/oliverames/cloud-gaming-optimizer.git
-cd cloud-gaming-optimizer/AWDLControl
-# Open in Xcode for best results (proper icon processing)
-open AWDLControl.xcodeproj
-# Or build from command line:
-./build.sh
-cp -r "build/Release/Ping Warden.app" /Applications/
-```
+## What does it do?
 
-### First Launch
+AWDL (Apple Wireless Direct Link) is used by AirDrop, Handoff, and other continuity features. However, it can cause **100-300ms ping spikes** every few seconds, which is devastating for:
 
-1. Open **Ping Warden.app** from Applications
-2. Click **Set Up Now** when prompted
-3. macOS will show a notification: *"Ping Warden" can run in the background for all users*
-4. Click **Allow** on the notification
-5. Click **Set Up Now** again if needed
-6. Done! No password prompts after initial setup.
+- **Gaming** (especially competitive online games)
+- **Video calls** (Zoom, Teams, Discord)
+- **Live streaming**
+- **Remote desktop** (VNC, RDP)
 
-### Code Signing Requirement
+Ping Warden monitors the AWDL interface and keeps it disabled when you need low latency. When you quit the app, AWDL is automatically restored.
 
-Ping Warden v2.0 uses SMAppService which requires proper code signing. The build script automatically detects your Developer ID or Apple Development certificate and signs the app appropriately.
+## Documentation
 
-**Prerequisites:**
-- Apple Developer account signed into Xcode
-- Developer ID Application certificate (for distribution) OR
-- Apple Development certificate (for local testing)
+For detailed documentation, troubleshooting, and technical information, see:
 
-**Building from Xcode** (recommended):
-1. Open `AWDLControl/AWDLControl.xcodeproj` in Xcode
-2. Verify your Team is selected in Signing & Capabilities for all targets
-3. Build and run (Cmd+R)
+- [Full Documentation](AWDLControl/README.md)
+- [Quick Start Guide](AWDLControl/QUICKSTART.md)
+- [Troubleshooting](AWDLControl/TROUBLESHOOTING.md)
 
-**Building from command line:**
-```bash
-./build.sh  # Automatically uses your Developer ID certificate
-```
+## System Requirements
 
-The build script signs components individually (helper, widget, then app) per Apple's best practices for code signing nested bundles.
-
-> **Note**: The build script will fail if no valid signing certificate is found. Ensure you're signed into Xcode with your Apple Developer account.
-
-## Usage
-
-### Menu Bar
-
-Click the antenna icon in the menu bar:
-
-| Icon | State |
-|------|-------|
-| Slashed antenna | AWDL blocked (monitoring active) |
-| Normal antenna | AWDL available (monitoring off) |
-
-### Settings
-
-Access Settings from the menu bar to configure:
-
-- **General**: Enable/disable blocking, Launch at Login, Show Dock Icon
-- **Automation**: Game Mode Auto-Detect (Beta), Control Center Widget (Beta)
-- **Advanced**: Diagnostics, Re-register Helper, Uninstall
-
-### Control Center Widget (Beta)
-
-Enable in Settings to add an AWDL toggle to the macOS Control Center. When enabled, the menu bar icon is hidden.
-
-> **Note**: The Control Center widget requires the app to be code-signed with a Developer ID certificate. When building from source without code signing, this feature is disabled and the menu bar icon remains visible. To enable, open the project in Xcode, configure signing with your Apple Developer account, and rebuild.
-
-### Game Mode Auto-Detect (Beta)
-
-When enabled, Ping Warden automatically activates AWDL blocking when it detects a fullscreen application (game mode). Great for cloud gaming services like GeForce NOW, Xbox Cloud Gaming, or Steam.
-
-## Requirements
-
-- macOS 13.0+ (Ventura) or later
-- macOS 26.0 (Tahoe) or later for Control Center Widget
-- Xcode 16.0+ for building app and helper
-- Xcode 26.0+ for building Control Center Widget (requires macOS Tahoe SDK)
-
-> **Tip**: For proper app icon rendering, build from Xcode IDE rather than the command-line script. Xcode properly processes the modern `.icon` asset format.
-
-## How It Works
-
-Ping Warden v2.0 uses a modern architecture based on the original [awdlkiller](https://github.com/jamestut/awdlkiller) approach:
-
-1. **Helper daemon** bundled inside the app (Contents/MacOS/AWDLControlHelper)
-2. **SMAppService** registers the helper as a LaunchDaemon with one-time system approval
-3. **XPC communication** between the app and helper for control commands
-4. **AF_ROUTE sockets** monitor kernel routing messages and instantly bring awdl0 down via `ioctl(SIOCSIFFLAGS)` when macOS enables it
-
-The core monitoring algorithm uses `poll()` with infinite timeout for true 0% CPU usage when idle. When the kernel sends an `RTM_IFINFO` message indicating awdl0 is UP, the helper immediately clears the `IFF_UP` flag before any network activity can occur (response time <1ms).
-
-The helper only runs while the app is running. When you quit Ping Warden, the helper exits and AWDL is automatically restored.
-
-## Uninstall
-
-Simply **drag Ping Warden.app to the Trash**. macOS automatically removes the helper registration.
+- macOS 13.0 (Ventura) or later
+- Apple Silicon or Intel Mac
 
 ## Credits
 
-- [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller) - Original AWDL monitoring concept using AF_ROUTE sockets
-- [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl) - SMAppService + XPC architecture inspiration
+This project builds on excellent prior work:
+
+- **[jamestut/awdlkiller](https://github.com/jamestut/awdlkiller)** - AF_ROUTE monitoring concept
+- **[james-howard/AWDLControl](https://github.com/james-howard/AWDLControl)** - SMAppService + XPC architecture
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) file for details
+
+Copyright (c) 2025-2026 Oliver Ames

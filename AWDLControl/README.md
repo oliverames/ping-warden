@@ -26,7 +26,7 @@ Ping Warden monitors the AWDL interface and keeps it disabled when you need low 
 
 ## Download
 
-**[Download Ping Warden v2.0.2](https://github.com/oliverames/ping-warden/releases/latest)**
+**[Download Ping Warden v2.0.3](https://github.com/oliverames/ping-warden/releases/latest)**
 
 The app is **code-signed and notarized by Apple**, so it will open without any security warnings.
 
