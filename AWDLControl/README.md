@@ -24,52 +24,20 @@ AWDL (Apple Wireless Direct Link) is used by AirDrop, Handoff, and other continu
 
 Ping Warden monitors the AWDL interface and keeps it disabled when you need low latency. When you quit the app, AWDL is automatically restored.
 
+## Download
+
+**[Download Ping Warden v2.0.2](https://github.com/oliverames/ping-warden/releases/latest)**
+
+The app is **code-signed and notarized by Apple**, so it will open without any security warnings.
+
 ## Installation
 
-### ⚠️ Important: macOS Security Notice
-
-macOS may show a warning that "Ping Warden can't be opened" or "cannot be verified as free of malware." This is normal for apps that aren't notarized by Apple. Choose one of the installation methods below:
-
----
-
-### Method 1: Automated Installation (Easiest)
-
-1. **Download** the latest release
-2. **Unzip** the download
-3. **Open Terminal** in the unzipped folder
-4. **Run** the installer:
-   ```bash
-   chmod +x install.sh
-   ./install.sh
-   ```
-
-The installer automatically removes quarantine flags and installs to `/Applications`.
-
----
-
-### Method 2: Manual Installation (Right-Click Method)
-
-1. **Download** the latest release
-2. **Unzip** and move `Ping Warden.app` to your **Applications** folder
-3. **Right-click** (or Control-click) on `Ping Warden.app`
-4. Select **"Open"** from the menu
-5. Click **"Open"** in the dialog
-
-This only needs to be done once.
-
----
-
-### Method 3: Terminal Command
-
-1. **Download** and unzip
-2. **Move** `Ping Warden.app` to `/Applications`
-3. **Run** this command in Terminal:
-   ```bash
-   xattr -cr "/Applications/Ping Warden.app"
-   ```
+1. **Download** the DMG from the link above
+2. **Open** the DMG file
+3. **Drag** `Ping Warden.app` to the **Applications** folder
 4. **Launch** from Applications or Spotlight
 
----
+That's it! No terminal commands or workarounds needed.
 
 ## First Launch Setup
 
@@ -107,8 +75,6 @@ Click the antenna icon in the menu bar to:
   - Only detects apps marked as games in their Info.plist
   
 - **Control Center Widget** (Beta) - Adds a toggle to Control Center
-  - Requires code-signed app (Developer ID certificate)
-  - Ad-hoc signed builds use menu bar instead
 
 **Advanced:**
 - Test helper response time
@@ -143,10 +109,6 @@ Ping Warden uses a privileged helper daemon that:
 
 ## Troubleshooting
 
-### "Ping Warden can't be opened"
-
-See the [Installation](#installation) section above. This is a macOS Gatekeeper issue, not a problem with the app.
-
 ### Helper not responding
 
 1. Open Settings → Advanced
@@ -179,7 +141,6 @@ Measured on M1 MacBook Pro:
 
 ## Known Issues
 
-- Control Center widget requires code signing (Developer ID certificate)
 - Game Mode detection requires Screen Recording permission
 - Some third-party networking tools may conflict with AWDL control
 

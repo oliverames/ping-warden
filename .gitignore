@@ -94,3 +94,7 @@ iOSInjectionProject/
 
 # Compiled daemon binary (built from source)
 AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon
+
+# Release artifacts
+*.dmg
+*.zip
