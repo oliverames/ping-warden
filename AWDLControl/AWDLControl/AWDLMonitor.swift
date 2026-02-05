@@ -14,10 +14,10 @@ import ServiceManagement
 import os.log
 
 /// Unified logger for AWDLMonitor - logs to both Console.app and file
-private let log = Logger(subsystem: "com.awdlcontrol.app", category: "Monitor")
+private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "Monitor")
 
 /// Signpost for performance measurement
-private let signposter = OSSignposter(subsystem: "com.awdlcontrol.app", category: "Performance")
+private let signposter = OSSignposter(subsystem: "com.amesvt.pingwarden", category: "Performance")
 
 /// Controls the AWDL helper daemon via SMAppService and XPC
 /// In v2.0, the helper runs as a bundled LaunchDaemon registered via SMAppService
@@ -25,17 +25,17 @@ private let signposter = OSSignposter(subsystem: "com.awdlcontrol.app", category
 ///
 /// Architecture (v2.0):
 /// - Helper binary bundled in Contents/MacOS/AWDLControlHelper
-/// - Plist bundled in Contents/Library/LaunchDaemons/com.awdlcontrol.helper.plist
-/// - Communication via XPC (com.awdlcontrol.xpc.helper)
+/// - Plist bundled in Contents/Library/LaunchDaemons/com.amesvt.pingwarden.helper.plist
+/// - Communication via XPC (com.amesvt.pingwarden.xpc)
 /// - Helper exits when app quits (via XPC connection invalidation)
 class AWDLMonitor {
     static let shared = AWDLMonitor()
 
     /// XPC service name - must match MachServices key in plist
-    private let xpcServiceName = "com.awdlcontrol.xpc.helper"
+    private let xpcServiceName = "com.amesvt.pingwarden.xpc"
 
     /// Plist filename for SMAppService - must match file in Contents/Library/LaunchDaemons/
-    private let helperPlistName = "com.awdlcontrol.helper.plist"
+    private let helperPlistName = "com.amesvt.pingwarden.helper.plist"
 
     /// Maximum time to wait for registration approval (60 seconds)
     private let registrationTimeoutSeconds: TimeInterval = 60.0
@@ -450,6 +450,40 @@ class AWDLMonitor {
         let message = "Helper healthy: v\(helperVersion), Status: \(helperStatus)"
         log.info("Health check: \(message)")
         return (true, message)
+    }
+    
+    /// Get the AWDL intervention count from the helper
+    /// Returns the number of times AWDL was blocked from coming up
+    func getInterventionCount(completion: @escaping (Int) -> Void) {
+        guard let proxy = getHelperProxy() else {
+            log.warning("Cannot get intervention count: No helper proxy")
+            completion(0)
+            return
+        }
+        
+        proxy.getAWDLInterventionCount(reply: { count in
+            DispatchQueue.main.async {
+                completion(Int(count))
+            }
+        })
+    }
+    
+    /// Reset the intervention counter in the helper
+    func resetInterventionCount(completion: @escaping (Bool) -> Void = { _ in }) {
+        guard let proxy = getHelperProxy() else {
+            log.warning("Cannot reset intervention count: No helper proxy")
+            completion(false)
+            return
+        }
+        
+        proxy.resetAWDLInterventionCount(reply: { success in
+            DispatchQueue.main.async {
+                if success {
+                    log.info("Intervention counter reset successfully")
+                }
+                completion(success)
+            }
+        })
     }
 
     /// Test the helper response time (for Testing Mode feature)

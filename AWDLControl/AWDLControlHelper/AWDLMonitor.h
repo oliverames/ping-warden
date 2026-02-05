@@ -28,6 +28,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// Should be called before the helper exits.
 - (void)invalidate;
 
+/// Get the total number of AWDL interventions (how many times we blocked AWDL from coming up)
+/// This counter persists for the lifetime of the helper process
+- (NSInteger)getInterventionCount;
+
+/// Reset the intervention counter to zero
+- (void)resetInterventionCount;
+
 @end
 
 NS_ASSUME_NONNULL_END

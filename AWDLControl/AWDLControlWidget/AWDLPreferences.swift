@@ -11,7 +11,7 @@
 import Foundation
 import os.log
 
-private let log = Logger(subsystem: "com.awdlcontrol.app", category: "WidgetPreferences")
+private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetPreferences")
 
 /// Manages shared state between app and widget using App Groups
 /// Note: This file should be kept in sync with AWDLControl/AWDLPreferences.swift
@@ -20,7 +20,7 @@ private let log = Logger(subsystem: "com.awdlcontrol.app", category: "WidgetPref
 class AWDLPreferences {
     static let shared = AWDLPreferences()
 
-    private let appGroupID = "group.com.awdlcontrol.app"
+    private let appGroupID = "group.com.amesvt.pingwarden"
     private let monitoringEnabledKey = "AWDLMonitoringEnabled"
     private let lastStateKey = "AWDLLastState"
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
@@ -127,7 +127,7 @@ class AWDLPreferences {
 
 extension Notification.Name {
     // Use a namespaced notification name to avoid collisions with other apps
-    static let awdlMonitoringStateChanged = Notification.Name("com.awdlcontrol.notification.MonitoringStateChanged")
+    static let awdlMonitoringStateChanged = Notification.Name("com.amesvt.pingwarden.notification.MonitoringStateChanged")
     // These are defined in the main app but included here for reference:
     // static let controlCenterModeChanged = Notification.Name("com.awdlcontrol.notification.ControlCenterModeChanged")
     // static let gameModeAutoDetectChanged = Notification.Name("com.awdlcontrol.notification.GameModeAutoDetectChanged")

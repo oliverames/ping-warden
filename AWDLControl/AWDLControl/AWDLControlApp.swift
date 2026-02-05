@@ -11,8 +11,29 @@
 import SwiftUI
 import ServiceManagement
 import os.log
+// TODO: Uncomment once Sparkle is added via SPM:
+// import Sparkle
 
-private let log = Logger(subsystem: "com.awdlcontrol.app", category: "App")
+private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "App")
+
+// MARK: - Backward Compatible onChange
+
+extension View {
+    /// Backward-compatible onChange modifier that works on macOS 13 and later
+    /// Uses the new two-parameter closure on macOS 14+, falls back to old API on macOS 13
+    @ViewBuilder
+    func onChangeCompat<V: Equatable>(of value: V, perform action: @escaping (V) -> Void) -> some View {
+        if #available(macOS 14.0, *) {
+            self.onChange(of: value) { _, newValue in
+                action(newValue)
+            }
+        } else {
+            self.onChange(of: value) { newValue in
+                action(newValue)
+            }
+        }
+    }
+}
 
 @main
 struct AWDLControlApp: App {
@@ -26,6 +47,9 @@ struct AWDLControlApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    // TODO: Uncomment once Sparkle is added:
+    // private var updaterController: SPUStandardUpdaterController?
+    
     private var monitoringObserver: NSObjectProtocol?
     private var controlCenterObserver: NSObjectProtocol?
     private var dockIconObserver: NSObjectProtocol?
@@ -39,6 +63,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("AWDLControl launching...")
+
+        // Initialize Sparkle auto-updater
+        // TODO: Uncomment once Sparkle is added and configured:
+        // updaterController = SPUStandardUpdaterController(
+        //     startingUpdater: true,
+        //     updaterDelegate: nil,
+        //     userDriverDelegate: nil
+        // )
+
+        // Check for quarantine issues and help user if needed
+        QuarantineHelper.showQuarantineHelpIfNeeded()
 
         // Set dock icon visibility based on preference
         updateDockIconVisibility()
@@ -264,6 +299,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         settingsItem.target = self
         statusMenu?.addItem(settingsItem)
 
+        // Check for Updates (Sparkle)
+        // TODO: Uncomment once Sparkle is integrated
+        // let updateItem = NSMenuItem(
+        //     title: "Check for Updates...",
+        //     action: #selector(checkForUpdates),
+        //     keyEquivalent: ""
+        // )
+        // updateItem.target = self
+        // statusMenu?.addItem(updateItem)
+
         // About
         let aboutItem = NSMenuItem(
             title: "About Ping Warden",
@@ -368,6 +413,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    // TODO: Uncomment once Sparkle is integrated
+    // @objc private func checkForUpdates() {
+    //     updaterController?.checkForUpdates(nil)
+    // }
 
     private func updateMenuBarIcon() {
         guard let button = statusItem?.button else { return }
@@ -609,6 +659,7 @@ struct SettingsViewRepresentable: NSViewControllerRepresentable {
 }
 
 enum SettingsSection: String, CaseIterable, Identifiable {
+    case dashboard = "Dashboard"
     case general = "General"
     case automation = "Automation"
     case advanced = "Advanced"
@@ -617,6 +668,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .dashboard: return "chart.xyaxis.line"
         case .general: return "gearshape"
         case .automation: return "sparkles"
         case .advanced: return "wrench.and.screwdriver"
@@ -738,6 +790,8 @@ struct SettingsContentView: View {
                 // Content with top spacing
                 VStack(alignment: .leading, spacing: 0) {
                     switch section {
+                    case .dashboard:
+                        DashboardSettingsContent()
                     case .general:
                         GeneralSettingsContent()
                     case .automation:
@@ -760,7 +814,7 @@ struct SettingsContentView: View {
 
 // MARK: - Settings Components
 
-private let settingsLog = Logger(subsystem: "com.awdlcontrol.app", category: "Settings")
+private let settingsLog = Logger(subsystem: "com.amesvt.pingwarden", category: "Settings")
 
 struct SettingsGroup<Content: View>: View {
     let content: Content
@@ -840,6 +894,8 @@ struct GeneralSettingsContent: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var showDockIcon = AWDLPreferences.shared.showDockIcon
     @State private var monitoringObserver: NSObjectProtocol?
+    @State private var interventionCount: Int = 0
+    @State private var interventionTimer: Timer?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -870,6 +926,35 @@ struct GeneralSettingsContent: View {
                             .frame(width: 8, height: 8)
                         Text(statusText)
                             .foregroundStyle(.secondary)
+                    }
+                }
+                
+                if isMonitoring && interventionCount > 0 {
+                    SettingsDivider()
+                    
+                    SettingsRow("AWDL Interventions") {
+                        HStack(spacing: 8) {
+                            Text("\(interventionCount)")
+                                .font(.headline)
+                                .foregroundStyle(.green)
+                            Text("blocked")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            Button {
+                                AWDLMonitor.shared.resetInterventionCount { success in
+                                    if success {
+                                        interventionCount = 0
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .help("Reset counter")
+                        }
                     }
                 }
             }
@@ -903,7 +988,7 @@ struct GeneralSettingsContent: View {
                     Toggle("", isOn: $showDockIcon)
                         .toggleStyle(.switch)
                         .controlSize(.small)
-                        .onChange(of: showDockIcon) { newValue in
+                        .onChangeCompat(of: showDockIcon) { newValue in
                             AWDLPreferences.shared.showDockIcon = newValue
                         }
                 }
@@ -942,11 +1027,34 @@ struct GeneralSettingsContent: View {
                     isHelperRegistered = AWDLMonitor.shared.isHelperRegistered
                 }
             }
+            
+            // Start fetching intervention count
+            updateInterventionCount()
+            startInterventionTimer()
         }
         .onDisappear {
             if let observer = monitoringObserver {
                 NotificationCenter.default.removeObserver(observer)
             }
+            interventionTimer?.invalidate()
+        }
+    }
+    
+    private func updateInterventionCount() {
+        guard isMonitoring else {
+            interventionCount = 0
+            return
+        }
+        
+        AWDLMonitor.shared.getInterventionCount { count in
+            interventionCount = count
+        }
+    }
+    
+    private func startInterventionTimer() {
+        // Update intervention count every 5 seconds when monitoring is active
+        interventionTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [self] _ in
+            updateInterventionCount()
         }
     }
 
@@ -995,7 +1103,7 @@ struct AutomationSettingsContent: View {
                         Toggle("", isOn: $gameModeAutoDetect)
                             .toggleStyle(.switch)
                             .controlSize(.small)
-                            .onChange(of: gameModeAutoDetect) { newValue in
+                            .onChangeCompat(of: gameModeAutoDetect) { newValue in
                                 AWDLPreferences.shared.gameModeAutoDetect = newValue
                             }
                     }
@@ -1030,7 +1138,7 @@ struct AutomationSettingsContent: View {
                             .toggleStyle(.switch)
                             .controlSize(.small)
                             .disabled(!isControlCenterAvailable)
-                            .onChange(of: controlCenterEnabled) { newValue in
+                            .onChangeCompat(of: controlCenterEnabled) { newValue in
                                 AWDLPreferences.shared.controlCenterWidgetEnabled = newValue
                             }
                     }
@@ -1228,7 +1336,7 @@ struct AdvancedSettingsContent: View {
 
         // Unregister the helper with SMAppService
         do {
-            let helperService = SMAppService.daemon(plistName: "com.awdlcontrol.helper.plist")
+            let helperService = SMAppService.daemon(plistName: "com.amesvt.pingwarden.helper.plist")
             try helperService.unregister()
             settingsLog.info("Helper unregistered successfully")
         } catch {
@@ -1335,7 +1443,7 @@ class GameModeDetector {
     private var timer: Timer?
     private var isGameModeActive = false
     private var hasLoggedPermissionWarning = false
-    private let log = Logger(subsystem: "com.awdlcontrol.app", category: "GameMode")
+    private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "GameMode")
 
     var onGameModeChange: ((Bool) -> Void)?
 

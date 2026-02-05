@@ -125,6 +125,18 @@ static BOOL isProperlyCodeSigned(void) {
     reply(HELPER_VERSION);
 }
 
+- (void)getAWDLInterventionCountWithReply:(void (^)(NSInteger))reply {
+    NSInteger count = [self.monitor getInterventionCount];
+    os_log_debug(LOG, "getAWDLInterventionCount: %ld", (long)count);
+    reply(count);
+}
+
+- (void)resetAWDLInterventionCountWithReply:(void (^)(BOOL))reply {
+    [self.monitor resetInterventionCount];
+    os_log_debug(LOG, "resetAWDLInterventionCount called");
+    reply(YES);
+}
+
 #pragma mark - Lifecycle
 
 - (void)cancelExitTimer {
@@ -275,7 +287,7 @@ int main(int argc, const char * argv[]) {
                HELPER_VERSION, isSigned ? "signed" : "unsigned/ad-hoc");
 
         // Initialize thread-safe queue for connection counting
-        connectionCountQueue = dispatch_queue_create("com.awdlcontrol.helper.connectionCount",
+        connectionCountQueue = dispatch_queue_create("com.amesvt.pingwarden.helper.connectionCount",
                                                      DISPATCH_QUEUE_SERIAL);
 
         // Initialize the service
@@ -287,7 +299,7 @@ int main(int argc, const char * argv[]) {
 
         // Create XPC listener for our Mach service
         // The service name must match the MachServices key in the plist
-        NSXPCListener *listener = [[NSXPCListener alloc] initWithMachServiceName:@"com.awdlcontrol.xpc.helper"];
+        NSXPCListener *listener = [[NSXPCListener alloc] initWithMachServiceName:@"com.amesvt.pingwarden.xpc"];
 
         if (!listener) {
             os_log_error(LOG, "Failed to create XPC listener - Mach service may not be registered");
@@ -301,7 +313,7 @@ int main(int argc, const char * argv[]) {
         if (isSigned) {
             NSString *requirement = [NSString stringWithFormat:
                 @"anchor apple generic "
-                @"and (identifier \"com.awdlcontrol.app\" or identifier \"com.awdlcontrol.app.widget\") "
+                @"and (identifier \"com.amesvt.pingwarden\" or identifier \"com.amesvt.pingwarden.widget\") "
                 @"and certificate leaf[subject.OU] = \"%@\"", TEAM_ID];
             os_log(LOG, "Enforcing code signing requirement for XPC connections (app and widget)");
             // Note: setConnectionCodeSigningRequirement is available in macOS 13+
@@ -316,7 +328,7 @@ int main(int argc, const char * argv[]) {
         listener.delegate = service;
         [listener activate];
 
-        os_log(LOG, "XPC listener activated on com.awdlcontrol.xpc.helper");
+        os_log(LOG, "XPC listener activated on com.amesvt.pingwarden.xpc");
 
         // Set up signal handler for graceful shutdown (async-signal-safe via dispatch)
         // The dispatch source is retained by GCD internally, so we don't need to keep a reference
