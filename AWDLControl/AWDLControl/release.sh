@@ -12,17 +12,28 @@
 
 set -e
 
+# Resolve paths relative to this script so execution is cwd-independent.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Configuration
 VERSION="${1}"
 RELEASE_NOTES="${2:-RELEASE_NOTES.md}"
 APP_NAME="Ping Warden"
 BUNDLE_ID="com.amesvt.pingwarden"
-DMG_NAME="PingWarden-${VERSION}.dmg"
-ZIP_NAME="PingWarden-${VERSION}.zip"
-BUILD_DIR="build"
+DMG_NAME="$PROJECT_ROOT/PingWarden-${VERSION}.dmg"
+BUILD_DIR="$PROJECT_ROOT/build"
 SPARKLE_KEY="$HOME/sparkle_private_key"
 GITHUB_USER="oliverames"
 REPO_NAME="ping-warden"
+NOTARIZE_SCRIPT="$SCRIPT_DIR/notarize.sh"
+APPCAST_FILE="$PROJECT_ROOT/appcast.xml"
+
+if [[ "$RELEASE_NOTES" = /* ]]; then
+    RELEASE_NOTES_PATH="$RELEASE_NOTES"
+else
+    RELEASE_NOTES_PATH="$PROJECT_ROOT/$RELEASE_NOTES"
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -47,7 +58,7 @@ echo ""
 
 # Step 1: Notarize
 echo -e "${GREEN}Step 1: Notarizing app...${NC}"
-./notarize.sh "$VERSION"
+"$NOTARIZE_SCRIPT" "$VERSION"
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Notarization failed!${NC}"
@@ -64,36 +75,34 @@ if [ ! -f "$DMG_NAME" ]; then
     exit 1
 fi
 
-echo -e "${GREEN}✓ DMG found: $DMG_NAME${NC}"
+echo -e "${GREEN}✓ DMG found: $(basename "$DMG_NAME")${NC}"
 echo ""
 
-# Step 3: Sign update for Sparkle (if key exists)
-if [ -f "$SPARKLE_KEY" ]; then
-    echo -e "${GREEN}Step 2: Signing update for Sparkle...${NC}"
-    
-    # Find sign_update tool (from Sparkle SPM package)
-    SIGN_TOOL=$(find ~/Library/Developer/Xcode/DerivedData -name "sign_update" -type f 2>/dev/null | head -1)
-    
-    if [ -z "$SIGN_TOOL" ]; then
-        echo -e "${YELLOW}⚠ sign_update tool not found${NC}"
-        echo "Sparkle may not be installed yet. Skipping signature."
-        SIGNATURE=""
-    else
-        # Create ZIP if it doesn't exist (notarize.sh cleans it up)
-        if [ ! -f "$ZIP_NAME" ]; then
-            cd "$BUILD_DIR"
-            ditto -c -k --keepParent "${APP_NAME}.app" "../${ZIP_NAME}"
-            cd ..
-        fi
-        
-        SIGNATURE=$("$SIGN_TOOL" "$ZIP_NAME" --ed-key-file "$SPARKLE_KEY")
-        echo -e "${GREEN}✓ Signature: ${SIGNATURE}${NC}"
-    fi
-else
-    echo -e "${YELLOW}⚠ Sparkle private key not found at $SPARKLE_KEY${NC}"
-    echo "Skipping Sparkle signature (updates won't work until you add Sparkle)"
-    SIGNATURE=""
+# Step 3: Sign update for Sparkle (required)
+echo -e "${GREEN}Step 2: Signing update for Sparkle...${NC}"
+
+if [ ! -f "$SPARKLE_KEY" ]; then
+    echo -e "${RED}Error: Sparkle private key not found at $SPARKLE_KEY${NC}"
+    echo "Release aborted to avoid publishing an update that clients cannot validate."
+    exit 1
 fi
+
+# Find sign_update tool (from Sparkle SPM package)
+SIGN_TOOL=$(find ~/Library/Developer/Xcode/DerivedData -name "sign_update" -type f 2>/dev/null | head -1)
+
+if [ -z "$SIGN_TOOL" ]; then
+    echo -e "${RED}Error: sign_update tool not found${NC}"
+    echo "Build Sparkle command line tools first so update signatures can be generated."
+    exit 1
+fi
+
+SIGNATURE=$("$SIGN_TOOL" "$DMG_NAME" --ed-key-file "$SPARKLE_KEY" | tr -d '\r\n')
+if [ -z "$SIGNATURE" ]; then
+    echo -e "${RED}Error: Sparkle signature generation returned an empty signature${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Signature: ${SIGNATURE}${NC}"
 
 echo ""
 
@@ -111,7 +120,6 @@ echo ""
 echo -e "${GREEN}Step 4: Updating appcast.xml...${NC}"
 
 # Check if appcast exists
-APPCAST_FILE="appcast.xml"
 if [ ! -f "$APPCAST_FILE" ]; then
     echo "Creating new appcast.xml"
     cat > "$APPCAST_FILE" << 'EOF'
@@ -174,11 +182,11 @@ if ! command -v gh &> /dev/null; then
     echo ""
 else
     # Create release with gh CLI
-    if [ -f "$RELEASE_NOTES" ]; then
+    if [ -f "$RELEASE_NOTES_PATH" ]; then
         gh release create "v$VERSION" \
             "$DMG_NAME" \
             --title "Ping Warden v$VERSION" \
-            --notes-file "$RELEASE_NOTES"
+            --notes-file "$RELEASE_NOTES_PATH"
     else
         gh release create "v$VERSION" \
             "$DMG_NAME" \

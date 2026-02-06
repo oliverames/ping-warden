@@ -45,8 +45,9 @@ struct AWDLControlApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdaterDelegate {
     private var updaterController: SPUStandardUpdaterController?
+    private var updaterStartupError: Error?
     
     private var monitoringObserver: NSObjectProtocol?
     private var controlCenterObserver: NSObjectProtocol?
@@ -62,12 +63,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("AWDLControl launching...")
 
-        // Initialize Sparkle auto-updater
+        // Initialize Sparkle updater and start explicitly so failures can be logged clearly.
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: nil,
+            startingUpdater: false,
+            updaterDelegate: self,
             userDriverDelegate: nil
         )
+        _ = startUpdaterIfNeeded()
 
         // Check for quarantine issues and help user if needed
         QuarantineHelper.showQuarantineHelpIfNeeded()
@@ -450,7 +452,56 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func checkForUpdates() {
-        updaterController?.checkForUpdates(nil)
+        guard startUpdaterIfNeeded() else {
+            presentUpdaterStartFailureAlert()
+            return
+        }
+        
+        updaterController?.updater.checkForUpdates()
+    }
+
+    private func startUpdaterIfNeeded() -> Bool {
+        guard let updater = updaterController?.updater else {
+            return false
+        }
+        
+        do {
+            try updater.start()
+            updaterStartupError = nil
+            return true
+        } catch {
+            updaterStartupError = error
+            log.error("Sparkle updater failed to start: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+    
+    private func presentUpdaterStartFailureAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Unable to Check For Updates"
+        
+        if let startupError = updaterStartupError as NSError? {
+            alert.informativeText = "The updater failed to start.\n\n\(startupError.localizedDescription)\n\nCheck Console logs for details."
+        } else {
+            alert.informativeText = "The updater failed to start. Check Console logs for details."
+        }
+        
+        alert.alertStyle = .warning
+        alert.runModal()
+    }
+
+    func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
+        let nsError = error as NSError
+        log.error("Sparkle update cycle aborted: [\(nsError.domain, privacy: .public):\(nsError.code)] \(nsError.localizedDescription, privacy: .public)")
+    }
+    
+    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) {
+        if let error {
+            let nsError = error as NSError
+            log.error("Sparkle update cycle finished with error for \(String(describing: updateCheck), privacy: .public): [\(nsError.domain, privacy: .public):\(nsError.code)] \(nsError.localizedDescription, privacy: .public)")
+        } else {
+            log.info("Sparkle update cycle finished successfully for \(String(describing: updateCheck), privacy: .public)")
+        }
     }
 
     private func updateMenuBarIcon() {
@@ -879,6 +930,12 @@ struct SettingsRow<Content: View>: View {
     }
 
     var body: some View {
+        let accessibilityText = if let description {
+            "\(title), \(description)"
+        } else {
+            title
+        }
+        
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -895,7 +952,7 @@ struct SettingsRow<Content: View>: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(description != nil ? "\(title), \(description!)" : title)
+        .accessibilityLabel(accessibilityText)
     }
 }
 
@@ -1703,4 +1760,3 @@ class GameModeDetector {
 #Preview("Welcome View") {
     WelcomeView(onSetup: {}, onDismiss: {})
 }
-

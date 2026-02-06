@@ -9,12 +9,17 @@
 
 set -e
 
+# Resolve paths relative to this script so execution is cwd-independent.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Configuration
 APP_NAME="Ping Warden"
 VERSION="${1:-2.0.1}"
 DMG_NAME="PingWarden-${VERSION}"
-BUILD_DIR="build"
-DMG_TEMP="dmg_temp"
+BUILD_DIR="$SCRIPT_DIR/build"
+DMG_PATH="$SCRIPT_DIR/${DMG_NAME}.dmg"
+SOURCE_APP_PATH="${2:-${BUILD_DIR}/${APP_NAME}.app}"
+DMG_TEMP=""
 
 # Colors
 GREEN='\033[0;32m'
@@ -28,19 +33,25 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # Check if app exists
-if [ ! -d "${BUILD_DIR}/${APP_NAME}.app" ]; then
-    echo "Error: ${BUILD_DIR}/${APP_NAME}.app not found"
+if [ ! -d "$SOURCE_APP_PATH" ]; then
+    echo "Error: app bundle not found at $SOURCE_APP_PATH"
     echo "Please build the app first using Xcode"
     exit 1
 fi
 
-# Clean up previous temp directory
-rm -rf "$DMG_TEMP"
-mkdir -p "$DMG_TEMP"
+# Create temp staging directory outside cloud-backed paths to avoid metadata/xattr issues.
+DMG_TEMP="$(mktemp -d /tmp/pingwarden-dmg.XXXXXX)"
+cleanup() {
+    if [ -n "$DMG_TEMP" ] && [ -d "$DMG_TEMP" ]; then
+        rm -r "$DMG_TEMP"
+    fi
+}
+trap cleanup EXIT
 
 # Copy app
 echo "Copying app bundle..."
-cp -R "${BUILD_DIR}/${APP_NAME}.app" "$DMG_TEMP/"
+# Use rsync so disallowed Finder metadata xattrs do not get embedded in the DMG payload.
+rsync -a "$SOURCE_APP_PATH/" "$DMG_TEMP/${APP_NAME}.app/"
 
 # Create a symlink to Applications
 echo "Creating Applications symlink..."
@@ -48,7 +59,7 @@ ln -s /Applications "$DMG_TEMP/Applications"
 
 # Create DMG
 echo "Creating DMG..."
-rm -f "${DMG_NAME}.dmg"
+rm -f "$DMG_PATH"
 
 # Create DMG with nice settings
 hdiutil create -volname "${APP_NAME}" \
@@ -56,19 +67,15 @@ hdiutil create -volname "${APP_NAME}" \
     -ov \
     -format UDZO \
     -imagekey zlib-level=9 \
-    "${DMG_NAME}.dmg"
-
-# Clean up
-echo "Cleaning up..."
-rm -rf "$DMG_TEMP"
+    "$DMG_PATH"
 
 # Calculate DMG size
-DMG_SIZE=$(du -h "${DMG_NAME}.dmg" | cut -f1)
+DMG_SIZE=$(du -h "$DMG_PATH" | cut -f1)
 
 echo ""
 echo -e "${GREEN}✓ DMG created successfully!${NC}"
 echo ""
-echo "  File: ${DMG_NAME}.dmg"
+echo "  File: $(basename "$DMG_PATH")"
 echo "  Size: ${DMG_SIZE}"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"

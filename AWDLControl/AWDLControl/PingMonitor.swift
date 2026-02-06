@@ -60,14 +60,17 @@ class PingMonitor {
     
     private var timer: Timer?
     private var history: [PingResult] = []
-    private let maxHistorySize = 720 // 1 hour at 5-second intervals
+    private let historyLock = NSLock()
     private let queue = DispatchQueue(label: "com.amesvt.pingwarden.pingmonitor", qos: .utility)
+    private let statsWindowSeconds: TimeInterval = 120
+    private let historyRetentionSeconds: TimeInterval = 3900 // Keep slightly over one hour
+    private let connectionTimeoutSeconds: Int = 1
     
     /// Current server to ping
     var server: String = "8.8.8.8"
     
     /// Port to use for TCP ping (80 = HTTP, usually open)
-    var port: UInt16 = 80
+    var port: UInt16 = 53
     
     /// Interval between pings (in seconds)
     var interval: TimeInterval = 2.0
@@ -85,7 +88,9 @@ class PingMonitor {
     }
     
     var currentPing: TimeInterval? {
-        history.last?.latency
+        withHistoryLock {
+            history.last?.latency
+        }
     }
     
     var currentPingMs: Double? {
@@ -111,13 +116,16 @@ class PingMonitor {
         performPing()
         
         // Schedule repeating timer on main thread
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+        runOnMainThreadSync { [weak self] in
+            guard let self else { return }
+            self.timer?.invalidate()
             self.timer = Timer.scheduledTimer(withTimeInterval: self.interval, repeats: true) { [weak self] _ in
                 self?.performPing()
             }
             // Ensure timer continues during UI interactions
-            RunLoop.main.add(self.timer!, forMode: .common)
+            if let timer = self.timer {
+                RunLoop.main.add(timer, forMode: .common)
+            }
         }
     }
     
@@ -125,7 +133,7 @@ class PingMonitor {
     func stop() {
         log.info("Stopping ping monitor")
         
-        DispatchQueue.main.async { [weak self] in
+        runOnMainThreadSync { [weak self] in
             self?.timer?.invalidate()
             self?.timer = nil
         }
@@ -133,7 +141,7 @@ class PingMonitor {
     
     /// Get current network statistics
     func getStatistics() -> NetworkStatistics {
-        let recentResults = Array(history.suffix(60)) // Last 2 minutes
+        let recentResults = snapshotRecentResults()
         
         guard !recentResults.isEmpty else {
             return NetworkStatistics(
@@ -150,7 +158,7 @@ class PingMonitor {
         let successfulPings = recentResults.filter { $0.success }
         let latencies = successfulPings.map { $0.latencyMs }
         
-        let current = recentResults.last?.latencyMs ?? 0
+        let current = successfulPings.last?.latencyMs ?? 0
         let average = latencies.isEmpty ? 0 : latencies.reduce(0, +) / Double(latencies.count)
         let minimum = latencies.min() ?? 0
         let maximum = latencies.max() ?? 0
@@ -171,7 +179,9 @@ class PingMonitor {
         
         // Determine quality
         let quality: Quality
-        if current < 20 && packetLoss < 1.0 {
+        if current == 0 || latencies.isEmpty {
+            quality = .poor
+        } else if current < 20 && packetLoss < 1.0 {
             quality = .excellent
         } else if current < 50 && packetLoss < 2.0 {
             quality = .good
@@ -195,12 +205,16 @@ class PingMonitor {
     /// Get historical ping data for graphing
     func getHistory(lastMinutes: Int = 60) -> [PingResult] {
         let cutoff = Date().addingTimeInterval(-TimeInterval(lastMinutes * 60))
-        return history.filter { $0.timestamp > cutoff }
+        return withHistoryLock {
+            history.filter { $0.timestamp > cutoff }
+        }
     }
     
     /// Clear history
     func clearHistory() {
-        history.removeAll()
+        withHistoryLock {
+            history.removeAll()
+        }
     }
     
     // MARK: - Private Methods
@@ -216,6 +230,7 @@ class PingMonitor {
             let success = self.tcpPing(host: self.server, port: self.port)
             let endTime = Date()
             let latency = endTime.timeIntervalSince(startTime)
+            let configuredInterval = self.interval
             
             let result = PingResult(
                 latency: latency,
@@ -224,7 +239,7 @@ class PingMonitor {
             )
             
             // Store in history
-            self.addToHistory(result)
+            self.addToHistory(result, interval: configuredInterval)
             
             // Notify callbacks on main thread
             DispatchQueue.main.async {
@@ -240,12 +255,20 @@ class PingMonitor {
         }
     }
     
-    private func addToHistory(_ result: PingResult) {
-        history.append(result)
-        
-        // Trim history if it gets too large
-        if history.count > maxHistorySize {
-            history.removeFirst(history.count - maxHistorySize)
+    private func addToHistory(_ result: PingResult, interval: TimeInterval) {
+        withHistoryLock {
+            history.append(result)
+            
+            // Time-based retention keeps behavior consistent across intervals.
+            let cutoff = Date().addingTimeInterval(-historyRetentionSeconds)
+            history.removeAll { $0.timestamp < cutoff }
+            
+            // Cap history by expected sample volume to avoid unbounded growth.
+            let effectiveInterval = max(interval, 0.2)
+            let maxHistorySize = Int((historyRetentionSeconds / effectiveInterval).rounded(.up))
+            if history.count > maxHistorySize {
+                history.removeFirst(history.count - maxHistorySize)
+            }
         }
     }
     
@@ -300,14 +323,14 @@ class PingMonitor {
             return false
         }
         
-        // Wait for connection with timeout (2 seconds)
+        // Wait for connection with timeout
         var readfds = fd_set()
         var writefds = fd_set()
         fdZero(&readfds)
         fdZero(&writefds)
         fdSet(sock, set: &writefds)
         
-        var timeout = timeval(tv_sec: 2, tv_usec: 0)
+        var timeout = timeval(tv_sec: connectionTimeoutSeconds, tv_usec: 0)
         let selectResult = select(sock + 1, &readfds, &writefds, nil, &timeout)
         
         if selectResult <= 0 {
@@ -323,6 +346,28 @@ class PingMonitor {
         return error == 0
     }
     
+    private func runOnMainThreadSync(_ block: @escaping () -> Void) {
+        if Thread.isMainThread {
+            block()
+        } else {
+            DispatchQueue.main.sync(execute: block)
+        }
+    }
+    
+    private func snapshotRecentResults() -> [PingResult] {
+        withHistoryLock {
+            let cutoff = Date().addingTimeInterval(-statsWindowSeconds)
+            return history.filter { $0.timestamp > cutoff }
+        }
+    }
+    
+    @discardableResult
+    private func withHistoryLock<T>(_ block: () -> T) -> T {
+        historyLock.lock()
+        defer { historyLock.unlock() }
+        return block()
+    }
+    
     // MARK: - fd_set Helpers
     
     private func fdZero(_ set: inout fd_set) {
@@ -336,7 +381,8 @@ class PingMonitor {
         let bitOffset = Int(fd % 32)
         
         withUnsafeMutableBytes(of: &set.fds_bits) { rawPtr in
-            let ptr = rawPtr.baseAddress!.assumingMemoryBound(to: Int32.self)
+            guard let baseAddress = rawPtr.baseAddress else { return }
+            let ptr = baseAddress.assumingMemoryBound(to: Int32.self)
             ptr[intOffset] |= Int32(1 << bitOffset)
         }
     }

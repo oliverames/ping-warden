@@ -9,8 +9,171 @@
 //  Licensed under the MIT License.
 //
 
+import Foundation
 import SwiftUI
 import Charts
+
+struct PingTarget: Identifiable, Hashable {
+    enum Source: Int {
+        case local
+        case publicDNS
+        case geforceNow
+    }
+    
+    let id: String
+    let displayName: String
+    let host: String
+    let port: UInt16
+    let source: Source
+    
+    init(displayName: String, host: String, port: UInt16, source: Source) {
+        self.displayName = displayName
+        self.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.port = port
+        self.source = source
+        self.id = "\(self.host.lowercased()):\(port)"
+    }
+}
+
+private enum DashboardConfig {
+    static let intervalOptions: [TimeInterval] = [1, 2, 5, 10]
+    static let timeframeOptions: [Int] = [5, 15, 30, 60]
+    static let defaultInterval: TimeInterval = 2
+    static let gfnRefreshCooldownSeconds: TimeInterval = 15
+    static let selectedTargetKey = "DashboardSelectedPingTargetID"
+    static let updateIntervalKey = "DashboardUpdateInterval"
+    static let historyRetentionSeconds: TimeInterval = 3900
+}
+
+private enum LatencyPalette {
+    static let excellent = Color(red: 0.16, green: 0.78, blue: 0.35)
+    static let good = Color(red: 0.95, green: 0.72, blue: 0.05)
+    static let fair = Color(red: 0.95, green: 0.49, blue: 0.12)
+    static let poor = Color(red: 0.89, green: 0.20, blue: 0.18)
+    
+    static func forLatency(_ latency: Double) -> Color {
+        if latency < 20 { return excellent }
+        if latency < 50 { return good }
+        if latency < 100 { return fair }
+        return poor
+    }
+    
+    static func forQuality(_ quality: PingMonitor.Quality) -> Color {
+        switch quality {
+        case .excellent: return excellent
+        case .good: return good
+        case .fair: return fair
+        case .poor: return poor
+        }
+    }
+}
+
+private enum NetworkGatewayResolver {
+    static func defaultGatewayAddress() -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/route")
+        process.arguments = ["-n", "get", "default"]
+        
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+        
+        guard process.terminationStatus == 0 else {
+            return nil
+        }
+        
+        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        guard let output = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        
+        for rawLine in output.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard line.hasPrefix("gateway:") else { continue }
+            
+            let gateway = line.replacingOccurrences(of: "gateway:", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            guard !gateway.isEmpty, !gateway.hasPrefix("link#") else {
+                return nil
+            }
+            
+            return gateway
+        }
+        
+        return nil
+    }
+}
+
+private enum GeForceNOWDiscovery {
+    private static let endpoint = URL(string: "https://status.geforcenow.com/api/v2/components.json")
+    private static let zoneCodePattern = #"\bNP[A]?-[A-Z0-9-]+\b"#
+    
+    private struct ComponentsResponse: Decodable {
+        let components: [Component]
+    }
+    
+    private struct Component: Decodable {
+        let name: String
+    }
+    
+    static func fetchTargets() async -> [PingTarget] {
+        guard let endpoint else { return [] }
+        
+        var request = URLRequest(url: endpoint)
+        request.timeoutInterval = 8
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return []
+            }
+            
+            let payload = try JSONDecoder().decode(ComponentsResponse.self, from: data)
+            let codes = extractZoneCodes(from: payload.components.map(\.name))
+            
+            return codes.sorted().map { code in
+                PingTarget(
+                    displayName: "GeForce NOW (\(code))",
+                    host: "\(code.lowercased()).cloudmatchbeta.nvidiagrid.net",
+                    port: 443,
+                    source: .geforceNow
+                )
+            }
+        } catch {
+            return []
+        }
+    }
+    
+    private static func extractZoneCodes(from componentNames: [String]) -> Set<String> {
+        guard let regex = try? NSRegularExpression(pattern: zoneCodePattern) else {
+            return []
+        }
+        
+        var codes = Set<String>()
+        
+        for name in componentNames {
+            let uppercasedName = name.uppercased()
+            let nameNSString = uppercasedName as NSString
+            let range = NSRange(location: 0, length: nameNSString.length)
+            let matches = regex.matches(in: uppercasedName, range: range)
+            
+            for match in matches {
+                codes.insert(nameNSString.substring(with: match.range))
+            }
+        }
+        
+        return codes
+    }
+}
 
 // MARK: - Dashboard Settings Content
 
@@ -128,12 +291,7 @@ struct StatusCard: View {
     }
     
     private func colorForQuality(_ quality: PingMonitor.Quality) -> Color {
-        switch quality {
-        case .excellent: return .green
-        case .good: return .yellow
-        case .fair: return .orange
-        case .poor: return .red
-        }
+        LatencyPalette.forQuality(quality)
     }
     
     private func qualityIcon(_ quality: PingMonitor.Quality) -> String {
@@ -151,6 +309,13 @@ struct StatusCard: View {
 struct PingGraphCard: View {
     @ObservedObject var viewModel: DashboardViewModel
     
+    private let timeframeOptions: [(minutes: Int, label: String)] = [
+        (5, "5 min"),
+        (15, "15 min"),
+        (30, "30 min"),
+        (60, "1 hour")
+    ]
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -159,15 +324,30 @@ struct PingGraphCard: View {
                 
                 Spacer()
                 
-                Picker("", selection: $viewModel.selectedTimeframe) {
-                    Text("5 min").tag(5)
-                    Text("15 min").tag(15)
-                    Text("30 min").tag(30)
-                    Text("1 hour").tag(60)
+                HStack(spacing: 8) {
+                    ForEach(timeframeOptions, id: \.minutes) { option in
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                viewModel.selectedTimeframe = option.minutes
+                            }
+                        } label: {
+                            Text(option.label)
+                                .font(.headline)
+                                .foregroundStyle(viewModel.selectedTimeframe == option.minutes ? .white : .primary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(
+                                    viewModel.selectedTimeframe == option.minutes
+                                        ? Color.accentColor
+                                        : Color.secondary.opacity(0.12),
+                                    in: RoundedRectangle(cornerRadius: 8)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                        .accessibilityLabel("Show \(option.label) ping history")
+                    }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
             }
             
             if viewModel.filteredHistory.isEmpty {
@@ -175,7 +355,7 @@ struct PingGraphCard: View {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.system(size: 48))
                         .foregroundStyle(.tertiary)
-                    Text("Collecting ping data...")
+                    Text(emptyStateText())
                         .foregroundStyle(.secondary)
                 }
                 .frame(height: 180)
@@ -200,6 +380,13 @@ struct PingGraphCard: View {
                             endPoint: .bottom
                         )
                     )
+                    
+                    PointMark(
+                        x: .value("Time", dataPoint.timestamp),
+                        y: .value("Ping", dataPoint.latencyMs)
+                    )
+                    .foregroundStyle(colorForLatency(dataPoint.latencyMs))
+                    .symbolSize(14)
                 }
                 .chartYScale(domain: 0...max(100, viewModel.maxPingInView))
                 .chartXAxis {
@@ -231,10 +418,10 @@ struct PingGraphCard: View {
             
             // Legend
             HStack(spacing: 16) {
-                LegendItem(color: .green, label: "Excellent", range: "<20ms")
-                LegendItem(color: .yellow, label: "Good", range: "20-50ms")
-                LegendItem(color: .orange, label: "Fair", range: "50-100ms")
-                LegendItem(color: .red, label: "Poor", range: ">100ms")
+                LegendItem(color: LatencyPalette.excellent, label: "Excellent", range: "<20ms")
+                LegendItem(color: LatencyPalette.good, label: "Good", range: "20-50ms")
+                LegendItem(color: LatencyPalette.fair, label: "Fair", range: "50-100ms")
+                LegendItem(color: LatencyPalette.poor, label: "Poor", range: ">100ms")
             }
             .font(.caption)
         }
@@ -243,11 +430,23 @@ struct PingGraphCard: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
     
+    private func emptyStateText() -> String {
+        if viewModel.pingHistory.isEmpty {
+            return "Collecting ping data..."
+        }
+        
+        return "No successful ping samples in last \(timeframeLabel(for: viewModel.selectedTimeframe))."
+    }
+    
+    private func timeframeLabel(for minutes: Int) -> String {
+        if minutes == 60 {
+            return "1 hour"
+        }
+        return "\(minutes) minutes"
+    }
+    
     private func colorForLatency(_ latency: Double) -> Color {
-        if latency < 20 { return .green }
-        if latency < 50 { return .yellow }
-        if latency < 100 { return .orange }
-        return .red
+        LatencyPalette.forLatency(latency)
     }
 }
 
@@ -338,14 +537,29 @@ struct ServerSelectionCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
-                    Picker("Server", selection: $viewModel.selectedServer) {
-                        Text("Google DNS (Global)").tag("8.8.8.8")
-                        Text("Cloudflare (Global)").tag("1.1.1.1")
-                        Text("GeForce NOW (US West)").tag("gfn-us-west.nvidia.com")
-                        Text("GeForce NOW (US East)").tag("gfn-us-east.nvidia.com")
+                    Picker("Server", selection: $viewModel.selectedTargetID) {
+                        ForEach(viewModel.targets) { target in
+                            Text(target.displayName).tag(target.id)
+                        }
                     }
                     .pickerStyle(.menu)
-                    .frame(minWidth: 200)
+                    .frame(minWidth: 260)
+                    .disabled(viewModel.targets.isEmpty)
+                    .onTapGesture {
+                        viewModel.refreshGeForceNOWTargetsOnDemand()
+                    }
+                    
+                    if let selectedTarget = viewModel.selectedTarget {
+                        Text("\(selectedTarget.host):\(selectedTarget.port)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    if viewModel.isRefreshingGFNServers {
+                        Text("Refreshing GeForce NOW zones...")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 
                 VStack(alignment: .leading, spacing: 8) {
@@ -354,10 +568,10 @@ struct ServerSelectionCard: View {
                         .foregroundStyle(.secondary)
                     
                     Picker("Interval", selection: $viewModel.updateInterval) {
-                        Text("1 second").tag(1.0)
-                        Text("2 seconds").tag(2.0)
-                        Text("5 seconds").tag(5.0)
-                        Text("10 seconds").tag(10.0)
+                        Text("1 second").tag(TimeInterval(1))
+                        Text("2 seconds").tag(TimeInterval(2))
+                        Text("5 seconds").tag(TimeInterval(5))
+                        Text("10 seconds").tag(TimeInterval(10))
                     }
                     .pickerStyle(.menu)
                     .frame(minWidth: 120)
@@ -389,29 +603,56 @@ class DashboardViewModel: ObservableObject {
     @Published var pingHistory: [PingMonitor.PingResult] = []
     @Published var interventionCount: Int = 0
     @Published var isAWDLBlocking: Bool = false
-    @Published var selectedTimeframe: Int = 15 // minutes
-    @Published var selectedServer: String = "8.8.8.8" {
+    @Published var selectedTimeframe: Int = 15 { // minutes
         didSet {
-            if selectedServer != oldValue {
-                restartMonitoring()
+            if !DashboardConfig.timeframeOptions.contains(selectedTimeframe) {
+                selectedTimeframe = 15
             }
         }
     }
-    @Published var updateInterval: TimeInterval = 2.0 {
+    @Published private(set) var targets: [PingTarget] = []
+    @Published var selectedTargetID: String = "" {
         didSet {
-            if updateInterval != oldValue {
-                restartMonitoring()
+            guard selectedTargetID != oldValue else { return }
+            userDefaults.set(selectedTargetID, forKey: DashboardConfig.selectedTargetKey)
+            restartMonitoring()
+            
+            if selectedTarget?.source == .geforceNow {
+                refreshGeForceNOWTargets(force: false)
             }
         }
     }
+    @Published var updateInterval: TimeInterval = DashboardConfig.defaultInterval {
+        didSet {
+            let sanitized = sanitizedInterval(updateInterval)
+            if sanitized != updateInterval {
+                updateInterval = sanitized
+                return
+            }
+            guard updateInterval != oldValue else { return }
+            userDefaults.set(updateInterval, forKey: DashboardConfig.updateIntervalKey)
+            restartMonitoring()
+        }
+    }
+    @Published private(set) var isRefreshingGFNServers: Bool = false
     
     private let pingMonitor = PingMonitor()
     private var interventionTimer: Timer?
+    private var gfnRefreshTask: Task<Void, Never>?
+    private var isStarted = false
+    private var gfnTargets: [PingTarget] = []
+    private var lastGFNRefreshDate: Date = .distantPast
+    
+    private let userDefaults = UserDefaults.standard
+    
+    var selectedTarget: PingTarget? {
+        targets.first { $0.id == selectedTargetID }
+    }
     
     /// Filtered ping history based on selected timeframe
     var filteredHistory: [PingMonitor.PingResult] {
         let cutoff = Date().addingTimeInterval(-TimeInterval(selectedTimeframe * 60))
-        return pingHistory.filter { $0.timestamp > cutoff }
+        return pingHistory.filter { $0.timestamp > cutoff && $0.success }
     }
     
     var maxPingInView: Double {
@@ -420,7 +661,26 @@ class DashboardViewModel: ObservableObject {
         return Swift.max(100, max * 1.1)
     }
     
+    init() {
+        let gateway = NetworkGatewayResolver.defaultGatewayAddress()
+        targets = Self.baseTargets(localGateway: gateway)
+        
+        if let savedInterval = userDefaults.object(forKey: DashboardConfig.updateIntervalKey) as? Double {
+            updateInterval = sanitizedInterval(savedInterval)
+        }
+        
+        if let savedTargetID = normalizedSavedTargetID(userDefaults.string(forKey: DashboardConfig.selectedTargetKey)),
+           targets.contains(where: { $0.id == savedTargetID }) {
+            selectedTargetID = savedTargetID
+        } else {
+            selectedTargetID = targets.first(where: { $0.source == .local })?.id ?? targets.first?.id ?? ""
+        }
+    }
+    
     func start() {
+        guard !isStarted else { return }
+        isStarted = true
+        
         // Start ping monitoring
         pingMonitor.onPingResult = { [weak self] result in
             Task { @MainActor in
@@ -434,7 +694,7 @@ class DashboardViewModel: ObservableObject {
             }
         }
         
-        pingMonitor.start(server: selectedServer, interval: updateInterval)
+        startMonitoring(clearHistory: false)
         
         // Update AWDL status
         updateAWDLStatus()
@@ -447,26 +707,42 @@ class DashboardViewModel: ObservableObject {
                 self?.updateAWDLStatus()
             }
         }
+        
     }
     
     func stop() {
+        isStarted = false
         pingMonitor.stop()
         interventionTimer?.invalidate()
         interventionTimer = nil
+        gfnRefreshTask?.cancel()
+        gfnRefreshTask = nil
+        isRefreshingGFNServers = false
     }
     
     private func restartMonitoring() {
+        guard isStarted else { return }
+        startMonitoring(clearHistory: true)
+    }
+    
+    private func startMonitoring(clearHistory: Bool) {
+        guard let target = selectedTarget else { return }
+        
         pingMonitor.stop()
-        pingMonitor.clearHistory()
-        pingHistory.removeAll()
-        pingMonitor.start(server: selectedServer, interval: updateInterval)
+        
+        if clearHistory {
+            pingMonitor.clearHistory()
+            pingHistory.removeAll()
+        }
+        
+        pingMonitor.start(server: target.host, port: target.port, interval: updateInterval)
     }
     
     private func handlePingResult(_ result: PingMonitor.PingResult) {
         pingHistory.append(result)
         
-        // Keep only data for selected timeframe plus a bit extra
-        let cutoff = Date().addingTimeInterval(-TimeInterval(selectedTimeframe * 60 + 300))
+        // Keep only a bit over one hour of data to support all dashboard windows.
+        let cutoff = Date().addingTimeInterval(-DashboardConfig.historyRetentionSeconds)
         pingHistory.removeAll { $0.timestamp < cutoff }
     }
     
@@ -480,6 +756,122 @@ class DashboardViewModel: ObservableObject {
     
     private func updateAWDLStatus() {
         isAWDLBlocking = AWDLMonitor.shared.isMonitoringActive
+    }
+    
+    func refreshGeForceNOWTargetsOnDemand() {
+        refreshGeForceNOWTargets(force: true)
+    }
+    
+    private func refreshGeForceNOWTargets(force: Bool) {
+        if !force,
+           Date().timeIntervalSince(lastGFNRefreshDate) < DashboardConfig.gfnRefreshCooldownSeconds {
+            return
+        }
+        
+        gfnRefreshTask?.cancel()
+        isRefreshingGFNServers = true
+        lastGFNRefreshDate = Date()
+        
+        gfnRefreshTask = Task { [weak self] in
+            let discoveredTargets = await GeForceNOWDiscovery.fetchTargets()
+            
+            await MainActor.run {
+                guard let self, !Task.isCancelled else { return }
+                self.isRefreshingGFNServers = false
+                self.gfnTargets = discoveredTargets
+                self.rebuildTargets()
+            }
+        }
+    }
+    
+    private func rebuildTargets() {
+        let gatewayHost = targets.first(where: { $0.source == .local })?.host ?? NetworkGatewayResolver.defaultGatewayAddress()
+        let baseTargets = Self.baseTargets(localGateway: gatewayHost)
+        let sortedGFNTargets = gfnTargets.sorted { $0.displayName < $1.displayName }
+        
+        var deduplicatedTargets: [PingTarget] = []
+        var seenIDs = Set<String>()
+        
+        for target in baseTargets + sortedGFNTargets {
+            if seenIDs.insert(target.id).inserted {
+                deduplicatedTargets.append(target)
+            }
+        }
+        
+        targets = deduplicatedTargets
+        
+        if !targets.contains(where: { $0.id == selectedTargetID }) {
+            selectedTargetID = targets.first(where: { $0.source == .local })?.id ?? targets.first?.id ?? ""
+        }
+    }
+    
+    private static func baseTargets(localGateway: String?) -> [PingTarget] {
+        var targets: [PingTarget] = []
+        
+        if let localGateway, !localGateway.isEmpty {
+            targets.append(PingTarget(
+                displayName: "Local Gateway (\(localGateway))",
+                host: localGateway,
+                port: 53,
+                source: .local
+            ))
+        }
+        
+        targets.append(PingTarget(
+            displayName: "Cloudflare DNS (Global)",
+            host: "1.1.1.1",
+            port: 53,
+            source: .publicDNS
+        ))
+        
+        targets.append(PingTarget(
+            displayName: "Google DNS (Global)",
+            host: "8.8.8.8",
+            port: 53,
+            source: .publicDNS
+        ))
+        
+        targets.append(PingTarget(
+            displayName: "GeForce NOW Routing API",
+            host: "prod.cloudmatchbeta.nvidiagrid.net",
+            port: 443,
+            source: .geforceNow
+        ))
+        
+        return targets
+    }
+    
+    private func sanitizedInterval(_ rawInterval: TimeInterval) -> TimeInterval {
+        guard rawInterval > 0 else {
+            return DashboardConfig.defaultInterval
+        }
+        
+        if DashboardConfig.intervalOptions.contains(rawInterval) {
+            return rawInterval
+        }
+        
+        return DashboardConfig.intervalOptions.min { abs($0 - rawInterval) < abs($1 - rawInterval) } ?? DashboardConfig.defaultInterval
+    }
+    
+    private func normalizedSavedTargetID(_ rawValue: String?) -> String? {
+        guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !rawValue.isEmpty else {
+            return nil
+        }
+        
+        if rawValue.contains(":") {
+            return rawValue
+        }
+        
+        switch rawValue {
+        case "8.8.8.8":
+            return "8.8.8.8:53"
+        case "1.1.1.1":
+            return "1.1.1.1:53"
+        default:
+            let defaultPort: UInt16 = rawValue.contains("nvidia") ? 443 : 53
+            return "\(rawValue):\(defaultPort)"
+        }
     }
 }
 
