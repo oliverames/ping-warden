@@ -23,7 +23,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://oliverames.github.io/ping-warden/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/oliverames/ping-warden/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>NIhfyD083qOzYZteoMsBOljz/u7/ptMziiHheqt3mns=</string>
 	<key>NSHumanReadableCopyright</key>
