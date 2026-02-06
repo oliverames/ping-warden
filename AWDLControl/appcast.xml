@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Ping Warden Updates</title>
+    <link>https://oliverames.github.io/ping-warden/appcast.xml</link>
+    <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
+    <language>en</language>
+    <item>
+      <title>Version 2.0.5</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.0.5</link>
+      <sparkle:version>2.0.5</sparkle:version>
+      <sparkle:shortVersionString>2.0.5</sparkle:shortVersionString>
+      <description><![CDATA[
+        <h2>What's New in 2.0.5</h2>
+        <ul>
+          <li><strong>Automatic Updates:</strong> Added Sparkle framework for automatic update checking</li>
+          <li>Check for updates manually via the menu bar</li>
+          <li>Background update checking enabled</li>
+        </ul>
+      ]]></description>
+      <pubDate>Thu, 06 Feb 2026 01:30:00 +0000</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v2.0.5/PingWarden-2.0.5.dmg"
+        sparkle:version="2.0.5"
+        sparkle:shortVersionString="2.0.5"
+        length="3436051"
+        type="application/octet-stream"
+        sparkle:edSignature="dqPWgU0ARBkRWIlGQkCM6e6I7bg/phEBv91ti3QLu3tl3xqJRAApkmHwuxPRXHjMIR12ocX0XSDoq+RItsQKAA=="
+      />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+    <item>
+      <title>Version 2.0.4</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v2.0.4</link>
+      <sparkle:version>2.0.4</sparkle:version>
+      <sparkle:shortVersionString>2.0.4</sparkle:shortVersionString>
+      <description><![CDATA[
+        <h2>What's New in 2.0.4</h2>
+        <ul>
+          <li><strong>Fixed ping measurement:</strong> Corrected timing bug that caused inaccurate latency readings</li>
+        </ul>
+      ]]></description>
+      <pubDate>Wed, 05 Feb 2026 20:15:00 +0000</pubDate>
+      <enclosure
+        url="https://github.com/oliverames/ping-warden/releases/download/v2.0.4/PingWarden-2.0.4.dmg"
+        sparkle:version="2.0.4"
+        sparkle:shortVersionString="2.0.4"
+        length="2586530"
+        type="application/octet-stream"
+      />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+    </item>
+  </channel>
+</rss>
