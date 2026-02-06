@@ -15,13 +15,17 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.4</string>
+	<string>2.0.5</string>
 	<key>CFBundleVersion</key>
-	<string>2.0.4</string>
+	<string>2.0.5</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string>https://oliverames.github.io/ping-warden/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string></string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2025-2026 Oliver Ames. All rights reserved.</string>
 	<key>NSPrincipalClass</key>

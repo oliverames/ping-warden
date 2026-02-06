@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		815E03172EAEA562006913A8 /* AWDLControlWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = WidgetRef /* AWDLControlWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		81CB02502F357A9600AB4024 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 81CB024F2F357A9600AB4024 /* Sparkle */; };
 		Widget001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = WidgetKitRef /* WidgetKit.framework */; };
 		Widget002 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = SwiftUIRef /* SwiftUI.framework */; };
 /* End PBXBuildFile section */
@@ -109,6 +110,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				81CB02502F357A9600AB4024 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -194,6 +196,7 @@
 			);
 			name = AWDLControl;
 			packageProductDependencies = (
+				81CB024F2F357A9600AB4024 /* Sparkle */,
 			);
 			productName = AWDLControl;
 			productReference = AppRef /* Ping Warden.app */;
@@ -273,6 +276,9 @@
 			);
 			mainGroup = RootGroup;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				81CB024E2F357A9600AB4024 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = ProductsGroup /* Products */;
 			projectDirPath = "";
@@ -719,6 +725,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		81CB024E2F357A9600AB4024 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		81CB024F2F357A9600AB4024 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 81CB024E2F357A9600AB4024 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = RootObject /* Project object */;
 }

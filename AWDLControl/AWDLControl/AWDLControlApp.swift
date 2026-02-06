@@ -11,8 +11,7 @@
 import SwiftUI
 import ServiceManagement
 import os.log
-// TODO: Uncomment once Sparkle is added via SPM:
-// import Sparkle
+import Sparkle
 
 private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "App")
 
@@ -47,8 +46,7 @@ struct AWDLControlApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    // TODO: Uncomment once Sparkle is added:
-    // private var updaterController: SPUStandardUpdaterController?
+    private var updaterController: SPUStandardUpdaterController?
     
     private var monitoringObserver: NSObjectProtocol?
     private var controlCenterObserver: NSObjectProtocol?
@@ -65,12 +63,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         log.info("AWDLControl launching...")
 
         // Initialize Sparkle auto-updater
-        // TODO: Uncomment once Sparkle is added and configured:
-        // updaterController = SPUStandardUpdaterController(
-        //     startingUpdater: true,
-        //     updaterDelegate: nil,
-        //     userDriverDelegate: nil
-        // )
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
 
         // Check for quarantine issues and help user if needed
         QuarantineHelper.showQuarantineHelpIfNeeded()
@@ -326,14 +323,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusMenu?.addItem(settingsItem)
 
         // Check for Updates (Sparkle)
-        // TODO: Uncomment once Sparkle is integrated
-        // let updateItem = NSMenuItem(
-        //     title: "Check for Updates...",
-        //     action: #selector(checkForUpdates),
-        //     keyEquivalent: ""
-        // )
-        // updateItem.target = self
-        // statusMenu?.addItem(updateItem)
+        let updateItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+        statusMenu?.addItem(updateItem)
 
         // About
         let aboutItem = NSMenuItem(
@@ -453,10 +449,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    // TODO: Uncomment once Sparkle is integrated
-    // @objc private func checkForUpdates() {
-    //     updaterController?.checkForUpdates(nil)
-    // }
+    @objc private func checkForUpdates() {
+        updaterController?.checkForUpdates(nil)
+    }
 
     private func updateMenuBarIcon() {
         guard let button = statusItem?.button else { return }
