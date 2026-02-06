@@ -206,10 +206,11 @@ class PingMonitor {
     // MARK: - Private Methods
     
     private func performPing() {
-        let startTime = Date()
-        
         queue.async { [weak self] in
             guard let self = self else { return }
+            
+            // Capture start time immediately before the TCP ping
+            let startTime = Date()
             
             // Perform TCP connection timing
             let success = self.tcpPing(host: self.server, port: self.port)
