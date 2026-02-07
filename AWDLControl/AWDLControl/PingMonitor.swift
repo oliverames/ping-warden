@@ -142,63 +142,20 @@ class PingMonitor {
     /// Get current network statistics
     func getStatistics() -> NetworkStatistics {
         let recentResults = snapshotRecentResults()
-        
-        guard !recentResults.isEmpty else {
-            return NetworkStatistics(
-                currentPing: 0,
-                averagePing: 0,
-                minimumPing: 0,
-                maximumPing: 0,
-                jitter: 0,
-                packetLoss: 0,
-                quality: .poor
-            )
+
+        let pureSamples = recentResults.map {
+            PingSample(latencyMs: $0.latencyMs, success: $0.success, timestamp: $0.timestamp)
         }
-        
-        let successfulPings = recentResults.filter { $0.success }
-        let latencies = successfulPings.map { $0.latencyMs }
-        
-        let current = successfulPings.last?.latencyMs ?? 0
-        let average = latencies.isEmpty ? 0 : latencies.reduce(0, +) / Double(latencies.count)
-        let minimum = latencies.min() ?? 0
-        let maximum = latencies.max() ?? 0
-        
-        // Calculate jitter (variance in latency)
-        let jitter: Double
-        if latencies.count > 1 {
-            let diffs = zip(latencies.dropLast(), latencies.dropFirst()).map { abs($0.1 - $0.0) }
-            jitter = diffs.reduce(0, +) / Double(diffs.count)
-        } else {
-            jitter = 0
-        }
-        
-        // Calculate packet loss
-        let totalPings = recentResults.count
-        let failedPings = recentResults.filter { !$0.success }.count
-        let packetLoss = totalPings > 0 ? (Double(failedPings) / Double(totalPings)) * 100.0 : 0
-        
-        // Determine quality
-        let quality: Quality
-        if current == 0 || latencies.isEmpty {
-            quality = .poor
-        } else if current < 20 && packetLoss < 1.0 {
-            quality = .excellent
-        } else if current < 50 && packetLoss < 2.0 {
-            quality = .good
-        } else if current < 100 && packetLoss < 5.0 {
-            quality = .fair
-        } else {
-            quality = .poor
-        }
-        
+        let computed = PingStatistics.calculate(from: pureSamples)
+
         return NetworkStatistics(
-            currentPing: current,
-            averagePing: average,
-            minimumPing: minimum,
-            maximumPing: maximum,
-            jitter: jitter,
-            packetLoss: packetLoss,
-            quality: quality
+            currentPing: computed.currentPing,
+            averagePing: computed.averagePing,
+            minimumPing: computed.minimumPing,
+            maximumPing: computed.maximumPing,
+            jitter: computed.jitter,
+            packetLoss: computed.packetLoss,
+            quality: Self.mapQuality(computed.quality)
         )
     }
     
@@ -222,19 +179,20 @@ class PingMonitor {
     private func performPing() {
         queue.async { [weak self] in
             guard let self = self else { return }
-            
-            // Capture start time immediately before the TCP ping
-            let startTime = Date()
-            
-            // Perform TCP connection timing
-            let success = self.tcpPing(host: self.server, port: self.port)
-            let endTime = Date()
-            let latency = endTime.timeIntervalSince(startTime)
+
+            let timestamp = Date()
+            let measuredLatencyMs = TCPProbe.measureLatency(
+                host: self.server,
+                port: self.port,
+                timeoutSeconds: self.connectionTimeoutSeconds
+            )
+            let success = measuredLatencyMs != nil
+            let latency = success ? (measuredLatencyMs ?? 0) / 1000.0 : TimeInterval(self.connectionTimeoutSeconds)
             let configuredInterval = self.interval
-            
+
             let result = PingResult(
                 latency: latency,
-                timestamp: endTime,
+                timestamp: timestamp,
                 success: success
             )
             
@@ -254,6 +212,15 @@ class PingMonitor {
             }
         }
     }
+
+    private static func mapQuality(_ quality: PingQuality) -> Quality {
+        switch quality {
+        case .excellent: return .excellent
+        case .good: return .good
+        case .fair: return .fair
+        case .poor: return .poor
+        }
+    }
     
     private func addToHistory(_ result: PingResult, interval: TimeInterval) {
         withHistoryLock {
@@ -270,80 +237,6 @@ class PingMonitor {
                 history.removeFirst(history.count - maxHistorySize)
             }
         }
-    }
-    
-    /// Perform TCP connection timing (proxy for ICMP ping)
-    /// Returns true if connection succeeded (regardless of actual latency)
-    private func tcpPing(host: String, port: UInt16) -> Bool {
-        var hints = addrinfo(
-            ai_flags: AI_NUMERICSERV,
-            ai_family: AF_UNSPEC,
-            ai_socktype: SOCK_STREAM,
-            ai_protocol: IPPROTO_TCP,
-            ai_addrlen: 0,
-            ai_canonname: nil,
-            ai_addr: nil,
-            ai_next: nil
-        )
-        
-        var result: UnsafeMutablePointer<addrinfo>?
-        let status = getaddrinfo(host, String(port), &hints, &result)
-        
-        guard status == 0, let addrInfo = result else {
-            if let result = result {
-                freeaddrinfo(result)
-            }
-            return false
-        }
-        
-        defer { freeaddrinfo(result) }
-        
-        // Create socket
-        let sock = socket(addrInfo.pointee.ai_family, addrInfo.pointee.ai_socktype, addrInfo.pointee.ai_protocol)
-        guard sock >= 0 else {
-            return false
-        }
-        
-        defer { close(sock) }
-        
-        // Set non-blocking
-        let flags = fcntl(sock, F_GETFL, 0)
-        _ = fcntl(sock, F_SETFL, flags | O_NONBLOCK)
-        
-        // Attempt connection
-        let connectResult = Darwin.connect(sock, addrInfo.pointee.ai_addr, addrInfo.pointee.ai_addrlen)
-        
-        if connectResult == 0 {
-            // Connected immediately (unlikely but possible)
-            return true
-        }
-        
-        if errno != EINPROGRESS {
-            // Connection failed
-            return false
-        }
-        
-        // Wait for connection with timeout
-        var readfds = fd_set()
-        var writefds = fd_set()
-        fdZero(&readfds)
-        fdZero(&writefds)
-        fdSet(sock, set: &writefds)
-        
-        var timeout = timeval(tv_sec: connectionTimeoutSeconds, tv_usec: 0)
-        let selectResult = select(sock + 1, &readfds, &writefds, nil, &timeout)
-        
-        if selectResult <= 0 {
-            // Timeout or error
-            return false
-        }
-        
-        // Check if connection succeeded
-        var error: Int32 = 0
-        var errorLen = socklen_t(MemoryLayout<Int32>.size)
-        getsockopt(sock, SOL_SOCKET, SO_ERROR, &error, &errorLen)
-        
-        return error == 0
     }
     
     private func runOnMainThreadSync(_ block: @escaping () -> Void) {
@@ -366,25 +259,6 @@ class PingMonitor {
         historyLock.lock()
         defer { historyLock.unlock() }
         return block()
-    }
-    
-    // MARK: - fd_set Helpers
-    
-    private func fdZero(_ set: inout fd_set) {
-        set = fd_set()
-    }
-    
-    private func fdSet(_ fd: Int32, set: inout fd_set) {
-        // fd_set on Darwin uses fds_bits as a tuple of Int32 values
-        // Each Int32 holds 32 file descriptors as bits
-        let intOffset = Int(fd / 32)
-        let bitOffset = Int(fd % 32)
-        
-        withUnsafeMutableBytes(of: &set.fds_bits) { rawPtr in
-            guard let baseAddress = rawPtr.baseAddress else { return }
-            let ptr = baseAddress.assumingMemoryBound(to: Int32.self)
-            ptr[intOffset] |= Int32(1 << bitOffset)
-        }
     }
 }
 

@@ -20,10 +20,10 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "Monitor"
 private let signposter = OSSignposter(subsystem: "com.amesvt.pingwarden", category: "Performance")
 
 /// Controls the AWDL helper daemon via SMAppService and XPC
-/// In v2.0, the helper runs as a bundled LaunchDaemon registered via SMAppService
+/// In v2.x, the helper runs as a bundled LaunchDaemon registered via SMAppService
 /// No more password prompts - just one-time system approval
 ///
-/// Architecture (v2.0):
+/// Architecture (v2.x):
 /// - Helper binary bundled in Contents/MacOS/AWDLControlHelper
 /// - Plist bundled in Contents/Library/LaunchDaemons/com.amesvt.pingwarden.helper.plist
 /// - Communication via XPC (com.amesvt.pingwarden.xpc)
@@ -110,8 +110,12 @@ class AWDLMonitor {
         }
     }
 
-    /// Callback for UI updates
+    /// Legacy single callback support.
+    /// New code should use addStateObserver/removeStateObserver or notifications.
     var onStateChange: (() -> Void)?
+
+    /// Multi-observer state callbacks.
+    private var stateObservers: [UUID: () -> Void] = [:]
 
     /// Timer for polling registration status
     private var registrationTimer: Timer?
@@ -121,7 +125,7 @@ class AWDLMonitor {
 
     private init() {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log.info("AWDLMonitor v2.0.1 initializing (SMAppService + XPC)...")
+        log.info("AWDLMonitor v2.1.0 initializing (SMAppService + XPC)...")
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         let status = helperService.status
@@ -137,7 +141,7 @@ class AWDLMonitor {
             // Check if we should restore monitoring state
             if AWDLPreferences.shared.isMonitoringEnabled {
                 log.info("  Restoring monitoring state from preferences")
-                startMonitoring()
+                startMonitoring(persistUserPreference: false)
             }
         }
 
@@ -167,6 +171,23 @@ class AWDLMonitor {
         let active = _isMonitoring && _xpcConnection != nil
         stateLock.unlock()
         return active
+    }
+
+    /// Register for monitor state changes. Returns a token that can be removed later.
+    @discardableResult
+    func addStateObserver(_ observer: @escaping () -> Void) -> UUID {
+        let token = UUID()
+        stateLock.lock()
+        stateObservers[token] = observer
+        stateLock.unlock()
+        return token
+    }
+
+    /// Remove a previously registered state observer.
+    func removeStateObserver(_ token: UUID) {
+        stateLock.lock()
+        stateObservers.removeValue(forKey: token)
+        stateLock.unlock()
     }
 
     /// Validate that the helper binary and plist exist in the app bundle
@@ -253,6 +274,8 @@ class AWDLMonitor {
                 // SMAppService may throw with domain NSCocoaErrorDomain
                 let isPermissionError = error.localizedDescription.contains("Operation not permitted") ||
                                         error.localizedDescription.contains("not permitted") ||
+                                        error.domain == "SMAppServiceErrorDomain" ||
+                                        error.domain.contains("ServiceManagement") ||
                                         (error.domain == NSPOSIXErrorDomain && error.code == 1)
 
                 if isPermissionError {
@@ -277,7 +300,7 @@ class AWDLMonitor {
     }
 
     /// Start monitoring - sends command to helper via XPC
-    func startMonitoring() {
+    func startMonitoring(persistUserPreference: Bool = true) {
         log.info("┌─────────────────────────────────────────────────────┐")
         log.info("│ startMonitoring() called                            │")
         log.info("└─────────────────────────────────────────────────────┘")
@@ -311,7 +334,7 @@ class AWDLMonitor {
                     self.stateLock.lock()
                     self._registrationAttempts = 0
                     self.stateLock.unlock()
-                    self.startMonitoring()
+                    self.startMonitoring(persistUserPreference: persistUserPreference)
                 }
             }
             return
@@ -325,6 +348,8 @@ class AWDLMonitor {
         // Send command to disable AWDL
         guard let proxy = getHelperProxy() else {
             log.error("Failed to get helper proxy")
+            AWDLPreferences.shared.effectiveMonitoringEnabled = false
+            notifyStateChange()
             showError("Cannot connect to helper.\n\nTry restarting the app.")
             return
         }
@@ -335,12 +360,17 @@ class AWDLMonitor {
             DispatchQueue.main.async {
                 if success {
                     self.isMonitoring = true
-                    AWDLPreferences.shared.isMonitoringEnabled = true
+                    if persistUserPreference {
+                        AWDLPreferences.shared.isMonitoringEnabled = true
+                    }
+                    AWDLPreferences.shared.effectiveMonitoringEnabled = true
                     AWDLPreferences.shared.lastKnownState = "down"
-                    self.onStateChange?()
+                    self.notifyStateChange()
                     log.info("✅ AWDL monitoring started")
                 } else {
                     log.error("❌ Failed to disable AWDL")
+                    AWDLPreferences.shared.effectiveMonitoringEnabled = false
+                    self.notifyStateChange()
                     self.showError("Failed to disable AWDL.\n\nThe helper may not be running correctly.")
                 }
             }
@@ -348,7 +378,7 @@ class AWDLMonitor {
     }
 
     /// Stop monitoring - sends command to helper via XPC
-    func stopMonitoring() {
+    func stopMonitoring(persistUserPreference: Bool = true) {
         log.info("┌─────────────────────────────────────────────────────┐")
         log.info("│ stopMonitoring() called                             │")
         log.info("└─────────────────────────────────────────────────────┘")
@@ -358,9 +388,12 @@ class AWDLMonitor {
             stateLock.lock()
             _isMonitoring = false
             stateLock.unlock()
-            AWDLPreferences.shared.isMonitoringEnabled = false
+            if persistUserPreference {
+                AWDLPreferences.shared.isMonitoringEnabled = false
+            }
+            AWDLPreferences.shared.effectiveMonitoringEnabled = false
             AWDLPreferences.shared.lastKnownState = "up"
-            onStateChange?()
+            notifyStateChange()
             return
         }
 
@@ -372,9 +405,12 @@ class AWDLMonitor {
                     self.stateLock.lock()
                     self._isMonitoring = false
                     self.stateLock.unlock()
-                    AWDLPreferences.shared.isMonitoringEnabled = false
+                    if persistUserPreference {
+                        AWDLPreferences.shared.isMonitoringEnabled = false
+                    }
+                    AWDLPreferences.shared.effectiveMonitoringEnabled = false
                     AWDLPreferences.shared.lastKnownState = "up"
-                    self.onStateChange?()
+                    self.notifyStateChange()
                     log.info("✅ AWDL monitoring stopped - AirDrop/Handoff available")
                 } else {
                     log.error("❌ Failed to enable AWDL")
@@ -466,6 +502,11 @@ class AWDLMonitor {
                 completion(Int(count))
             }
         })
+    }
+
+    /// Current awdl0 interface flags/status for diagnostics.
+    func currentAWDLInterfaceStatus() -> String {
+        getAWDLInterfaceStatus()
     }
     
     /// Reset the intervention counter in the helper
@@ -565,7 +606,7 @@ class AWDLMonitor {
 
     /// Legacy check - now checks XPC connection
     func isDaemonVersionCompatible() -> Bool {
-        // In v2.0, version is always compatible since helper is bundled
+        // In v2.x, version is always compatible since helper is bundled
         return isHelperRegistered
     }
 
@@ -616,33 +657,73 @@ class AWDLMonitor {
 
         log.info("XPC connection activated")
 
-        // Validate connection by attempting a simple query with timeout
-        validateXPCConnection()
+        // Validate connection asynchronously to avoid blocking UI paths.
+        validateXPCConnection { [weak self] isValid in
+            guard let self else { return }
+            if isValid {
+                self.reassertMonitoringStateIfNeeded()
+            }
+        }
     }
 
     /// Validate XPC connection is actually working
-    private func validateXPCConnection() {
+    private func validateXPCConnection(completion: ((Bool) -> Void)? = nil) {
         guard let proxy = getHelperProxy() else {
             log.warning("XPC validation: No proxy available")
+            completion?(false)
             return
         }
 
-        let validationSemaphore = DispatchSemaphore(value: 0)
-        var isValid = false
+        let completionLock = NSLock()
+        var didComplete = false
+
+        let finish: (Bool) -> Void = { isValid in
+            completionLock.lock()
+            defer { completionLock.unlock() }
+            guard !didComplete else { return }
+            didComplete = true
+            completion?(isValid)
+        }
+
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2.0) {
+            log.warning("XPC validation: Connection timeout - helper may not be running")
+            finish(false)
+        }
 
         proxy.getVersion(reply: { version in
-            isValid = !version.isEmpty
-            validationSemaphore.signal()
+            if version.isEmpty {
+                log.warning("XPC validation: Invalid response from helper")
+                finish(false)
+            } else {
+                log.debug("XPC validation: Connection verified successfully")
+                finish(true)
+            }
         })
+    }
 
-        // Wait up to 2 seconds for validation
-        if validationSemaphore.wait(timeout: .now() + 2.0) == .timedOut {
-            log.warning("XPC validation: Connection timeout - helper may not be running")
-        } else if isValid {
-            log.debug("XPC validation: Connection verified successfully")
-        } else {
-            log.warning("XPC validation: Invalid response from helper")
+    private func reassertMonitoringStateIfNeeded() {
+        let shouldReassert = isMonitoring
+        guard shouldReassert else {
+            return
         }
+
+        guard let proxy = getHelperProxy() else {
+            log.warning("Skipping reassert: helper proxy unavailable")
+            return
+        }
+
+        log.info("Reasserting AWDL blocking state after XPC reconnect")
+        proxy.setAWDLEnabled(false, reply: { success in
+            DispatchQueue.main.async {
+                if success {
+                    AWDLPreferences.shared.effectiveMonitoringEnabled = true
+                    AWDLPreferences.shared.lastKnownState = "down"
+                    self.notifyStateChange()
+                } else {
+                    log.error("Failed to reassert AWDL blocking state after reconnect")
+                }
+            }
+        })
     }
 
     /// Handle XPC interruption (temporary disconnect)
@@ -665,6 +746,11 @@ class AWDLMonitor {
         let wasMonitoring = _isMonitoring
         stateLock.unlock()
 
+        if wasMonitoring {
+            AWDLPreferences.shared.effectiveMonitoringEnabled = false
+            notifyStateChange()
+        }
+
         defer {
             stateLock.lock()
             _isHandlingInvalidation = false
@@ -675,7 +761,7 @@ class AWDLMonitor {
         if wasMonitoring {
             xpcRetryCount += 1
             if xpcRetryCount <= maxXPCRetries {
-                let delay = pow(2.0, Double(xpcRetryCount - 1)) // 1s, 2s, 4s
+                let delay = XPCReconnectPolicy.delayForAttempt(xpcRetryCount)
                 log.info("Attempting XPC reconnect in \(delay)s (attempt \(self.xpcRetryCount)/\(self.maxXPCRetries))")
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                     self?.connectXPC()
@@ -685,11 +771,13 @@ class AWDLMonitor {
                 stateLock.lock()
                 _isMonitoring = false
                 stateLock.unlock()
-                onStateChange?()
+                AWDLPreferences.shared.effectiveMonitoringEnabled = false
+                notifyStateChange()
                 showError("Lost connection to helper.\n\nPlease restart the app.")
             }
         } else {
-            onStateChange?()
+            AWDLPreferences.shared.effectiveMonitoringEnabled = false
+            notifyStateChange()
         }
     }
 
@@ -777,6 +865,19 @@ class AWDLMonitor {
     }
 
     // MARK: - Helper Methods
+
+    private func notifyStateChange() {
+        let observers: [() -> Void]
+        stateLock.lock()
+        observers = Array(stateObservers.values)
+        stateLock.unlock()
+
+        DispatchQueue.main.async {
+            self.onStateChange?()
+            observers.forEach { $0() }
+            NotificationCenter.default.post(name: .awdlMonitorStateChanged, object: nil)
+        }
+    }
 
     /// Get human-readable status description
     private func statusDescription(_ status: SMAppService.Status) -> String {

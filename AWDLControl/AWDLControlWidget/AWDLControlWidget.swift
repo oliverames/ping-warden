@@ -21,7 +21,7 @@ struct AWDLControlWidget: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: Self.kind) {
             ControlWidgetButton(action: ToggleAWDLMonitoringIntent()) {
-                let isOn = AWDLPreferences.shared.isMonitoringEnabled
+                let isOn = AWDLPreferences.shared.effectiveMonitoringEnabled || AWDLPreferences.shared.isMonitoringEnabled
                 Label(
                     isOn ? "AWDL Blocked" : "AWDL Allowed",
                     systemImage: isOn ? "antenna.radiowaves.left.and.right.slash" : "antenna.radiowaves.left.and.right"

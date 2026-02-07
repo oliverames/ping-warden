@@ -24,6 +24,32 @@ jobs:
     - name: Show Xcode version
       run: xcodebuild -version
 
+    - name: Validate appcast XML
+      run: |
+        xmllint --noout appcast.xml
+        echo "✓ appcast.xml is valid XML"
+
+    - name: Validate version consistency
+      run: |
+        APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" AWDLControl/AWDLControl/Info.plist)
+        HELPER_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" AWDLControl/AWDLControlHelper/Info.plist)
+        WIDGET_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" AWDLControl/AWDLControlWidget/Info.plist)
+
+        if [ "$APP_VERSION" != "$HELPER_VERSION" ] || [ "$APP_VERSION" != "$WIDGET_VERSION" ]; then
+          echo "ERROR: Version mismatch across targets"
+          echo "app=$APP_VERSION helper=$HELPER_VERSION widget=$WIDGET_VERSION"
+          exit 1
+        fi
+        echo "✓ Target versions are consistent ($APP_VERSION)"
+
+    - name: Run core logic smoke tests
+      run: |
+        swiftc AWDLControl/AWDLControl/Core/PingStatistics.swift \
+               AWDLControl/AWDLControl/Core/XPCReconnectPolicy.swift \
+               scripts/core_logic_smoke.swift \
+               -o /tmp/core_logic_smoke
+        /tmp/core_logic_smoke
+
     - name: Build Helper (verification only)
       run: |
         echo "Building AWDLControlHelper..."

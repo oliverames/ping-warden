@@ -18,7 +18,8 @@ class AWDLPreferences {
     static let shared = AWDLPreferences()
 
     private let appGroupID = "group.com.amesvt.pingwarden"
-    private let monitoringEnabledKey = "AWDLMonitoringEnabled"
+    private let monitoringEnabledKey = "AWDLMonitoringEnabled" // User intent
+    private let effectiveMonitoringEnabledKey = "AWDLEffectiveMonitoringEnabled" // Runtime state
     private let lastStateKey = "AWDLLastState"
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
     private let gameModeAutoDetectKey = "GameModeAutoDetect"
@@ -36,7 +37,8 @@ class AWDLPreferences {
 
     private init() {}
 
-    /// Whether continuous AWDL monitoring is enabled
+    /// User intent for whether AWDL monitoring should be enabled.
+    /// This is shared with the widget.
     var isMonitoringEnabled: Bool {
         get {
             return defaults?.bool(forKey: monitoringEnabledKey) ?? false
@@ -56,6 +58,28 @@ class AWDLPreferences {
                 userInfo: nil,
                 deliverImmediately: true
             )
+        }
+    }
+
+    /// Effective runtime state of monitoring as reported by the app/helper.
+    /// This value is used for accurate status display and should not be used as user intent.
+    var effectiveMonitoringEnabled: Bool {
+        get {
+            return defaults?.bool(forKey: effectiveMonitoringEnabledKey) ?? false
+        }
+        set {
+            guard let defaults = defaults else {
+                log.error("Cannot set \(self.effectiveMonitoringEnabledKey): defaults is nil")
+                return
+            }
+            defaults.set(newValue, forKey: effectiveMonitoringEnabledKey)
+            DistributedNotificationCenter.default().postNotificationName(
+                .awdlEffectiveMonitoringStateChanged,
+                object: nil,
+                userInfo: nil,
+                deliverImmediately: true
+            )
+            NotificationCenter.default.post(name: .awdlMonitorStateChanged, object: nil)
         }
     }
 
@@ -122,6 +146,8 @@ class AWDLPreferences {
 extension Notification.Name {
     // Use namespaced notification names to avoid collisions with other apps
     static let awdlMonitoringStateChanged = Notification.Name("com.amesvt.pingwarden.notification.MonitoringStateChanged")
+    static let awdlEffectiveMonitoringStateChanged = Notification.Name("com.amesvt.pingwarden.notification.EffectiveMonitoringStateChanged")
+    static let awdlMonitorStateChanged = Notification.Name("com.amesvt.pingwarden.notification.MonitorStateChanged")
     static let controlCenterModeChanged = Notification.Name("com.amesvt.pingwarden.notification.ControlCenterModeChanged")
     static let gameModeAutoDetectChanged = Notification.Name("com.amesvt.pingwarden.notification.GameModeAutoDetectChanged")
     static let dockIconVisibilityChanged = Notification.Name("com.amesvt.pingwarden.notification.DockIconVisibilityChanged")

@@ -18,6 +18,7 @@ struct PingTarget: Identifiable, Hashable {
         case local
         case publicDNS
         case geforceNow
+        case gaming
     }
     
     let id: String
@@ -35,6 +36,47 @@ struct PingTarget: Identifiable, Hashable {
     }
 }
 
+struct LatencyTimelineEvent: Identifiable {
+    enum Kind {
+        case latencySpike(latencyMs: Double)
+        case awdlIntervention(delta: Int)
+    }
+
+    let id = UUID()
+    let timestamp: Date
+    let kind: Kind
+
+    var label: String {
+        switch kind {
+        case .latencySpike(let latency):
+            return String(format: "Latency spike: %.0f ms", latency)
+        case .awdlIntervention(let delta):
+            if delta == 1 {
+                return "AWDL intervention"
+            }
+            return "AWDL interventions (+\(delta))"
+        }
+    }
+
+    var symbol: String {
+        switch kind {
+        case .latencySpike:
+            return "exclamationmark.triangle.fill"
+        case .awdlIntervention:
+            return "shield.lefthalf.filled.badge.checkmark"
+        }
+    }
+
+    var color: Color {
+        switch kind {
+        case .latencySpike:
+            return .orange
+        case .awdlIntervention:
+            return .green
+        }
+    }
+}
+
 private enum DashboardConfig {
     static let intervalOptions: [TimeInterval] = [1, 2, 5, 10]
     static let timeframeOptions: [Int] = [5, 15, 30, 60]
@@ -43,6 +85,9 @@ private enum DashboardConfig {
     static let selectedTargetKey = "DashboardSelectedPingTargetID"
     static let updateIntervalKey = "DashboardUpdateInterval"
     static let historyRetentionSeconds: TimeInterval = 3900
+    static let baselineSampleCount = 3
+    static let baselineProbeTimeoutSeconds = 1
+    static let baselineSampleSpacingNanoseconds: UInt64 = 100_000_000
 }
 
 private enum LatencyPalette {
@@ -188,6 +233,9 @@ struct DashboardSettingsContent: View {
                 
                 // Ping Graph
                 PingGraphCard(viewModel: viewModel)
+
+                // Latency Timeline
+                LatencyTimelineCard(viewModel: viewModel)
                 
                 // AWDL Interventions Card
                 InterventionsCard(viewModel: viewModel)
@@ -361,32 +409,40 @@ struct PingGraphCard: View {
                 .frame(height: 180)
                 .frame(maxWidth: .infinity)
             } else {
-                Chart(viewModel.filteredHistory) { dataPoint in
-                    LineMark(
-                        x: .value("Time", dataPoint.timestamp),
-                        y: .value("Ping", dataPoint.latencyMs)
-                    )
-                    .foregroundStyle(colorForLatency(dataPoint.latencyMs))
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-                    
-                    AreaMark(
-                        x: .value("Time", dataPoint.timestamp),
-                        y: .value("Ping", dataPoint.latencyMs)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [colorForLatency(dataPoint.latencyMs).opacity(0.3), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
+                Chart {
+                    ForEach(viewModel.filteredHistory) { dataPoint in
+                        LineMark(
+                            x: .value("Time", dataPoint.timestamp),
+                            y: .value("Ping", dataPoint.latencyMs)
                         )
-                    )
-                    
-                    PointMark(
-                        x: .value("Time", dataPoint.timestamp),
-                        y: .value("Ping", dataPoint.latencyMs)
-                    )
-                    .foregroundStyle(colorForLatency(dataPoint.latencyMs))
-                    .symbolSize(14)
+                        .foregroundStyle(colorForLatency(dataPoint.latencyMs))
+                        .lineStyle(StrokeStyle(lineWidth: 2))
+
+                        AreaMark(
+                            x: .value("Time", dataPoint.timestamp),
+                            y: .value("Ping", dataPoint.latencyMs)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [colorForLatency(dataPoint.latencyMs).opacity(0.3), .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+
+                        PointMark(
+                            x: .value("Time", dataPoint.timestamp),
+                            y: .value("Ping", dataPoint.latencyMs)
+                        )
+                        .foregroundStyle(colorForLatency(dataPoint.latencyMs))
+                        .symbolSize(14)
+                    }
+
+                    ForEach(viewModel.filteredTimelineEvents) { event in
+                        RuleMark(x: .value("Event", event.timestamp))
+                            .foregroundStyle(event.color.opacity(0.55))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    }
                 }
                 .chartYScale(domain: 0...max(100, viewModel.maxPingInView))
                 .chartXAxis {
@@ -463,6 +519,49 @@ struct LegendItem: View {
             Text("\(label) (\(range))")
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+struct LatencyTimelineCard: View {
+    @ObservedObject var viewModel: DashboardViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Latency Timeline")
+                    .font(.headline)
+                Spacer()
+                Text("Spikes + AWDL interventions")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if viewModel.filteredTimelineEvents.isEmpty {
+                Text("No notable events in selected timeframe.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(viewModel.filteredTimelineEvents.suffix(8).reversed()) { event in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: event.symbol)
+                                .foregroundStyle(event.color)
+                                .frame(width: 14)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(event.label)
+                                    .font(.caption)
+                                Text(event.timestamp, format: .dateTime.hour().minute().second())
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -560,6 +659,28 @@ struct ServerSelectionCard: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
+
+                    HStack(spacing: 8) {
+                        Button {
+                            viewModel.autoSelectNearestEndpoint()
+                        } label: {
+                            if viewModel.isAutoSelectingTarget {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("Auto-Select Nearest")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(viewModel.isAutoSelectingTarget || viewModel.targets.isEmpty)
+
+                        if let selectedTarget = viewModel.selectedTarget,
+                           let baseline = viewModel.baselineLatencyResults[selectedTarget.id] {
+                            Text(String(format: "Baseline %.0f ms", baseline))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 
                 VStack(alignment: .leading, spacing: 8) {
@@ -601,8 +722,11 @@ class DashboardViewModel: ObservableObject {
     )
     
     @Published var pingHistory: [PingMonitor.PingResult] = []
+    @Published private(set) var timelineEvents: [LatencyTimelineEvent] = []
     @Published var interventionCount: Int = 0
     @Published var isAWDLBlocking: Bool = false
+    @Published private(set) var baselineLatencyResults: [String: Double] = [:]
+    @Published private(set) var isAutoSelectingTarget: Bool = false
     @Published var selectedTimeframe: Int = 15 { // minutes
         didSet {
             if !DashboardConfig.timeframeOptions.contains(selectedTimeframe) {
@@ -639,9 +763,12 @@ class DashboardViewModel: ObservableObject {
     private let pingMonitor = PingMonitor()
     private var interventionTimer: Timer?
     private var gfnRefreshTask: Task<Void, Never>?
+    private var baselineSelectionTask: Task<Void, Never>?
     private var isStarted = false
     private var gfnTargets: [PingTarget] = []
     private var lastGFNRefreshDate: Date = .distantPast
+    private var previousInterventionCount: Int = 0
+    private var hasInitializedInterventionBaseline = false
     
     private let userDefaults = UserDefaults.standard
     
@@ -653,6 +780,11 @@ class DashboardViewModel: ObservableObject {
     var filteredHistory: [PingMonitor.PingResult] {
         let cutoff = Date().addingTimeInterval(-TimeInterval(selectedTimeframe * 60))
         return pingHistory.filter { $0.timestamp > cutoff && $0.success }
+    }
+
+    var filteredTimelineEvents: [LatencyTimelineEvent] {
+        let cutoff = Date().addingTimeInterval(-TimeInterval(selectedTimeframe * 60))
+        return timelineEvents.filter { $0.timestamp > cutoff }
     }
     
     var maxPingInView: Double {
@@ -717,7 +849,10 @@ class DashboardViewModel: ObservableObject {
         interventionTimer = nil
         gfnRefreshTask?.cancel()
         gfnRefreshTask = nil
+        baselineSelectionTask?.cancel()
+        baselineSelectionTask = nil
         isRefreshingGFNServers = false
+        isAutoSelectingTarget = false
     }
     
     private func restartMonitoring() {
@@ -744,12 +879,34 @@ class DashboardViewModel: ObservableObject {
         // Keep only a bit over one hour of data to support all dashboard windows.
         let cutoff = Date().addingTimeInterval(-DashboardConfig.historyRetentionSeconds)
         pingHistory.removeAll { $0.timestamp < cutoff }
+
+        if result.success {
+            let spikeThreshold = max(100.0, stats.averagePing * 2.0)
+            if result.latencyMs >= spikeThreshold {
+                appendTimelineEvent(.init(timestamp: result.timestamp, kind: .latencySpike(latencyMs: result.latencyMs)))
+            }
+        }
     }
     
     private func updateInterventionCount() {
         AWDLMonitor.shared.getInterventionCount { [weak self] count in
             Task { @MainActor in
-                self?.interventionCount = count
+                guard let self else { return }
+
+                if !self.hasInitializedInterventionBaseline {
+                    self.previousInterventionCount = count
+                    self.interventionCount = count
+                    self.hasInitializedInterventionBaseline = true
+                    return
+                }
+
+                if count > self.previousInterventionCount {
+                    let delta = count - self.previousInterventionCount
+                    self.appendTimelineEvent(.init(timestamp: Date(), kind: .awdlIntervention(delta: delta)))
+                }
+
+                self.previousInterventionCount = count
+                self.interventionCount = count
             }
         }
     }
@@ -760,6 +917,36 @@ class DashboardViewModel: ObservableObject {
     
     func refreshGeForceNOWTargetsOnDemand() {
         refreshGeForceNOWTargets(force: true)
+    }
+
+    func autoSelectNearestEndpoint() {
+        guard !targets.isEmpty else { return }
+
+        baselineSelectionTask?.cancel()
+        isAutoSelectingTarget = true
+
+        let candidates = targets
+        baselineSelectionTask = Task { [weak self] in
+            let sampleCount = DashboardConfig.baselineSampleCount
+            let measurements = await Self.collectBaselineMeasurements(
+                candidates: candidates,
+                sampleCount: sampleCount
+            )
+
+            await MainActor.run {
+                guard let self else { return }
+
+                self.isAutoSelectingTarget = false
+                self.baselineLatencyResults = measurements.mapValues(Self.robustAverage(from:))
+
+                guard let best = self.baselineLatencyResults.min(by: { $0.value < $1.value }),
+                      self.targets.contains(where: { $0.id == best.key }) else {
+                    return
+                }
+
+                self.selectedTargetID = best.key
+            }
+        }
     }
     
     private func refreshGeForceNOWTargets(force: Bool) {
@@ -823,14 +1010,98 @@ class DashboardViewModel: ObservableObject {
             port: 53,
             source: .publicDNS
         ))
-        
+
+        targets.append(PingTarget(
+            displayName: "Cloudflare DNS Secondary (Global)",
+            host: "1.0.0.1",
+            port: 53,
+            source: .publicDNS
+        ))
+
         targets.append(PingTarget(
             displayName: "Google DNS (Global)",
             host: "8.8.8.8",
             port: 53,
             source: .publicDNS
         ))
-        
+
+        targets.append(PingTarget(
+            displayName: "Google DNS Secondary (Global)",
+            host: "8.8.4.4",
+            port: 53,
+            source: .publicDNS
+        ))
+
+        targets.append(PingTarget(
+            displayName: "Quad9 DNS (Global)",
+            host: "9.9.9.9",
+            port: 53,
+            source: .publicDNS
+        ))
+
+        targets.append(PingTarget(
+            displayName: "Quad9 DNS Secondary (Global)",
+            host: "149.112.112.112",
+            port: 53,
+            source: .publicDNS
+        ))
+
+        targets.append(PingTarget(
+            displayName: "OpenDNS (Global)",
+            host: "208.67.222.222",
+            port: 53,
+            source: .publicDNS
+        ))
+
+        targets.append(PingTarget(
+            displayName: "OpenDNS Secondary (Global)",
+            host: "208.67.220.220",
+            port: 53,
+            source: .publicDNS
+        ))
+
+        targets.append(PingTarget(
+            displayName: "AdGuard DNS (Global)",
+            host: "94.140.14.14",
+            port: 53,
+            source: .publicDNS
+        ))
+
+        targets.append(PingTarget(
+            displayName: "AdGuard DNS Secondary (Global)",
+            host: "94.140.15.15",
+            port: 53,
+            source: .publicDNS
+        ))
+
+        targets.append(PingTarget(
+            displayName: "CleanBrowsing DNS (Global)",
+            host: "185.228.168.9",
+            port: 53,
+            source: .publicDNS
+        ))
+
+        targets.append(PingTarget(
+            displayName: "CleanBrowsing DNS Secondary (Global)",
+            host: "185.228.169.9",
+            port: 53,
+            source: .publicDNS
+        ))
+
+        targets.append(PingTarget(
+            displayName: "Valve Steam API",
+            host: "api.steampowered.com",
+            port: 443,
+            source: .gaming
+        ))
+
+        targets.append(PingTarget(
+            displayName: "Battle.net API",
+            host: "us.api.blizzard.com",
+            port: 443,
+            source: .gaming
+        ))
+
         targets.append(PingTarget(
             displayName: "GeForce NOW Routing API",
             host: "prod.cloudmatchbeta.nvidiagrid.net",
@@ -839,6 +1110,19 @@ class DashboardViewModel: ObservableObject {
         ))
         
         return targets
+    }
+
+    private func appendTimelineEvent(_ event: LatencyTimelineEvent) {
+        if let last = timelineEvents.last,
+           abs(last.timestamp.timeIntervalSince(event.timestamp)) < 2,
+           last.label == event.label {
+            return
+        }
+
+        timelineEvents.append(event)
+
+        let cutoff = Date().addingTimeInterval(-DashboardConfig.historyRetentionSeconds)
+        timelineEvents.removeAll { $0.timestamp < cutoff }
     }
     
     private func sanitizedInterval(_ rawInterval: TimeInterval) -> TimeInterval {
@@ -872,6 +1156,58 @@ class DashboardViewModel: ObservableObject {
             let defaultPort: UInt16 = rawValue.contains("nvidia") ? 443 : 53
             return "\(rawValue):\(defaultPort)"
         }
+    }
+
+    nonisolated private static func collectBaselineMeasurements(
+        candidates: [PingTarget],
+        sampleCount: Int
+    ) async -> [String: [Double]] {
+        await withTaskGroup(of: (String, [Double])?.self) { group in
+            for target in candidates {
+                group.addTask {
+                    var samples: [Double] = []
+                    for sampleIndex in 0..<sampleCount {
+                        if Task.isCancelled {
+                            return nil
+                        }
+
+                        if let latency = TCPProbe.measureLatency(
+                            host: target.host,
+                            port: target.port,
+                            timeoutSeconds: DashboardConfig.baselineProbeTimeoutSeconds
+                        ) {
+                            samples.append(latency)
+                        }
+
+                        if sampleIndex < sampleCount - 1 {
+                            try? await Task.sleep(nanoseconds: DashboardConfig.baselineSampleSpacingNanoseconds)
+                        }
+                    }
+
+                    guard !samples.isEmpty else { return nil }
+                    return (target.id, samples)
+                }
+            }
+
+            var measurements: [String: [Double]] = [:]
+            for await result in group {
+                guard let (targetID, samples) = result else { continue }
+                measurements[targetID] = samples
+            }
+            return measurements
+        }
+    }
+
+    nonisolated private static func robustAverage(from values: [Double]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        if sorted.count < 3 {
+            return sorted.reduce(0, +) / Double(sorted.count)
+        }
+
+        // Drop one high and one low sample to reduce transient spikes.
+        let trimmed = sorted.dropFirst().dropLast()
+        return trimmed.reduce(0, +) / Double(trimmed.count)
     }
 }
 

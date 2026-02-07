@@ -4,7 +4,7 @@
 #  Notarize Ping Warden for distribution
 #
 #  Usage: ./notarize.sh [version]
-#  Example: ./notarize.sh 2.0.1
+#  Example: ./notarize.sh 2.1.0
 #
 #  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 #  Licensed under the MIT License.
@@ -18,7 +18,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration
 APP_NAME="Ping Warden"
-VERSION="${1:-2.0.1}"
+VERSION="${1:-2.1.0}"
 BUNDLE_ID="com.amesvt.pingwarden"
 KEYCHAIN_PROFILE="notarytool-profile"  # Must match setup in NOTARIZATION_GUIDE.md
 TEAM_ID="PV3W52NDZ3"  # Your Apple Developer Team ID
@@ -29,6 +29,8 @@ APP_PATH="${BUILD_DIR}/${APP_NAME}.app"
 DMG_NAME="$PROJECT_ROOT/PingWarden-${VERSION}.dmg"
 ZIP_NAME="$PROJECT_ROOT/PingWarden-${VERSION}.zip"
 CREATE_DMG_SCRIPT="$PROJECT_ROOT/create-dmg.sh"
+APP_ENTITLEMENTS="$PROJECT_ROOT/AWDLControl/AWDLControl.entitlements"
+WIDGET_ENTITLEMENTS="$PROJECT_ROOT/AWDLControlWidget/AWDLControlWidget.entitlements"
 STAGING_DIR=""
 STAGED_APP_PATH=""
 
@@ -112,15 +114,15 @@ echo -e "${GREEN}✓${NC} Compiled app icon present (AppIcon.icns)"
 SPARKLE_FRAMEWORK_ROOT="$STAGED_APP_PATH/Contents/Frameworks/Sparkle.framework"
 SPARKLE_VERSION_DIR="$SPARKLE_FRAMEWORK_ROOT/Versions/B"
 
+APP_DEVELOPER_IDENTITY=$(codesign -dvv "$STAGED_APP_PATH" 2>&1 | awk -F= '/^Authority=Developer ID Application:/ {print $2; exit}')
+if [ -z "$APP_DEVELOPER_IDENTITY" ]; then
+    echo -e "${RED}Error: Could not determine Developer ID identity from staged app${NC}"
+    exit 1
+fi
+
+echo "Re-signing distribution payload with secure timestamps..."
+
 if [ -d "$SPARKLE_VERSION_DIR" ]; then
-    APP_DEVELOPER_IDENTITY=$(codesign -dvv "$STAGED_APP_PATH" 2>&1 | awk -F= '/^Authority=Developer ID Application:/ {print $2; exit}')
-    if [ -z "$APP_DEVELOPER_IDENTITY" ]; then
-        echo -e "${RED}Error: Could not determine Developer ID identity from staged app${NC}"
-        exit 1
-    fi
-    
-    echo "Re-signing Sparkle helper tools with Developer ID identity..."
-    
     if [ -d "$SPARKLE_VERSION_DIR/XPCServices/Installer.xpc" ]; then
         codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp "$SPARKLE_VERSION_DIR/XPCServices/Installer.xpc"
     fi
@@ -136,11 +138,39 @@ if [ -d "$SPARKLE_VERSION_DIR" ]; then
     if [ -d "$SPARKLE_VERSION_DIR/Updater.app" ]; then
         codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp "$SPARKLE_VERSION_DIR/Updater.app"
     fi
-    
     codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp "$SPARKLE_FRAMEWORK_ROOT"
-    codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp --preserve-metadata=entitlements,requirements,flags "$STAGED_APP_PATH"
-    
-    echo -e "${GREEN}✓${NC} Sparkle helper tools re-signed for notarization"
+fi
+
+HELPER_BINARY_PATH="$STAGED_APP_PATH/Contents/MacOS/AWDLControlHelper"
+if [ -f "$HELPER_BINARY_PATH" ]; then
+    codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp "$HELPER_BINARY_PATH"
+fi
+
+WIDGET_APPEX_PATH="$STAGED_APP_PATH/Contents/PlugIns/AWDLControlWidget.appex"
+WIDGET_BINARY_PATH="$WIDGET_APPEX_PATH/Contents/MacOS/AWDLControlWidget"
+if [ -d "$WIDGET_APPEX_PATH" ]; then
+    if [ ! -f "$WIDGET_ENTITLEMENTS" ]; then
+        echo -e "${RED}Error: Widget entitlements not found at $WIDGET_ENTITLEMENTS${NC}"
+        exit 1
+    fi
+    if [ -f "$WIDGET_BINARY_PATH" ]; then
+        codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp --entitlements "$WIDGET_ENTITLEMENTS" "$WIDGET_BINARY_PATH"
+    fi
+    codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp --entitlements "$WIDGET_ENTITLEMENTS" "$WIDGET_APPEX_PATH"
+fi
+
+if [ ! -f "$APP_ENTITLEMENTS" ]; then
+    echo -e "${RED}Error: App entitlements not found at $APP_ENTITLEMENTS${NC}"
+    exit 1
+fi
+codesign -f -s "$APP_DEVELOPER_IDENTITY" -o runtime --timestamp --entitlements "$APP_ENTITLEMENTS" --preserve-metadata=requirements,flags "$STAGED_APP_PATH"
+
+echo -e "${GREEN}✓${NC} Distribution payload re-signed for notarization"
+
+# Ensure debug entitlement is not present in distribution payload.
+if codesign -d --entitlements :- "$STAGED_APP_PATH" 2>/dev/null | grep -q "com.apple.security.get-task-allow"; then
+    echo -e "${RED}Error: get-task-allow entitlement still present in staged app${NC}"
+    exit 1
 fi
 
 # Step 2: Verify code signing

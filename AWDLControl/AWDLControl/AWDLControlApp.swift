@@ -46,6 +46,13 @@ struct AWDLControlApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdaterDelegate {
+    private struct GameModeSnapshot {
+        let userIntentMonitoringEnabled: Bool
+        let wasMonitoringActive: Bool
+        let quickPauseUntil: Date?
+        let quickPauseRestoreState: Bool?
+    }
+
     private var updaterController: SPUStandardUpdaterController?
     private var updaterStartupError: Error?
     
@@ -58,6 +65,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
     private var aboutWindow: NSWindow?
     private var welcomeWindow: NSWindow?
     private var gameModeDetector: GameModeDetector?
+    private var monitorStateObserverToken: UUID?
+    private var gameModeSnapshot: GameModeSnapshot?
+    private var quickPauseRestoreState: Bool?
+    private var quickPauseTimer: Timer?
+    private var quickPauseUntil: Date?
     private var lastToggleTime: Date = .distantPast
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -80,17 +92,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         // Initialize monitoring
         let monitor = AWDLMonitor.shared
 
-        // Set up callback for state changes
-        monitor.onStateChange = { [weak self] in
-            DispatchQueue.main.async {
-                self?.updateMenuBarIcon()
-                self?.updateMenuItem()
-            }
+        // Observe monitor state changes
+        monitorStateObserverToken = monitor.addStateObserver { [weak self] in
+            self?.updateMenuBarIcon()
+            self?.updateMenuItem()
         }
 
         // Setup menu bar (unless Control Center mode is enabled AND widget is available)
         // Always check if widget is actually available before hiding menu bar
-        let widgetAvailable = checkControlCenterWidgetAvailable()
+        let widgetAvailable = ControlCenterSupport.isAvailableForCurrentApp()
         if AWDLPreferences.shared.controlCenterWidgetEnabled && !widgetAvailable {
             log.warning("Control Center widget enabled but not available (requires code signing). Resetting to menu bar.")
             AWDLPreferences.shared.controlCenterWidgetEnabled = false
@@ -162,9 +172,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         log.info("AWDLControl terminating...")
 
         gameModeDetector?.stop()
+        quickPauseTimer?.invalidate()
+        quickPauseTimer = nil
 
         if AWDLMonitor.shared.isMonitoringActive {
             AWDLMonitor.shared.stopMonitoring()
+        }
+
+        if let token = monitorStateObserverToken {
+            AWDLMonitor.shared.removeStateObserver(token)
+            monitorStateObserverToken = nil
         }
 
         if let observer = monitoringObserver {
@@ -232,15 +249,52 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
     private func handleGameModeStateChange(isActive: Bool) {
         log.info("Game Mode state changed: \(isActive)")
         if isActive {
+            if gameModeSnapshot == nil {
+                gameModeSnapshot = GameModeSnapshot(
+                    userIntentMonitoringEnabled: AWDLPreferences.shared.isMonitoringEnabled,
+                    wasMonitoringActive: AWDLMonitor.shared.isMonitoringActive,
+                    quickPauseUntil: quickPauseUntil,
+                    quickPauseRestoreState: quickPauseRestoreState
+                )
+            }
+
+            // Preserve paused state metadata while forcing protection on.
+            if quickPauseUntil != nil {
+                quickPauseTimer?.invalidate()
+                quickPauseTimer = nil
+            }
+
             if !AWDLMonitor.shared.isMonitoringActive {
                 log.info("Game Mode active - enabling AWDL blocking")
-                AWDLMonitor.shared.startMonitoring()
+                AWDLMonitor.shared.startMonitoring(persistUserPreference: false)
             }
         } else {
-            // Only disable if user didn't manually enable
-            if !AWDLPreferences.shared.isMonitoringEnabled && AWDLMonitor.shared.isMonitoringActive {
-                log.info("Game Mode inactive - disabling AWDL blocking")
-                AWDLMonitor.shared.stopMonitoring()
+            let snapshot = gameModeSnapshot ?? GameModeSnapshot(
+                userIntentMonitoringEnabled: AWDLPreferences.shared.isMonitoringEnabled,
+                wasMonitoringActive: AWDLMonitor.shared.isMonitoringActive,
+                quickPauseUntil: quickPauseUntil,
+                quickPauseRestoreState: quickPauseRestoreState
+            )
+            gameModeSnapshot = nil
+
+            if let pauseUntil = snapshot.quickPauseUntil, pauseUntil > Date() {
+                log.info("Game Mode inactive - restoring paused state")
+                quickPauseUntil = pauseUntil
+                quickPauseRestoreState = snapshot.quickPauseRestoreState ?? snapshot.userIntentMonitoringEnabled
+                AWDLMonitor.shared.stopMonitoring(persistUserPreference: false)
+                scheduleQuickPauseTimer()
+                updateMenuItem()
+                return
+            } else {
+                clearQuickPauseState()
+            }
+
+            if snapshot.wasMonitoringActive && !AWDLMonitor.shared.isMonitoringActive {
+                log.info("Game Mode inactive - restoring AWDL blocking state to enabled")
+                AWDLMonitor.shared.startMonitoring(persistUserPreference: false)
+            } else if !snapshot.wasMonitoringActive && AWDLMonitor.shared.isMonitoringActive {
+                log.info("Game Mode inactive - restoring AWDL blocking state to disabled")
+                AWDLMonitor.shared.stopMonitoring(persistUserPreference: false)
             }
         }
     }
@@ -305,6 +359,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         toggleItem.target = self
         statusMenu?.addItem(toggleItem)
 
+        let pauseItem = NSMenuItem(
+            title: "Pause Blocking (10 Minutes)",
+            action: #selector(pauseMonitoringForTenMinutes),
+            keyEquivalent: ""
+        )
+        pauseItem.target = self
+        pauseItem.tag = 150
+        statusMenu?.addItem(pauseItem)
+
+        let resumeItem = NSMenuItem(
+            title: "Resume Blocking",
+            action: #selector(resumeMonitoringAfterQuickPause),
+            keyEquivalent: ""
+        )
+        resumeItem.target = self
+        resumeItem.tag = 151
+        statusMenu?.addItem(resumeItem)
+
         statusMenu?.addItem(NSMenuItem.separator())
 
         // Status item
@@ -312,6 +384,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         statusMenuItem.tag = 100
         statusMenu?.addItem(statusMenuItem)
         updateStatusMenuItem()
+        updateQuickActionMenuItems()
 
         statusMenu?.addItem(NSMenuItem.separator())
 
@@ -528,6 +601,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         menu.items.first?.title = newTitle
 
         updateStatusMenuItem()
+        updateQuickActionMenuItems()
+    }
+
+    private func updateQuickActionMenuItems() {
+        guard let menu = statusMenu else { return }
+
+        let isMonitoring = AWDLMonitor.shared.isMonitoringActive
+        if let pauseItem = menu.items.first(where: { $0.tag == 150 }) {
+            if let pauseUntil = quickPauseUntil, pauseUntil > Date() {
+                let remaining = max(1, Int((pauseUntil.timeIntervalSinceNow / 60.0).rounded(.up)))
+                pauseItem.title = "Paused (\(remaining)m left)"
+            } else {
+                pauseItem.title = "Pause Blocking (10 Minutes)"
+            }
+            pauseItem.isEnabled = isMonitoring
+        }
+
+        if let resumeItem = menu.items.first(where: { $0.tag == 151 }) {
+            resumeItem.isEnabled = quickPauseUntil != nil && !isMonitoring
+        }
     }
 
     private func updateStatusMenuItem() {
@@ -555,11 +648,49 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         }
         lastToggleTime = now
 
+        clearQuickPauseState()
+
         if AWDLMonitor.shared.isMonitoringActive {
             AWDLMonitor.shared.stopMonitoring()
         } else {
             AWDLMonitor.shared.startMonitoring()
         }
+    }
+
+    @objc private func pauseMonitoringForTenMinutes() {
+        guard AWDLMonitor.shared.isMonitoringActive else { return }
+
+        quickPauseRestoreState = AWDLPreferences.shared.isMonitoringEnabled
+        quickPauseUntil = Date().addingTimeInterval(10 * 60)
+        AWDLMonitor.shared.stopMonitoring(persistUserPreference: false)
+        scheduleQuickPauseTimer()
+        updateMenuItem()
+    }
+
+    @objc private func resumeMonitoringAfterQuickPause() {
+        let shouldRestore = quickPauseRestoreState ?? AWDLPreferences.shared.isMonitoringEnabled
+        clearQuickPauseState()
+
+        if shouldRestore && !AWDLMonitor.shared.isMonitoringActive {
+            AWDLMonitor.shared.startMonitoring(persistUserPreference: false)
+        }
+        updateMenuItem()
+    }
+
+    private func scheduleQuickPauseTimer() {
+        quickPauseTimer?.invalidate()
+        guard let pauseUntil = quickPauseUntil else { return }
+
+        quickPauseTimer = Timer.scheduledTimer(withTimeInterval: max(0, pauseUntil.timeIntervalSinceNow), repeats: false) { [weak self] _ in
+            self?.resumeMonitoringAfterQuickPause()
+        }
+    }
+
+    private func clearQuickPauseState() {
+        quickPauseTimer?.invalidate()
+        quickPauseTimer = nil
+        quickPauseUntil = nil
+        quickPauseRestoreState = nil
     }
 
     private func handleMonitoringStateChange() {
@@ -579,7 +710,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
     private func handleControlCenterModeChange() {
         // Control Center widgets require proper code signing to work
         // For unsigned/ad-hoc signed apps, always keep menu bar visible
-        let isProperlySignedForControlCenter = checkControlCenterWidgetAvailable()
+        let isProperlySignedForControlCenter = ControlCenterSupport.isAvailableForCurrentApp()
 
         if AWDLPreferences.shared.controlCenterWidgetEnabled && isProperlySignedForControlCenter {
             removeMenuBar()
@@ -597,21 +728,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
 
     /// Check if Control Center widget is available (requires proper code signing)
     private func checkControlCenterWidgetAvailable() -> Bool {
-        // Control Center widgets require the app to be properly signed with a Developer ID
-        // Ad-hoc signed apps won't have their widgets appear in Control Center
-        guard let bundleURL = Bundle.main.bundleURL as CFURL? else { return false }
-
-        var staticCode: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(bundleURL, [], &staticCode) == errSecSuccess,
-              let code = staticCode else { return false }
-
-        var requirement: SecRequirement?
-        // Check for Developer ID or Apple signature (not ad-hoc)
-        let requirementString = "anchor apple generic and certificate leaf[subject.OU] exists"
-        guard SecRequirementCreateWithString(requirementString as CFString, [], &requirement) == errSecSuccess,
-              let req = requirement else { return false }
-
-        return SecStaticCodeCheckValidity(code, [], req) == errSecSuccess
+        ControlCenterSupport.isAvailableForCurrentApp()
     }
 }
 
@@ -980,13 +1097,9 @@ struct SettingsSectionHeader: View {
 // MARK: - General Settings Content
 
 struct GeneralSettingsContent: View {
-    @State private var isMonitoring = AWDLMonitor.shared.isMonitoringActive
-    @State private var isHelperRegistered = AWDLMonitor.shared.isHelperRegistered
+    @StateObject private var monitorState = MonitoringStateStore()
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var showDockIcon = AWDLPreferences.shared.showDockIcon
-    @State private var monitoringObserver: NSObjectProtocol?
-    @State private var interventionCount: Int = 0
-    @State private var interventionTimer: Timer?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -994,7 +1107,7 @@ struct GeneralSettingsContent: View {
             SettingsGroup {
                 SettingsRow("AWDL Blocking", description: "Prevent network latency spikes from AWDL") {
                     Toggle("", isOn: Binding(
-                        get: { isMonitoring },
+                        get: { monitorState.isMonitoring },
                         set: { newValue in
                             if newValue {
                                 AWDLMonitor.shared.startMonitoring()
@@ -1005,7 +1118,7 @@ struct GeneralSettingsContent: View {
                     ))
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .disabled(!isHelperRegistered)
+                    .disabled(!monitorState.isHelperRegistered)
                 }
 
                 SettingsDivider()
@@ -1020,12 +1133,12 @@ struct GeneralSettingsContent: View {
                     }
                 }
                 
-                if isMonitoring && interventionCount > 0 {
+                if monitorState.isMonitoring && monitorState.interventionCount > 0 {
                     SettingsDivider()
                     
                     SettingsRow("AWDL Interventions") {
                         HStack(spacing: 8) {
-                            Text("\(interventionCount)")
+                            Text("\(monitorState.interventionCount)")
                                 .font(.headline)
                                 .foregroundStyle(.green)
                             Text("blocked")
@@ -1035,7 +1148,7 @@ struct GeneralSettingsContent: View {
                             Button {
                                 AWDLMonitor.shared.resetInterventionCount { success in
                                     if success {
-                                        interventionCount = 0
+                                        monitorState.refresh()
                                     }
                                 }
                             } label: {
@@ -1102,61 +1215,21 @@ struct GeneralSettingsContent: View {
             }
         }
         .onAppear {
-            // Use notification-based updates instead of polling
-            monitoringObserver = NotificationCenter.default.addObserver(
-                forName: .awdlMonitoringStateChanged,
-                object: nil,
-                queue: .main
-            ) { _ in
-                isMonitoring = AWDLMonitor.shared.isMonitoringActive
-                isHelperRegistered = AWDLMonitor.shared.isHelperRegistered
-            }
-            // Also set up AWDLMonitor's callback for immediate updates
-            AWDLMonitor.shared.onStateChange = {
-                DispatchQueue.main.async {
-                    isMonitoring = AWDLMonitor.shared.isMonitoringActive
-                    isHelperRegistered = AWDLMonitor.shared.isHelperRegistered
-                }
-            }
-            
-            // Start fetching intervention count
-            updateInterventionCount()
-            startInterventionTimer()
+            monitorState.startObserving()
         }
         .onDisappear {
-            if let observer = monitoringObserver {
-                NotificationCenter.default.removeObserver(observer)
-            }
-            interventionTimer?.invalidate()
-        }
-    }
-    
-    private func updateInterventionCount() {
-        guard isMonitoring else {
-            interventionCount = 0
-            return
-        }
-        
-        AWDLMonitor.shared.getInterventionCount { count in
-            interventionCount = count
-        }
-    }
-    
-    private func startInterventionTimer() {
-        // Update intervention count every 5 seconds when monitoring is active
-        interventionTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [self] _ in
-            updateInterventionCount()
+            monitorState.stopObserving()
         }
     }
 
     private var statusColor: Color {
-        if !isHelperRegistered { return .gray }
-        return isMonitoring ? .green : .orange
+        if !monitorState.isHelperRegistered { return .gray }
+        return monitorState.isMonitoring ? .green : .orange
     }
 
     private var statusText: String {
-        if !isHelperRegistered { return "Not Set Up" }
-        return isMonitoring ? "Blocking AWDL" : "AWDL Allowed"
+        if !monitorState.isHelperRegistered { return "Not Set Up" }
+        return monitorState.isMonitoring ? "Blocking AWDL" : "AWDL Allowed"
     }
 }
 
@@ -1167,15 +1240,7 @@ struct AutomationSettingsContent: View {
     @State private var controlCenterEnabled = AWDLPreferences.shared.controlCenterWidgetEnabled
 
     private var isControlCenterAvailable: Bool {
-        guard let bundleURL = Bundle.main.bundleURL as CFURL? else { return false }
-        var staticCode: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(bundleURL, [], &staticCode) == errSecSuccess,
-              let code = staticCode else { return false }
-        var requirement: SecRequirement?
-        let requirementString = "anchor apple generic and certificate leaf[subject.OU] exists"
-        guard SecRequirementCreateWithString(requirementString as CFString, [], &requirement) == errSecSuccess,
-              let req = requirement else { return false }
-        return SecStaticCodeCheckValidity(code, [], req) == errSecSuccess
+        ControlCenterSupport.isAvailableForCurrentApp()
     }
 
     var body: some View {
@@ -1260,6 +1325,8 @@ struct AdvancedSettingsContent: View {
     @State private var showingUninstallConfirm = false
     @State private var showingTestResults = false
     @State private var testResults = ""
+    @State private var showingDiagnosticsExportResult = false
+    @State private var diagnosticsExportMessage = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1278,6 +1345,15 @@ struct AdvancedSettingsContent: View {
                 SettingsRow("View Logs", description: "Open Console.app to view logs") {
                     Button("Open Console") {
                         openConsoleApp()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                SettingsDivider()
+
+                SettingsRow("Export Diagnostics", description: "Create a support snapshot on Desktop") {
+                    Button("Export") {
+                        exportDiagnostics()
                     }
                     .buttonStyle(.bordered)
                 }
@@ -1332,6 +1408,11 @@ struct AdvancedSettingsContent: View {
             Button("OK") {}
         } message: {
             Text(testResults)
+        }
+        .alert("Diagnostics Export", isPresented: $showingDiagnosticsExportResult) {
+            Button("OK") {}
+        } message: {
+            Text(diagnosticsExportMessage)
         }
     }
 
@@ -1417,6 +1498,23 @@ struct AdvancedSettingsContent: View {
             at: URL(fileURLWithPath: "/System/Applications/Utilities/Console.app"),
             configuration: NSWorkspace.OpenConfiguration()
         ) { _, _ in }
+    }
+
+    private func exportDiagnostics() {
+        DispatchQueue.global(qos: .utility).async {
+            let result = DiagnosticsExporter.exportSnapshot()
+            DispatchQueue.main.async {
+                guard let result else {
+                    diagnosticsExportMessage = "Failed to export diagnostics snapshot."
+                    showingDiagnosticsExportResult = true
+                    return
+                }
+
+                NSWorkspace.shared.activateFileViewerSelecting([result.fileURL])
+                diagnosticsExportMessage = "Diagnostics exported to:\n\(result.fileURL.path)"
+                showingDiagnosticsExportResult = true
+            }
+        }
     }
 
     private func performUninstall() {
@@ -1588,28 +1686,10 @@ class GameModeDetector {
     /// Check if Screen Recording permission is granted
     /// CGWindowListCopyWindowInfo requires this permission on macOS 10.15+ to get window names
     private func hasScreenRecordingPermission() -> Bool {
-        // Create a small 1x1 capture to test if we have permission
-        // This is the most reliable way to check Screen Recording permission
-        guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
-            return false
+        if #available(macOS 10.15, *) {
+            return CGPreflightScreenCaptureAccess()
         }
-
-        // If we can get window names, we have permission
-        // Without permission, window names will be nil or empty
-        for window in windowList {
-            if let ownerName = window[kCGWindowOwnerName as String] as? String,
-               !ownerName.isEmpty,
-               ownerName != "Window Server" {
-                return true
-            }
-        }
-
-        // If we only see Window Server or no names, we likely don't have permission
-        // However, this could also be a legitimate state (no windows), so we do an additional check
-        // Try to get process info which doesn't require permission
-        return windowList.contains { window in
-            (window[kCGWindowOwnerPID as String] as? pid_t) != nil
-        }
+        return true
     }
 
     /// Show alert explaining Screen Recording permission is needed

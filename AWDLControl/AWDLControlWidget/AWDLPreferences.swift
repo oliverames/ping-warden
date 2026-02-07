@@ -22,6 +22,7 @@ class AWDLPreferences {
 
     private let appGroupID = "group.com.amesvt.pingwarden"
     private let monitoringEnabledKey = "AWDLMonitoringEnabled"
+    private let effectiveMonitoringEnabledKey = "AWDLEffectiveMonitoringEnabled"
     private let lastStateKey = "AWDLLastState"
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
     private let gameModeAutoDetectKey = "GameModeAutoDetect"
@@ -79,6 +80,26 @@ class AWDLPreferences {
         }
     }
 
+    /// Effective runtime monitoring state written by the main app.
+    var effectiveMonitoringEnabled: Bool {
+        get {
+            return defaults?.bool(forKey: effectiveMonitoringEnabledKey) ?? false
+        }
+        set {
+            guard let defaults = defaults else {
+                log.error("Cannot set \(self.effectiveMonitoringEnabledKey): defaults is nil")
+                return
+            }
+            defaults.set(newValue, forKey: effectiveMonitoringEnabledKey)
+            DistributedNotificationCenter.default().postNotificationName(
+                .awdlEffectiveMonitoringStateChanged,
+                object: nil,
+                userInfo: nil,
+                deliverImmediately: true
+            )
+        }
+    }
+
     /// Whether Control Center widget mode is enabled (hides menu bar icon)
     var controlCenterWidgetEnabled: Bool {
         get {
@@ -128,6 +149,7 @@ class AWDLPreferences {
 extension Notification.Name {
     // Use a namespaced notification name to avoid collisions with other apps
     static let awdlMonitoringStateChanged = Notification.Name("com.amesvt.pingwarden.notification.MonitoringStateChanged")
+    static let awdlEffectiveMonitoringStateChanged = Notification.Name("com.amesvt.pingwarden.notification.EffectiveMonitoringStateChanged")
     // These are defined in the main app but included here for reference:
     // static let controlCenterModeChanged = Notification.Name("com.awdlcontrol.notification.ControlCenterModeChanged")
     // static let gameModeAutoDetectChanged = Notification.Name("com.awdlcontrol.notification.GameModeAutoDetectChanged")

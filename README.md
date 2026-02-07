@@ -1,68 +1,45 @@
 # Ping Warden
 
-**Eliminate network latency spikes on macOS by controlling AWDL (Apple Wireless Direct Link)**
-
-Perfect for gaming, video calls, and any latency-sensitive applications.
-
-<a href="https://www.buymeacoffee.com/oliverames" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/arial-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+Eliminate network latency spikes on macOS by controlling AWDL (Apple Wireless Direct Link).
 
 ## Download
 
-**[Download Ping Warden v2.0.3](https://github.com/oliverames/ping-warden/releases/latest)** (macOS 13.0+)
+[Download Ping Warden v2.1.0](https://github.com/oliverames/ping-warden/releases/latest) (macOS 13.0+)
 
-The app is **code-signed and notarized by Apple**, so it will open without any security warnings.
+The app is Developer ID signed and notarized.
 
-## Installation
+## What’s New in 2.1.0
 
-1. Download the DMG from the link above
-2. Open the DMG file
-3. Drag **Ping Warden** to **Applications**
-4. Launch from Applications or Spotlight
+- Latency spike timeline with AWDL intervention markers.
+- One-click diagnostics export from Settings to Desktop.
+- Menu bar quick actions: pause blocking for 10 minutes and resume.
+- Expanded target presets (DNS + gaming endpoints).
+- Auto-select nearest endpoint using baseline latency scan.
+- Game Mode auto-detect now restores the exact pre-activation state.
+- Widget toggle path hardened for app-not-running starts.
+- Control Center widget checks remain intentionally macOS 26+.
+- Reconnect/backoff and monitor state notification hardening.
+- Release/CI guardrails improved (version checks, appcast XML checks, smoke tests).
 
-That's it! No terminal commands or workarounds needed.
+## Core Features
 
-## Features
-
-- **<1ms response time** - Kernel-level AWDL monitoring
-- **Zero performance impact** - 0% CPU when idle
-- **No password prompts** - One-time system approval
-- **Game Mode detection** - Auto-enable for fullscreen games (Beta)
-- **Control Center widget** - Quick toggle from Control Center (Beta)
-- **Launch at login** - Set it and forget it
-
-## What does it do?
-
-AWDL (Apple Wireless Direct Link) is used by AirDrop, Handoff, and other continuity features. However, it can cause **100-300ms ping spikes** every few seconds, which is devastating for:
-
-- **Gaming** (especially competitive online games)
-- **Video calls** (Zoom, Teams, Discord)
-- **Live streaming**
-- **Remote desktop** (VNC, RDP)
-
-Ping Warden monitors the AWDL interface and keeps it disabled when you need low latency. When you quit the app, AWDL is automatically restored.
+- Sub-millisecond helper response to keep AWDL down before latency spikes land.
+- No recurring password prompts (SMAppService + bundled helper).
+- Dashboard with ping, jitter, packet loss, and intervention tracking.
+- Launch at login and optional Game Mode automation.
+- Control Center widget support on macOS 26+.
 
 ## Documentation
 
-For detailed documentation, troubleshooting, and technical information, see:
-
 - [Full Documentation](AWDLControl/README.md)
-- [Quick Start Guide](AWDLControl/QUICKSTART.md)
+- [Quick Start](AWDLControl/QUICKSTART.md)
 - [Troubleshooting](AWDLControl/TROUBLESHOOTING.md)
-
-## System Requirements
-
-- macOS 13.0 (Ventura) or later
-- Apple Silicon or Intel Mac
 
 ## Credits
 
-This project builds on excellent prior work:
-
-- **[jamestut/awdlkiller](https://github.com/jamestut/awdlkiller)** - AF_ROUTE monitoring concept
-- **[james-howard/AWDLControl](https://github.com/james-howard/AWDLControl)** - SMAppService + XPC architecture
+- [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller) for AF_ROUTE monitoring inspiration.
+- [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl) for SMAppService + XPC architecture inspiration.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
-
-Copyright (c) 2025-2026 Oliver Ames
+MIT License. Copyright (c) 2025-2026 Oliver Ames.

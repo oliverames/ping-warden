@@ -12,6 +12,7 @@ import AppIntents
 import AppKit
 import Foundation
 import os.log
+import WidgetKit
 
 private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetIntent")
 
@@ -19,8 +20,8 @@ private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetIn
 /// When enabled, continuously monitors and keeps AWDL down.
 ///
 /// Note: This intent updates the shared preference and sends a distributed notification.
-/// The main app must be running to actually control the helper daemon via XPC.
-/// If the app is not running, we attempt to launch it.
+/// If enabling while the app is not running, the app is launched in the background
+/// so helper control can be applied.
 struct ToggleAWDLMonitoringIntent: AppIntent {
     static var title: LocalizedStringResource = "Toggle AWDL Monitoring"
     static var description = IntentDescription("Toggles AWDL monitoring on or off")
@@ -34,9 +35,10 @@ struct ToggleAWDLMonitoringIntent: AppIntent {
         let newState = !currentState
         log.info("Toggling monitoring from \(currentState) to \(newState)")
 
-        // Update shared preferences
-        // This posts a distributed notification that the main app observes
+        // Update shared preference and broadcast intent change.
         AWDLPreferences.shared.isMonitoringEnabled = newState
+        postMonitoringIntentNotification()
+        WidgetCenter.shared.reloadAllTimelines()
 
         // Verify the change was applied
         let verifiedState = AWDLPreferences.shared.isMonitoringEnabled
@@ -45,43 +47,63 @@ struct ToggleAWDLMonitoringIntent: AppIntent {
             throw AWDLError.toggleFailed
         }
 
-        // Attempt to launch the main app if it's not running
-        // This ensures the helper daemon is started/stopped appropriately
-        await launchMainAppIfNeeded()
+        // Launch app when enabling and app is not already running so monitoring can start.
+        let launchRequired = newState
+        let didLaunch = launchRequired ? await launchMainAppIfNeeded() : false
+
+        if didLaunch {
+            // Give the app a brief moment to finish launch and process intent signal.
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            postMonitoringIntentNotification()
+        }
 
         log.info("Successfully toggled monitoring to \(newState)")
         return .result()
     }
 
     /// Launch the main app if it's not already running
-    private func launchMainAppIfNeeded() async {
+    @discardableResult
+    private func launchMainAppIfNeeded() async -> Bool {
         let bundleIdentifier = "com.amesvt.pingwarden"
 
         // Check if app is already running
-        let runningApps = NSWorkspace.shared.runningApplications
-        let isRunning = runningApps.contains { $0.bundleIdentifier == bundleIdentifier }
+        guard !isMainAppRunning(bundleIdentifier: bundleIdentifier) else {
+            log.debug("Main app already running")
+            return false
+        }
 
-        if !isRunning {
-            log.info("Main app not running, attempting to launch...")
+        log.info("Main app not running, attempting to launch...")
 
-            // Try to launch the app using its bundle identifier
-            if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-                let configuration = NSWorkspace.OpenConfiguration()
-                configuration.activates = false // Don't bring to foreground
-                configuration.addsToRecentItems = false
+        // Try to launch the app using its bundle identifier
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = false // Don't bring to foreground
+            configuration.addsToRecentItems = false
 
-                do {
-                    _ = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
-                    log.info("Successfully launched main app")
-                } catch {
-                    log.error("Failed to launch main app: \(error.localizedDescription)")
-                }
-            } else {
-                log.warning("Could not find main app URL for bundle identifier: \(bundleIdentifier)")
+            do {
+                _ = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+                log.info("Successfully launched main app")
+                return true
+            } catch {
+                log.error("Failed to launch main app: \(error.localizedDescription)")
             }
         } else {
-            log.debug("Main app already running")
+            log.warning("Could not find main app URL for bundle identifier: \(bundleIdentifier)")
         }
+        return false
+    }
+
+    private func isMainAppRunning(bundleIdentifier: String) -> Bool {
+        NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == bundleIdentifier }
+    }
+
+    private func postMonitoringIntentNotification() {
+        DistributedNotificationCenter.default().postNotificationName(
+            .awdlMonitoringStateChanged,
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
     }
 }
 
