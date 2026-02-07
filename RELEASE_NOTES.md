@@ -1,24 +1,21 @@
-# Ping Warden 2.1.0
+# Ping Warden 2.1.1
 
-## Major improvements
+## Dashboard and settings polish
 
-- Added latency spike timeline with AWDL intervention markers.
-- Added one-click diagnostics export to Desktop.
-- Added menu bar quick actions to pause/resume blocking quickly.
-- Expanded target presets and implemented auto-select nearest endpoint by baseline latency scan.
-- Improved Game Mode auto-detect restore behavior to return to exact prior user state.
-- Hardened widget toggle behavior so start/stop works when the app is not already running.
+- Refined dashboard card hierarchy and spacing so metrics and controls read more clearly.
+- Reworked the `Connection Settings` card into aligned setting rows for cleaner scanability.
+- Fixed `HOW IT WORKS` width behavior in General settings so it fills the panel consistently.
 
-## Reliability and architecture
+## Timeframe behavior and chart clarity
 
-- Added effective monitoring state propagation across app and widget.
-- Improved XPC reconnect behavior and state reassertion after reconnect.
-- Centralized Control Center capability checks with macOS 26+ gating.
-- Refactored ping statistics and reconnect policy into core testable utilities.
-- Added monitor observer/state store cleanup to avoid callback overwrite issues.
+- Added a `1 min` timeframe option to ping history.
+- Timeframe changes now clearly "zoom" the chart window to the selected recent duration.
+- Added explicit zoom context text in the chart header and improved short-window x-axis labeling.
+- Timeframe switching remains non-destructive and does not clear collected ping history.
 
-## Tooling and release
+## Menu bar metrics option
 
-- Added CI smoke checks for core logic.
-- Added CI validation for appcast XML and cross-target version consistency.
-- Strengthened release script validations for appcast and version matching.
+- Added a new option to show live metrics in the menu dropdown:
+  - Current ping
+  - AWDL intervention count
+- Added a matching toggle in `General -> App -> Menu Dropdown Metrics`.

@@ -4,7 +4,7 @@
 #  Notarize Ping Warden for distribution
 #
 #  Usage: ./notarize.sh [version]
-#  Example: ./notarize.sh 2.1.0
+#  Example: ./notarize.sh 2.1.1
 #
 #  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 #  Licensed under the MIT License.
@@ -18,7 +18,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration
 APP_NAME="Ping Warden"
-VERSION="${1:-2.1.0}"
+VERSION="${1:-2.1.1}"
 BUNDLE_ID="com.amesvt.pingwarden"
 KEYCHAIN_PROFILE="notarytool-profile"  # Must match setup in NOTARIZATION_GUIDE.md
 TEAM_ID="PV3W52NDZ3"  # Your Apple Developer Team ID

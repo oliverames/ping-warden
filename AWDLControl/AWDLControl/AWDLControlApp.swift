@@ -45,7 +45,7 @@ struct AWDLControlApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdaterDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, SPUUpdaterDelegate {
     private struct GameModeSnapshot {
         let userIntentMonitoringEnabled: Bool
         let wasMonitoringActive: Bool
@@ -60,6 +60,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
     private var controlCenterObserver: NSObjectProtocol?
     private var dockIconObserver: NSObjectProtocol?
     private var gameModeObserver: NSObjectProtocol?
+    private var menuMetricsObserver: NSObjectProtocol?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private var aboutWindow: NSWindow?
@@ -71,6 +72,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
     private var quickPauseTimer: Timer?
     private var quickPauseUntil: Date?
     private var lastToggleTime: Date = .distantPast
+    private var menuMetricsPingMonitor: PingMonitor?
+    private var menuMetricsTimer: Timer?
+    private var menuCurrentPingMs: Double?
+    private var menuInterventionCount: Int?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("AWDLControl launching...")
@@ -162,6 +167,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         ) { [weak self] _ in
             self?.handleGameModeAutoDetectChange()
         }
+
+        menuMetricsObserver = NotificationCenter.default.addObserver(
+            forName: .menuDropdownMetricsChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleMenuMetricsPreferenceChange()
+        }
+
+        handleMenuMetricsPreferenceChange()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -196,6 +211,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         if let observer = gameModeObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let observer = menuMetricsObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+
+        menuMetricsTimer?.invalidate()
+        menuMetricsTimer = nil
+        menuMetricsPingMonitor?.stop()
+        menuMetricsPingMonitor = nil
     }
 
     private func updateDockIconVisibility() {
@@ -349,6 +372,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
 
         updateMenuBarIcon()
         statusMenu = NSMenu()
+        statusMenu?.delegate = self
 
         // Toggle item
         let toggleItem = NSMenuItem(
@@ -383,8 +407,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         let statusMenuItem = NSMenuItem(title: "Status: Checking...", action: nil, keyEquivalent: "")
         statusMenuItem.tag = 100
         statusMenu?.addItem(statusMenuItem)
+
+        let pingMenuItem = NSMenuItem(title: "Current Ping: --", action: nil, keyEquivalent: "")
+        pingMenuItem.tag = 101
+        pingMenuItem.isEnabled = false
+        statusMenu?.addItem(pingMenuItem)
+
+        let interventionsMenuItem = NSMenuItem(title: "AWDL Interventions: --", action: nil, keyEquivalent: "")
+        interventionsMenuItem.tag = 102
+        interventionsMenuItem.isEnabled = false
+        statusMenu?.addItem(interventionsMenuItem)
+
+        let showMetricsItem = NSMenuItem(
+            title: "Show Live Metrics in Menu",
+            action: #selector(toggleMenuDropdownMetrics),
+            keyEquivalent: ""
+        )
+        showMetricsItem.tag = 160
+        showMetricsItem.target = self
+        statusMenu?.addItem(showMetricsItem)
+
         updateStatusMenuItem()
+        updateMenuMetricsMenuItems()
         updateQuickActionMenuItems()
+        handleMenuMetricsPreferenceChange()
 
         statusMenu?.addItem(NSMenuItem.separator())
 
@@ -433,6 +479,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
             statusItem = nil
             statusMenu = nil
         }
+        stopMenuMetricsMonitoring()
     }
 
     private var settingsWindow: NSWindow?
@@ -601,7 +648,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         menu.items.first?.title = newTitle
 
         updateStatusMenuItem()
+        updateMenuMetricsMenuItems()
         updateQuickActionMenuItems()
+    }
+
+    private func updateMenuMetricsMenuItems() {
+        guard let menu = statusMenu else { return }
+
+        let showMetrics = AWDLPreferences.shared.showMenuDropdownMetrics
+
+        if let toggleItem = menu.items.first(where: { $0.tag == 160 }) {
+            toggleItem.state = showMetrics ? .on : .off
+        }
+
+        if let pingItem = menu.items.first(where: { $0.tag == 101 }) {
+            pingItem.isHidden = !showMetrics
+            if let ping = menuCurrentPingMs {
+                pingItem.title = String(format: "Current Ping: %.0f ms", ping)
+            } else {
+                pingItem.title = "Current Ping: --"
+            }
+        }
+
+        if let interventionsItem = menu.items.first(where: { $0.tag == 102 }) {
+            interventionsItem.isHidden = !showMetrics
+            if let count = menuInterventionCount {
+                interventionsItem.title = "AWDL Interventions: \(count)"
+            } else {
+                interventionsItem.title = "AWDL Interventions: --"
+            }
+        }
     }
 
     private func updateQuickActionMenuItems() {
@@ -639,6 +715,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         }
     }
 
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu === statusMenu else { return }
+        syncMenuMetricsTargetIfNeeded()
+        updateMenuItem()
+        refreshMenuInterventionCount()
+    }
+
     @objc private func toggleMonitoring() {
         // Debounce rapid toggles to prevent race conditions
         let now = Date()
@@ -655,6 +738,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         } else {
             AWDLMonitor.shared.startMonitoring()
         }
+    }
+
+    @objc private func toggleMenuDropdownMetrics() {
+        AWDLPreferences.shared.showMenuDropdownMetrics.toggle()
     }
 
     @objc private func pauseMonitoringForTenMinutes() {
@@ -691,6 +778,103 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, SPUUpdater
         quickPauseTimer = nil
         quickPauseUntil = nil
         quickPauseRestoreState = nil
+    }
+
+    private func handleMenuMetricsPreferenceChange() {
+        guard statusItem != nil else {
+            stopMenuMetricsMonitoring()
+            return
+        }
+
+        if AWDLPreferences.shared.showMenuDropdownMetrics {
+            startMenuMetricsMonitoring()
+        } else {
+            stopMenuMetricsMonitoring()
+        }
+        updateMenuMetricsMenuItems()
+    }
+
+    private func startMenuMetricsMonitoring() {
+        let target = menuMetricsTarget()
+
+        if let monitor = menuMetricsPingMonitor {
+            if monitor.server != target.host || monitor.port != target.port || !monitor.isMonitoring {
+                monitor.stop()
+                monitor.start(server: target.host, port: target.port, interval: 2)
+            }
+        } else {
+            let monitor = PingMonitor()
+            monitor.onPingResult = { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.menuCurrentPingMs = result.success ? result.latencyMs : nil
+                    self.updateMenuMetricsMenuItems()
+                }
+            }
+            menuMetricsPingMonitor = monitor
+            monitor.start(server: target.host, port: target.port, interval: 2)
+        }
+
+        refreshMenuInterventionCount()
+
+        if menuMetricsTimer == nil {
+            menuMetricsTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+                self?.syncMenuMetricsTargetIfNeeded()
+                self?.refreshMenuInterventionCount()
+            }
+            if let menuMetricsTimer {
+                RunLoop.main.add(menuMetricsTimer, forMode: .common)
+            }
+        }
+    }
+
+    private func stopMenuMetricsMonitoring() {
+        menuMetricsTimer?.invalidate()
+        menuMetricsTimer = nil
+        menuMetricsPingMonitor?.stop()
+        menuMetricsPingMonitor = nil
+        menuCurrentPingMs = nil
+        menuInterventionCount = nil
+    }
+
+    private func syncMenuMetricsTargetIfNeeded() {
+        guard AWDLPreferences.shared.showMenuDropdownMetrics,
+              let monitor = menuMetricsPingMonitor else { return }
+
+        let target = menuMetricsTarget()
+        guard monitor.server != target.host || monitor.port != target.port else { return }
+
+        menuCurrentPingMs = nil
+        monitor.stop()
+        monitor.start(server: target.host, port: target.port, interval: 2)
+    }
+
+    private func refreshMenuInterventionCount() {
+        guard AWDLPreferences.shared.showMenuDropdownMetrics else { return }
+
+        AWDLMonitor.shared.getInterventionCount { [weak self] count in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.menuInterventionCount = count
+                self.updateMenuMetricsMenuItems()
+            }
+        }
+    }
+
+    private func menuMetricsTarget() -> (host: String, port: UInt16) {
+        let defaultTarget = ("8.8.8.8", UInt16(53))
+        guard let rawTargetID = UserDefaults.standard.string(forKey: "DashboardSelectedPingTargetID"),
+              let separatorIndex = rawTargetID.lastIndex(of: ":") else {
+            return defaultTarget
+        }
+
+        let hostPart = String(rawTargetID[..<separatorIndex])
+        let portPart = String(rawTargetID[rawTargetID.index(after: separatorIndex)...])
+        guard !hostPart.isEmpty, let port = UInt16(portPart) else {
+            return defaultTarget
+        }
+
+        return (hostPart, port)
     }
 
     private func handleMonitoringStateChange() {
@@ -1029,6 +1213,7 @@ struct SettingsGroup<Content: View>: View {
         VStack(spacing: 0) {
             content
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .padding(.horizontal, 20)
@@ -1100,6 +1285,7 @@ struct GeneralSettingsContent: View {
     @StateObject private var monitorState = MonitoringStateStore()
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var showDockIcon = AWDLPreferences.shared.showDockIcon
+    @State private var showMenuDropdownMetrics = AWDLPreferences.shared.showMenuDropdownMetrics
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1194,6 +1380,17 @@ struct GeneralSettingsContent: View {
                         .controlSize(.small)
                         .onChangeCompat(of: showDockIcon) { newValue in
                             AWDLPreferences.shared.showDockIcon = newValue
+                        }
+                }
+
+                SettingsDivider()
+
+                SettingsRow("Menu Dropdown Metrics", description: "Show current ping and AWDL interventions in the menu") {
+                    Toggle("", isOn: $showMenuDropdownMetrics)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .onChangeCompat(of: showMenuDropdownMetrics) { newValue in
+                            AWDLPreferences.shared.showMenuDropdownMetrics = newValue
                         }
                 }
             }

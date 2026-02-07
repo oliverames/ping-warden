@@ -24,6 +24,7 @@ class AWDLPreferences {
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
     private let gameModeAutoDetectKey = "GameModeAutoDetect"
     private let showDockIconKey = "ShowDockIcon"
+    private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
 
     private lazy var defaults: UserDefaults? = {
         // Use standard UserDefaults if App Groups aren't available
@@ -141,6 +142,21 @@ class AWDLPreferences {
             NotificationCenter.default.post(name: .dockIconVisibilityChanged, object: nil)
         }
     }
+
+    /// Whether to show live ping and intervention metrics in the menu bar dropdown
+    var showMenuDropdownMetrics: Bool {
+        get {
+            return defaults?.bool(forKey: showMenuDropdownMetricsKey) ?? false
+        }
+        set {
+            guard let defaults = defaults else {
+                log.error("Cannot set \(self.showMenuDropdownMetricsKey): defaults is nil")
+                return
+            }
+            defaults.set(newValue, forKey: showMenuDropdownMetricsKey)
+            NotificationCenter.default.post(name: .menuDropdownMetricsChanged, object: nil)
+        }
+    }
 }
 
 extension Notification.Name {
@@ -151,4 +167,5 @@ extension Notification.Name {
     static let controlCenterModeChanged = Notification.Name("com.amesvt.pingwarden.notification.ControlCenterModeChanged")
     static let gameModeAutoDetectChanged = Notification.Name("com.amesvt.pingwarden.notification.GameModeAutoDetectChanged")
     static let dockIconVisibilityChanged = Notification.Name("com.amesvt.pingwarden.notification.DockIconVisibilityChanged")
+    static let menuDropdownMetricsChanged = Notification.Name("com.amesvt.pingwarden.notification.MenuDropdownMetricsChanged")
 }

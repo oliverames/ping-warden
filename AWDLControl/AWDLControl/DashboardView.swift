@@ -79,7 +79,7 @@ struct LatencyTimelineEvent: Identifiable {
 
 private enum DashboardConfig {
     static let intervalOptions: [TimeInterval] = [1, 2, 5, 10]
-    static let timeframeOptions: [Int] = [5, 15, 30, 60]
+    static let timeframeOptions: [Int] = [1, 5, 15, 30, 60]
     static let defaultInterval: TimeInterval = 2
     static let gfnRefreshCooldownSeconds: TimeInterval = 15
     static let selectedTargetKey = "DashboardSelectedPingTargetID"
@@ -88,6 +88,12 @@ private enum DashboardConfig {
     static let baselineSampleCount = 3
     static let baselineProbeTimeoutSeconds = 1
     static let baselineSampleSpacingNanoseconds: UInt64 = 100_000_000
+}
+
+private enum DashboardLayout {
+    static let cardCornerRadius: CGFloat = 10
+    static let cardPadding: CGFloat = 18
+    static let sectionSpacing: CGFloat = 12
 }
 
 private enum LatencyPalette {
@@ -110,6 +116,18 @@ private enum LatencyPalette {
         case .fair: return fair
         case .poor: return poor
         }
+    }
+}
+
+private extension View {
+    func dashboardCardStyle() -> some View {
+        self
+            .padding(DashboardLayout.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: DashboardLayout.cardCornerRadius, style: .continuous)
+                    .fill(Color(nsColor: .unemphasizedSelectedContentBackgroundColor))
+            )
     }
 }
 
@@ -227,7 +245,7 @@ struct DashboardSettingsContent: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
                 // Current Status Card
                 StatusCard(viewModel: viewModel)
                 
@@ -261,11 +279,11 @@ struct StatusCard: View {
     @ObservedObject var viewModel: DashboardViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Network Quality")
                 .font(.headline)
             
-            HStack(spacing: 24) {
+            HStack(alignment: .top, spacing: 24) {
                 // Current Ping - Main display
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -287,55 +305,27 @@ struct StatusCard: View {
                 Divider()
                     .frame(height: 80)
                 
-                // Stats Grid
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-                    GridRow {
-                        Text("Average")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .gridColumnAlignment(.leading)
-                        Text(String(format: "%.0f ms", viewModel.stats.averagePing))
-                            .font(.callout.monospacedDigit())
-                            .gridColumnAlignment(.trailing)
-                        Text("Jitter")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .gridColumnAlignment(.leading)
-                        Text(String(format: "%.1f ms", viewModel.stats.jitter))
-                            .font(.callout.monospacedDigit())
-                            .gridColumnAlignment(.trailing)
+                HStack(alignment: .top, spacing: 28) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        MetricRow(label: "Average", value: String(format: "%.0f ms", viewModel.stats.averagePing))
+                        MetricRow(label: "Best", value: String(format: "%.0f ms", viewModel.stats.minimumPing))
+                        MetricRow(label: "Worst", value: String(format: "%.0f ms", viewModel.stats.maximumPing))
                     }
-                    GridRow {
-                        Text("Best")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(String(format: "%.0f ms", viewModel.stats.minimumPing))
-                            .font(.callout.monospacedDigit())
-                        Text("Packet Loss")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(String(format: "%.1f%%", viewModel.stats.packetLoss))
-                            .font(.callout.monospacedDigit())
-                    }
-                    GridRow {
-                        Text("Worst")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(String(format: "%.0f ms", viewModel.stats.maximumPing))
-                            .font(.callout.monospacedDigit())
-                        Text("AWDL")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(viewModel.isAWDLBlocking ? "Blocking" : "Allowed")
-                            .font(.callout)
-                            .foregroundStyle(viewModel.isAWDLBlocking ? .green : .orange)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        MetricRow(label: "Jitter", value: String(format: "%.1f ms", viewModel.stats.jitter))
+                        MetricRow(label: "Packet Loss", value: String(format: "%.1f%%", viewModel.stats.packetLoss))
+                        MetricRow(
+                            label: "AWDL",
+                            value: viewModel.isAWDLBlocking ? "Blocking" : "Allowed",
+                            tint: viewModel.isAWDLBlocking ? .green : .orange,
+                            useMonospacedValue: false
+                        )
                     }
                 }
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .dashboardCardStyle()
     }
     
     private func colorForQuality(_ quality: PingMonitor.Quality) -> Color {
@@ -352,12 +342,39 @@ struct StatusCard: View {
     }
 }
 
+struct MetricRow: View {
+    let label: String
+    let value: String
+    var tint: Color = .primary
+    var useMonospacedValue: Bool = true
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 74, alignment: .leading)
+
+            if useMonospacedValue {
+                Text(value)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(tint)
+            } else {
+                Text(value)
+                    .font(.callout)
+                    .foregroundStyle(tint)
+            }
+        }
+    }
+}
+
 // MARK: - Ping Graph Card
 
 struct PingGraphCard: View {
     @ObservedObject var viewModel: DashboardViewModel
     
     private let timeframeOptions: [(minutes: Int, label: String)] = [
+        (1, "1 min"),
         (5, "5 min"),
         (15, "15 min"),
         (30, "30 min"),
@@ -365,48 +382,51 @@ struct PingGraphCard: View {
     ]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
+        let windowEnd = Date()
+        let windowStart = windowEnd.addingTimeInterval(-TimeInterval(viewModel.selectedTimeframe * 60))
+        let xDomain = windowStart...windowEnd
+
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
                 Text("Ping History")
                     .font(.headline)
                 
                 Spacer()
                 
-                HStack(spacing: 8) {
-                    ForEach(timeframeOptions, id: \.minutes) { option in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                viewModel.selectedTimeframe = option.minutes
+                Picker(
+                    "Timeframe",
+                    selection: Binding(
+                        get: { viewModel.selectedTimeframe },
+                        set: { newTimeframe in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                viewModel.selectedTimeframe = newTimeframe
                             }
-                        } label: {
-                            Text(option.label)
-                                .font(.headline)
-                                .foregroundStyle(viewModel.selectedTimeframe == option.minutes ? .white : .primary)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                                .background(
-                                    viewModel.selectedTimeframe == option.minutes
-                                        ? Color.accentColor
-                                        : Color.secondary.opacity(0.12),
-                                    in: RoundedRectangle(cornerRadius: 8)
-                                )
                         }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                        .accessibilityLabel("Show \(option.label) ping history")
+                    )
+                ) {
+                    ForEach(timeframeOptions, id: \.minutes) { option in
+                        Text(option.label).tag(option.minutes)
                     }
                 }
+                .pickerStyle(.segmented)
+                .frame(width: 390)
+                .accessibilityLabel("Ping history timeframe")
             }
+
+            Text("Zoom: last \(timeframeLabel(for: viewModel.selectedTimeframe))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             
             if viewModel.filteredHistory.isEmpty {
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Image(systemName: "chart.xyaxis.line")
-                        .font(.system(size: 48))
+                        .font(.system(size: 36))
                         .foregroundStyle(.tertiary)
                     Text(emptyStateText())
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .frame(height: 180)
+                .frame(height: 170)
                 .frame(maxWidth: .infinity)
             } else {
                 Chart {
@@ -444,15 +464,21 @@ struct PingGraphCard: View {
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     }
                 }
+                .chartXScale(domain: xDomain)
                 .chartYScale(domain: 0...max(100, viewModel.maxPingInView))
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 5)) { value in
+                    AxisMarks(values: .automatic(desiredCount: xAxisTickCount)) { value in
                         AxisGridLine()
                         AxisTick()
                         if let date = value.as(Date.self) {
                             AxisValueLabel {
-                                Text(date, format: .dateTime.hour().minute())
-                                    .font(.caption2)
+                                if viewModel.selectedTimeframe == 1 {
+                                    Text(date, format: .dateTime.minute().second())
+                                        .font(.caption2.monospacedDigit())
+                                } else {
+                                    Text(date, format: .dateTime.hour().minute())
+                                        .font(.caption2)
+                                }
                             }
                         }
                     }
@@ -469,11 +495,11 @@ struct PingGraphCard: View {
                         }
                     }
                 }
-                .frame(height: 180)
+                .frame(height: 190)
             }
             
             // Legend
-            HStack(spacing: 16) {
+            HStack(spacing: 14) {
                 LegendItem(color: LatencyPalette.excellent, label: "Excellent", range: "<20ms")
                 LegendItem(color: LatencyPalette.good, label: "Good", range: "20-50ms")
                 LegendItem(color: LatencyPalette.fair, label: "Fair", range: "50-100ms")
@@ -481,9 +507,7 @@ struct PingGraphCard: View {
             }
             .font(.caption)
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .dashboardCardStyle()
     }
     
     private func emptyStateText() -> String {
@@ -495,10 +519,20 @@ struct PingGraphCard: View {
     }
     
     private func timeframeLabel(for minutes: Int) -> String {
+        if minutes == 1 {
+            return "1 minute"
+        }
         if minutes == 60 {
             return "1 hour"
         }
         return "\(minutes) minutes"
+    }
+
+    private var xAxisTickCount: Int {
+        if viewModel.selectedTimeframe <= 5 {
+            return 4
+        }
+        return 5
     }
     
     private func colorForLatency(_ latency: Double) -> Color {
@@ -537,9 +571,14 @@ struct LatencyTimelineCard: View {
             }
 
             if viewModel.filteredTimelineEvents.isEmpty {
-                Text("No notable events in selected timeframe.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                    Text("No notable events in selected timeframe.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(viewModel.filteredTimelineEvents.suffix(8).reversed()) { event in
@@ -559,9 +598,7 @@ struct LatencyTimelineCard: View {
                 }
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .dashboardCardStyle()
     }
 }
 
@@ -571,11 +608,11 @@ struct InterventionsCard: View {
     @ObservedObject var viewModel: DashboardViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("AWDL Protection")
                 .font(.headline)
             
-            HStack(spacing: 24) {
+            HStack(alignment: .center, spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Interventions Today")
                         .font(.caption)
@@ -598,8 +635,8 @@ struct InterventionsCard: View {
                 
                 Spacer()
                 
-                if viewModel.interventionCount > 0 {
-                    VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if viewModel.interventionCount > 0 {
                         Label("AWDL tried to activate", systemImage: "exclamationmark.triangle.fill")
                             .font(.subheadline)
                             .foregroundStyle(.orange)
@@ -608,15 +645,20 @@ struct InterventionsCard: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Label("No AWDL activation attempts detected", systemImage: "checkmark.shield")
+                            .font(.subheadline)
+                            .foregroundStyle(.green)
+                        Text("Protection is active and your connection is stable.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(12)
-                    .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
                 }
+                .padding(12)
+                .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 8))
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .dashboardCardStyle()
     }
 }
 
@@ -626,34 +668,31 @@ struct ServerSelectionCard: View {
     @ObservedObject var viewModel: DashboardViewModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Settings")
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Connection Settings")
                 .font(.headline)
             
-            HStack(spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Ping Server")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
+            VStack(spacing: 0) {
+                DashboardControlRow("Ping Server", description: "Target used for latency measurements") {
+                    VStack(alignment: .leading, spacing: 8) {
                     Picker("Server", selection: $viewModel.selectedTargetID) {
                         ForEach(viewModel.targets) { target in
                             Text(target.displayName).tag(target.id)
                         }
                     }
                     .pickerStyle(.menu)
-                    .frame(minWidth: 260)
+                    .frame(width: 360, alignment: .leading)
                     .disabled(viewModel.targets.isEmpty)
                     .onTapGesture {
                         viewModel.refreshGeForceNOWTargetsOnDemand()
                     }
-                    
+
                     if let selectedTarget = viewModel.selectedTarget {
                         Text("\(selectedTarget.host):\(selectedTarget.port)")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     if viewModel.isRefreshingGFNServers {
                         Text("Refreshing GeForce NOW zones...")
                             .font(.caption2)
@@ -681,13 +720,12 @@ struct ServerSelectionCard: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    }
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Update Interval")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
+                Divider()
+                
+                DashboardControlRow("Update Interval", description: "How often ping samples are captured") {
                     Picker("Interval", selection: $viewModel.updateInterval) {
                         Text("1 second").tag(TimeInterval(1))
                         Text("2 seconds").tag(TimeInterval(2))
@@ -695,15 +733,42 @@ struct ServerSelectionCard: View {
                         Text("10 seconds").tag(TimeInterval(10))
                     }
                     .pickerStyle(.menu)
-                    .frame(minWidth: 120)
+                    .frame(width: 150, alignment: .leading)
                 }
-                
-                Spacer()
             }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .dashboardCardStyle()
+    }
+}
+
+struct DashboardControlRow<Content: View>: View {
+    let title: String
+    let description: String?
+    let content: Content
+
+    init(_ title: String, description: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.description = description
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.body)
+                if let description {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 160, alignment: .leading)
+
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 10)
     }
 }
 

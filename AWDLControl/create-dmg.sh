@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Configuration
 APP_NAME="Ping Warden"
-VERSION="${1:-2.1.0}"
+VERSION="${1:-2.1.1}"
 DMG_NAME="PingWarden-${VERSION}"
 BUILD_DIR="$SCRIPT_DIR/build"
 DMG_PATH="$SCRIPT_DIR/${DMG_NAME}.dmg"

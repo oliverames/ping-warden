@@ -4,22 +4,18 @@ Eliminate network latency spikes on macOS by controlling AWDL (Apple Wireless Di
 
 ## Download
 
-[Download Ping Warden v2.1.0](https://github.com/oliverames/ping-warden/releases/latest) (macOS 13.0+)
+[Download Ping Warden v2.1.1](https://github.com/oliverames/ping-warden/releases/latest) (macOS 13.0+)
 
 The app is Developer ID signed and notarized.
 
-## What’s New in 2.1.0
+## What’s New in 2.1.1
 
-- Latency spike timeline with AWDL intervention markers.
-- One-click diagnostics export from Settings to Desktop.
-- Menu bar quick actions: pause blocking for 10 minutes and resume.
-- Expanded target presets (DNS + gaming endpoints).
-- Auto-select nearest endpoint using baseline latency scan.
-- Game Mode auto-detect now restores the exact pre-activation state.
-- Widget toggle path hardened for app-not-running starts.
-- Control Center widget checks remain intentionally macOS 26+.
-- Reconnect/backoff and monitor state notification hardening.
-- Release/CI guardrails improved (version checks, appcast XML checks, smoke tests).
+- Dashboard card hierarchy and spacing tuned for cleaner information flow.
+- Connection settings reorganized into aligned rows for better readability.
+- Fixed General `HOW IT WORKS` section width so it fills the settings panel properly.
+- Added a `1 min` ping history timeframe and clearer zoom feedback (`Zoom: last ...`).
+- Timeframe switching now visibly zooms to the selected window without clearing data.
+- Added optional live menu dropdown metrics (current ping + AWDL interventions).
 
 ## Core Features
 

@@ -27,6 +27,7 @@ class AWDLPreferences {
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
     private let gameModeAutoDetectKey = "GameModeAutoDetect"
     private let showDockIconKey = "ShowDockIcon"
+    private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
 
     private lazy var defaults: UserDefaults? = {
         guard let suite = UserDefaults(suiteName: appGroupID) else {
@@ -141,6 +142,21 @@ class AWDLPreferences {
                 return
             }
             defaults.set(newValue, forKey: showDockIconKey)
+            // Note: Widget doesn't post this notification as it's only used by main app
+        }
+    }
+
+    /// Whether to show live metrics in the menu dropdown (main app preference)
+    var showMenuDropdownMetrics: Bool {
+        get {
+            return defaults?.bool(forKey: showMenuDropdownMetricsKey) ?? false
+        }
+        set {
+            guard let defaults = defaults else {
+                log.error("Cannot set \(self.showMenuDropdownMetricsKey): defaults is nil")
+                return
+            }
+            defaults.set(newValue, forKey: showMenuDropdownMetricsKey)
             // Note: Widget doesn't post this notification as it's only used by main app
         }
     }

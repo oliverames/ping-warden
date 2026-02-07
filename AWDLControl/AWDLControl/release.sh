@@ -4,7 +4,7 @@
 #  Complete release automation: notarize + create DMG + update appcast + GitHub release
 #
 #  Usage: ./release.sh [version] [release-notes-file]
-#  Example: ./release.sh 2.1.0 release_notes_2.1.0.txt
+#  Example: ./release.sh 2.1.1 release_notes_2.1.1.txt
 #
 #  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 #  Licensed under the MIT License.
@@ -54,7 +54,7 @@ NC='\033[0m'
 if [ -z "$VERSION" ]; then
     echo -e "${RED}Error: Version required${NC}"
     echo "Usage: ./release.sh [version] [release-notes-file]"
-    echo "Example: ./release.sh 2.1.0"
+    echo "Example: ./release.sh 2.1.1"
     exit 1
 fi
 

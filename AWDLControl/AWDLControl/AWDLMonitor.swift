@@ -125,7 +125,7 @@ class AWDLMonitor {
 
     private init() {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log.info("AWDLMonitor v2.1.0 initializing (SMAppService + XPC)...")
+        log.info("AWDLMonitor v2.1.1 initializing (SMAppService + XPC)...")
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         let status = helperService.status
