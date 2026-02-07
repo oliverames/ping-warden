@@ -27,7 +27,7 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/oliverames/ping-warden/main/appcast.xml</string>
+	<string>https://oliverames.github.io/ping-warden/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>NIhfyD083qOzYZteoMsBOljz/u7/ptMziiHheqt3mns=</string>
 </dict>

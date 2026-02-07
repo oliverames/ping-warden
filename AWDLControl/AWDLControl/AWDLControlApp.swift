@@ -46,6 +46,9 @@ struct AWDLControlApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, SPUUpdaterDelegate {
+    private static let appMenuCheckForUpdatesTag = 2201
+    private let sparkleFeedURLString = "https://oliverames.github.io/ping-warden/appcast.xml"
+
     private struct GameModeSnapshot {
         let userIntentMonitoringEnabled: Bool
         let wasMonitoringActive: Bool
@@ -86,6 +89,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             updaterDelegate: self,
             userDriverDelegate: nil
         )
+        updaterController?.updater.clearFeedURLFromUserDefaults()
         _ = startUpdaterIfNeeded()
 
         // Check for quarantine issues and help user if needed
@@ -177,10 +181,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
 
         handleMenuMetricsPreferenceChange()
+        ensureApplicationMenuItems()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        ensureApplicationMenuItems()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -229,6 +238,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         
         if AWDLPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible {
             NSApp.setActivationPolicy(.regular)
+            ensureApplicationMenuItems()
         } else {
             NSApp.setActivationPolicy(.accessory)
         }
@@ -356,6 +366,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        ensureApplicationMenuItems()
     }
 
     // MARK: - Menu Bar
@@ -494,6 +505,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             log.info("Existing settings window found, bringing to front")
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            ensureApplicationMenuItems()
             return
         }
 
@@ -538,6 +550,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        ensureApplicationMenuItems()
 
         log.info("Settings window created and shown")
     }
@@ -546,6 +559,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if let window = aboutWindow, window.isVisible {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            ensureApplicationMenuItems()
             return
         }
 
@@ -569,12 +583,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        ensureApplicationMenuItems()
     }
 
     @objc private func checkForUpdates() {
         guard startUpdaterIfNeeded() else {
             presentUpdaterStartFailureAlert()
             return
+        }
+
+        if let activeFeedURL = updaterController?.updater.feedURL?.absoluteString {
+            log.info("Checking Sparkle updates from feed: \(activeFeedURL, privacy: .public)")
         }
         
         updaterController?.updater.checkForUpdates()
@@ -594,6 +613,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             log.error("Sparkle updater failed to start: \(error.localizedDescription, privacy: .public)")
             return false
         }
+    }
+
+    private func ensureApplicationMenuItems() {
+        guard NSApp.activationPolicy() == .regular,
+              let mainMenu = NSApp.mainMenu,
+              let appMenu = mainMenu.items.first?.submenu else {
+            return
+        }
+
+        if let existingItem = appMenu.items.first(where: { $0.title == "Check for Updates..." }) {
+            existingItem.target = self
+            existingItem.action = #selector(checkForUpdates)
+            existingItem.tag = Self.appMenuCheckForUpdatesTag
+            return
+        }
+
+        let updateItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        updateItem.target = self
+        updateItem.tag = Self.appMenuCheckForUpdatesTag
+
+        if let settingsIndex = appMenu.items.firstIndex(where: { $0.keyEquivalent == "," || $0.title == "Settings..." }) {
+            appMenu.insertItem(updateItem, at: settingsIndex + 1)
+        } else if let aboutIndex = appMenu.items.firstIndex(where: { $0.title.hasPrefix("About ") }) {
+            appMenu.insertItem(updateItem, at: aboutIndex + 1)
+        } else {
+            appMenu.insertItem(updateItem, at: min(1, appMenu.items.count))
+        }
+    }
+
+    func feedURLString(for updater: SPUUpdater) -> String? {
+        sparkleFeedURLString
     }
     
     private func presentUpdaterStartFailureAlert() {
@@ -1068,11 +1122,14 @@ class SettingsSplitViewController: NSSplitViewController {
     // Use regular optionals instead of implicitly unwrapped to prevent crashes
     // if properties are accessed before viewDidLoad()
     private var sidebarVC: NSViewController?
-    private var detailVC: NSViewController?
+    private var detailVC: NSHostingController<SettingsDetailView>?
     private var selectedSection: SettingsSection = .general
 
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        view.wantsLayer = true
+        view.layer?.masksToBounds = true
 
         // Create sidebar
         let sidebarView = SettingsSidebarView(
@@ -1097,34 +1154,22 @@ class SettingsSplitViewController: NSSplitViewController {
         sidebarItem.canCollapse = false
         sidebarItem.minimumThickness = 180
         sidebarItem.maximumThickness = 220
+        sidebarItem.preferredThicknessFraction = 0.26
         sidebarItem.allowsFullHeightLayout = true
 
         let detailItem = NSSplitViewItem(viewController: detailController)
         detailItem.minimumThickness = 400
+        detailItem.canCollapse = false
 
         addSplitViewItem(sidebarItem)
         addSplitViewItem(detailItem)
 
+        splitView.isVertical = true
         splitView.dividerStyle = .thin
     }
 
     private func updateDetailView() {
-        let newDetailView = SettingsDetailView(section: selectedSection)
-        let newDetailController = NSHostingController(rootView: newDetailView)
-
-        // Remove old detail view item first, then add new one
-        // Use safe iteration to find and remove the detail item
-        // This ensures we don't access an invalid index
-        while splitViewItems.count > 1 {
-            removeSplitViewItem(splitViewItems[1])
-        }
-
-        // Update the reference
-        detailVC = newDetailController
-
-        let detailItem = NSSplitViewItem(viewController: newDetailController)
-        detailItem.minimumThickness = 400
-        addSplitViewItem(detailItem)
+        detailVC?.rootView = SettingsDetailView(section: selectedSection)
     }
 }
 
@@ -1134,13 +1179,17 @@ struct SettingsSidebarView: View {
     @Binding var selectedSection: SettingsSection
 
     var body: some View {
-        List(selection: $selectedSection) {
-            ForEach(SettingsSection.allCases) { section in
-                Label(section.rawValue, systemImage: section.icon)
-                    .tag(section)
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            List(selection: $selectedSection) {
+                ForEach(SettingsSection.allCases) { section in
+                    Label(section.rawValue, systemImage: section.icon)
+                        .tag(section)
+                }
             }
+            .scrollContentBackground(.hidden)
+            .listStyle(.sidebar)
         }
-        .listStyle(.sidebar)
     }
 }
 
@@ -1191,9 +1240,11 @@ struct SettingsContentView: View {
                 Spacer(minLength: 20)
             }
         }
+        .padding(.leading, 2)
         .scrollContentBackground(.hidden)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.clear)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipped()
     }
 }
 

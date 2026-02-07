@@ -1,39 +1,122 @@
 # Ping Warden
 
-Eliminate network latency spikes on macOS by controlling AWDL (Apple Wireless Direct Link).
+Ping Warden is a macOS app that keeps your connection stable by preventing AWDL-driven latency spikes.
+
+AWDL (Apple Wireless Direct Link) powers AirDrop, AirPlay, and Handoff, but it can introduce sudden ping spikes during cloud gaming, competitive play, and voice/video calls. Ping Warden gives you one-click control over that behavior.
+
+[![Download](https://img.shields.io/badge/Download-Latest_Release-blue?style=for-the-badge)](https://github.com/oliverames/ping-warden/releases/latest)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-Support-orange?style=for-the-badge)](https://www.buymeacoffee.com/oliverames)
 
 ## Download
 
 [Download Ping Warden v2.1.1](https://github.com/oliverames/ping-warden/releases/latest) (macOS 13.0+)
 
-The app is Developer ID signed and notarized.
+The app is Developer ID signed, notarized, and includes Sparkle for in-app updates.
 
-## What’s New in 2.1.1
+## What Ping Warden Does
 
-- Dashboard card hierarchy and spacing tuned for cleaner information flow.
-- Connection settings reorganized into aligned rows for better readability.
-- Fixed General `HOW IT WORKS` section width so it fills the settings panel properly.
-- Added a `1 min` ping history timeframe and clearer zoom feedback (`Zoom: last ...`).
-- Timeframe switching now visibly zooms to the selected window without clearing data.
-- Added optional live menu dropdown metrics (current ping + AWDL interventions).
+- Blocks AWDL while protection is enabled to reduce random latency spikes.
+- Monitors connection quality with a live dashboard:
+  - Current ping, average, best/worst, jitter, and packet loss.
+  - Timeline of latency spikes and AWDL interventions.
+  - Non-destructive timeframe zoom (1 min, 5 min, 15 min, 30 min, 1 hour).
+- Supports menu bar workflows with optional live dropdown metrics.
+- Lets you automate behavior with launch-at-login and Game Mode auto-detect.
 
-## Core Features
+## Feature Highlights
 
-- Sub-millisecond helper response to keep AWDL down before latency spikes land.
-- No recurring password prompts (SMAppService + bundled helper).
-- Dashboard with ping, jitter, packet loss, and intervention tracking.
-- Launch at login and optional Game Mode automation.
-- Control Center widget support on macOS 26+.
+- Fast helper response path for AWDL state changes.
+- No recurring password prompts after one-time setup approval.
+- Real-time ping chart with quality bands and event markers.
+- Endpoint options:
+  - Local gateway and major DNS targets.
+  - Gaming endpoints and GeForce NOW discovery targets.
+  - Auto-select nearest endpoint by baseline probes.
+- Optional Control Center integration on supported systems.
+- Sparkle update integration (`Check for Updates...`) in both:
+  - Menu bar menu.
+  - Frontmost app menu when settings/about windows are active.
 
-## Documentation
+## Implementation Details
 
-- [Full Documentation](AWDLControl/README.md)
+Ping Warden uses a modern macOS architecture designed for reliability and low overhead.
+
+- App + helper model:
+  - Main app provides UI, preferences, dashboard, diagnostics, and automation.
+  - Bundled helper performs privileged AWDL control and monitoring work.
+- Service registration:
+  - Uses `SMAppService` for one-time system approval and stable background lifecycle.
+- Communication:
+  - XPC boundary between app and helper for commands, status, and counters.
+- Monitoring approach:
+  - Route/interface change monitoring with rapid AWDL state correction.
+- Update pipeline:
+  - Sparkle + signed appcast feed + EdDSA signature validation.
+
+## Quick Start
+
+### 1) Install
+
+1. Download the latest DMG from [Releases](https://github.com/oliverames/ping-warden/releases/latest).
+2. Drag `Ping Warden.app` to `/Applications`.
+3. Launch Ping Warden.
+
+### 2) Complete One-Time Setup
+
+1. Click `Set Up Now`.
+2. Approve the helper in System Settings when prompted.
+3. Return to Ping Warden and confirm status shows active monitoring when enabled.
+
+### 3) Verify and Tune
+
+1. Open `Settings -> Dashboard`.
+2. Select a ping target and update interval.
+3. Use timeframe controls to zoom into recent windows without clearing history.
+4. Enable `Menu Dropdown Metrics` from `Settings -> General` if you want live ping/intervention values in the menu.
+
+## Full Documentation
+
+Core docs are in the `AWDLControl` directory.
+
 - [Quick Start](AWDLControl/QUICKSTART.md)
+  - Fast install/setup walkthrough.
+- [Full Documentation](AWDLControl/README.md)
+  - Architecture summary, feature coverage, and operational notes.
 - [Troubleshooting](AWDLControl/TROUBLESHOOTING.md)
+  - Setup failures, runtime diagnostics, reset/recovery workflows.
+
+Additional references:
+
+- [Release Notes](RELEASE_NOTES.md)
+- [Project License](LICENSE)
+
+## Troubleshooting
+
+Common first checks:
+
+1. Confirm helper is registered and status is not `Not Set Up`.
+2. Run `Settings -> Advanced -> Test Helper Response`.
+3. Open `Settings -> Advanced -> Export Diagnostics` and review the generated bundle.
+4. If update detection looks wrong, use `Check for Updates...` from the app/menu bar and verify app version in About.
+
+Useful docs and links:
+
+- [Troubleshooting Guide](AWDLControl/TROUBLESHOOTING.md)
+- [GitHub Issues](https://github.com/oliverames/ping-warden/issues)
+
+## Build From Source
+
+```bash
+git clone https://github.com/oliverames/ping-warden.git
+cd ping-warden/AWDLControl
+open AWDLControl.xcodeproj
+```
+
+Build and run from Xcode with signing configured for all targets.
 
 ## Credits
 
-- [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller) for AF_ROUTE monitoring inspiration.
+- [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller) for AWDL monitoring inspiration.
 - [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl) for SMAppService + XPC architecture inspiration.
 
 ## License
