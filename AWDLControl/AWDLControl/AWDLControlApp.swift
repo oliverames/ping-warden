@@ -1192,7 +1192,6 @@ struct SettingsContentView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .ignoresSafeArea(.all, edges: .top)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.clear)
     }
