@@ -1,64 +1,370 @@
-# Ping Warden
+# Ping Warden Full Documentation
 
-Ping Warden prevents AWDL-driven latency spikes on macOS for gaming and other real-time workloads.
+This document is the detailed technical and operational guide for Ping Warden.
 
-## Version 2.1.1 Highlights
+For quick setup, see [Quick Start](QUICKSTART.md). For issue recovery, see [Troubleshooting](TROUBLESHOOTING.md).
 
-- Dashboard visual hierarchy and card spacing were refined for better scanability.
-- Ping history now includes a `1 min` range and explicit chart zoom context.
-- Timeframe changes zoom the chart window without clearing measurement history.
-- Connection settings were reorganized into aligned rows for cleaner control layout.
-- Added optional live metrics in the menu dropdown (current ping + interventions).
-- General `HOW IT WORKS` section now fills available width consistently.
+## 1. Overview
 
-## Features
+Ping Warden is a macOS latency-stability tool focused on preventing AWDL-related jitter and spikes for real-time workloads.
 
-- Kernel-adjacent AWDL suppression strategy with helper daemon.
-- No repeated privilege prompts after initial setup approval.
-- Real-time dashboard:
-  - Current ping, average, min/max, jitter, packet loss.
-  - Ping history chart and latency quality coloring.
-  - Intervention counter and timeline view.
-- Targeting:
-  - Local gateway, major DNS resolvers, gaming APIs, GeForce NOW zones.
-  - Automatic nearest-target selection by baseline probe.
-- Automation:
-  - Launch at login.
-  - Game Mode auto-detect (beta, requires Screen Recording permission).
-  - Control Center widget mode (beta, macOS 26+ and proper signing required).
+AWDL (Apple Wireless Direct Link) is used by Apple ecosystem features such as AirDrop, AirPlay, and Handoff. On some networks and workflows, AWDL interface transitions can correlate with sudden latency jumps. Ping Warden provides a controlled, user-friendly way to keep AWDL suppressed when desired, while retaining the ability to restore normal behavior instantly.
 
-## Setup
+Primary goals:
 
-1. Launch Ping Warden.
-2. Click `Set Up Now`.
-3. Approve helper registration in System Settings when prompted.
-4. Enable/disable AWDL blocking from the menu bar or Settings.
+- Keep latency stable for gaming, cloud streaming, and calls.
+- Avoid repeated password prompts for normal day-to-day usage.
+- Provide clear observability (status, ping history, interventions).
+- Offer safe operational controls (enable/disable/pause/restore).
 
-## Dashboard Notes
+## 2. Why Not Just Run `sudo ifconfig awdl0 down`?
 
-- Baseline auto-select runs short TCP probes across presets and picks the lowest robust average latency.
-- Timeline records:
-  - Ping spikes above dynamic threshold.
-  - AWDL intervention deltas from helper counters.
+A one-time shell command can be useful for experiments, but it does not provide production-style behavior.
 
-## Diagnostics
+- One-shot vs continuous control:
+  - `sudo ifconfig awdl0 down` changes state once.
+  - macOS may bring AWDL back up later.
+- Manual reaction vs event-driven reaction:
+  - Manual command execution is reactive and human-timed.
+  - Ping Warden listens for interface-route events and immediately counters AWDL-up transitions while protection is active.
+- No observability with ad-hoc commands:
+  - Shell commands do not provide built-in timeline/history/counter views.
+  - Ping Warden records intervention counts and network quality telemetry.
+- Operational ergonomics:
+  - Repeated terminal/sudo flow is error-prone.
+  - Ping Warden gives one-time approval, then menu/UI controls.
+- Safety and lifecycle behavior:
+  - Ping Warden has explicit startup, reconnect, health-check, and shutdown behavior.
 
-- `Advanced -> Export Diagnostics` writes a timestamped support snapshot to Desktop.
-- `Advanced -> Open Console` opens logs quickly for deeper inspection.
+## 3. High-Level Architecture
 
-## System Requirements
+Ping Warden uses a split architecture:
 
-- macOS 13.0 or later.
-- Apple Silicon or Intel.
-- Optional:
-  - Game Mode auto-detect: Screen Recording permission.
-  - Control Center widget: macOS 26+ Control Widget API support.
+- Main app (Swift/SwiftUI + AppKit bridge):
+  - UI, settings, dashboard, diagnostics, automation, Sparkle updates.
+- Helper daemon (Objective-C):
+  - Privileged AWDL control and low-level monitoring.
 
-## Credits
+Communication boundary:
+
+- XPC service: `com.amesvt.pingwarden.xpc`
+- Protocol: `AWDLHelperProtocol` (in `AWDLControl/Common/HelperProtocol.h`)
+
+Registration model:
+
+- Helper is registered using `SMAppService.daemon(plistName:)`.
+- Registration requires one-time user approval in System Settings.
+
+## 4. Key Components
+
+### 4.1 Main App
+
+Important files:
+
+- `AWDLControl/AWDLControl/AWDLControlApp.swift`
+- `AWDLControl/AWDLControl/AWDLMonitor.swift`
+- `AWDLControl/AWDLControl/DashboardView.swift`
+- `AWDLControl/AWDLControl/AWDLPreferences.swift`
+- `AWDLControl/AWDLControl/DiagnosticsExporter.swift`
+
+Responsibilities:
+
+- Menu bar app behavior and settings window lifecycle.
+- User intent state persistence (`isMonitoringEnabled`).
+- Effective runtime state tracking (`effectiveMonitoringEnabled`).
+- Dashboard data collection and charting.
+- Sparkle update checks and update menu entries.
+
+### 4.2 Helper Daemon
+
+Important files:
+
+- `AWDLControl/AWDLControlHelper/main.m`
+- `AWDLControl/AWDLControlHelper/AWDLMonitor.h`
+- `AWDLControl/AWDLControlHelper/AWDLMonitor.m`
+- `AWDLControl/AWDLControlHelper/com.amesvt.pingwarden.helper.plist`
+
+Responsibilities:
+
+- Monitor interface change events through `AF_ROUTE`.
+- Enforce desired AWDL state through `ioctl` on interface flags.
+- Count and report interventions.
+- Restore AWDL to enabled state when helper exits.
+
+## 5. Monitoring Model and Timing Behavior
+
+Core behavior:
+
+- AWDL blocking mode means: keep `awdl0` down.
+- Allow mode means: permit `awdl0` to remain up.
+- Helper thread blocks on `poll()` waiting for:
+  - Route/interface events (`AF_ROUTE` socket).
+  - Internal control messages (`pipe`).
+
+When monitoring is active and the system raises AWDL:
+
+1. Kernel route event arrives.
+2. Helper identifies `awdl0` state change (`RTM_IFINFO`).
+3. Helper clears `IFF_UP` on `awdl0` via `SIOCSIFFLAGS`.
+4. Intervention counter increments.
+
+This is event-driven, not a delayed periodic shell loop.
+
+## 6. State Model
+
+Two state concepts are used:
+
+- User intent state:
+  - Preference for whether monitoring should be enabled.
+  - Stored in user defaults.
+- Effective runtime state:
+  - Actual active status considering helper availability and XPC connectivity.
+
+This separation allows robust behavior during reconnects, restarts, or temporary failures.
+
+## 7. Setup and Approval Flow
+
+Initial setup sequence:
+
+1. Launch app.
+2. App checks helper registration status via `SMAppService`.
+3. If unregistered or approval required, user is guided to System Settings.
+4. App polls registration status and proceeds once enabled.
+5. XPC connection is activated.
+
+The design avoids recurring password prompts after the one-time approval step.
+
+## 8. Settings and UI Areas
+
+Settings sections:
+
+- Dashboard
+- General
+- Automation
+- Advanced
+
+### 8.1 Dashboard
+
+Provides real-time latency visibility and tuning controls.
+
+Cards include:
+
+- Network Quality:
+  - Current ping, average, best, worst, jitter, packet loss, AWDL state.
+- Ping History:
+  - Timeframe zoom windows: 1 min, 5 min, 15 min, 30 min, 1 hour.
+  - Timeframe changes are non-destructive (history is not deleted by zoom changes).
+- Latency Timeline:
+  - Spike and intervention event list.
+- AWDL Protection:
+  - Intervention counter and explanatory status.
+- Connection Settings:
+  - Ping target selection.
+  - Auto-select nearest endpoint.
+  - Update interval selection.
+
+Data retention behavior:
+
+- Dashboard keeps a rolling history window (approximately one hour plus buffer).
+- Chart zoom filters the in-memory history for display only.
+
+### 8.2 General
+
+Controls:
+
+- AWDL Blocking toggle.
+- Launch at Login.
+- Show Dock Icon.
+- Menu Dropdown Metrics (show current ping and interventions in menu dropdown).
+
+Status block:
+
+- Displays helper registration and effective blocking status.
+
+### 8.3 Automation
+
+Controls:
+
+- Game Mode Auto-Detect (beta).
+- Control Center Widget mode (beta, supported systems/signing only).
+
+### 8.4 Advanced
+
+Tools:
+
+- Test Helper Response.
+- Open Console logs.
+- Export Diagnostics bundle.
+- Re-register Helper.
+- Uninstall flow.
+
+## 9. Menu Bar and App Menu Integration
+
+Menu bar:
+
+- Primary AWDL toggle actions.
+- Optional live metrics in dropdown.
+- Settings/About/Update actions.
+
+App menu (frontmost app state):
+
+- `Check for Updates...` is injected/ensured when app is active with regular activation policy.
+- This complements the status item update command.
+
+## 10. Sparkle Update System
+
+Update stack:
+
+- Framework: Sparkle 2.x.
+- Feed URL: `https://oliverames.github.io/ping-warden/appcast.xml`.
+- Signature model: EdDSA (`SUPublicEDKey` in app plist).
+
+Operational details:
+
+- App clears stale user-default feed overrides at startup.
+- Updater delegate provides canonical feed URL.
+- Manual update checks available from both menu entry points.
+
+Release wiring:
+
+- `AWDLControl/AWDLControl/release.sh` signs artifacts and updates `appcast.xml`.
+- GitHub release artifacts and appcast metadata must remain synchronized.
+
+## 11. Security Model
+
+Security controls include:
+
+- Privileged helper exposed only through XPC interface.
+- Optional code-signing requirements on incoming XPC connections in signed builds.
+- Team ID-based signature validation in helper bootstrap path.
+- Bounded error handling and controlled shutdown paths.
+
+Notes:
+
+- Unsigned/ad-hoc debug contexts are treated differently for local development.
+- Production distribution should use Developer ID signing and notarization.
+
+## 12. Diagnostics and Health Checks
+
+Built-in diagnostics surface:
+
+- Helper registration state.
+- XPC reachability.
+- Helper version and status calls.
+- Current `awdl0` flags snapshot.
+- Health check pass/fail messaging.
+- Intervention counter and reset support.
+
+Export diagnostics:
+
+- Generates support-friendly snapshot data from app state and runtime checks.
+
+## 13. Performance Characteristics
+
+Design choices for low overhead:
+
+- Event-driven helper thread using `poll()` rather than busy loops.
+- Atomic counters and flags in helper for thread-safe fast paths.
+- Narrow command surface over XPC.
+- Dashboard sampling rate configurable by user.
+
+## 14. Build and Development
+
+Prerequisites:
+
+- macOS 13+
+- Xcode supporting project targets and current SDK requirements
+
+Open in Xcode:
+
+```bash
+cd AWDLControl
+open AWDLControl.xcodeproj
+```
+
+Build from CLI (example):
+
+```bash
+xcodebuild -project AWDLControl.xcodeproj -scheme AWDLControl -configuration Debug build
+```
+
+Key project areas:
+
+- App target: UI and orchestration.
+- Helper target: privileged monitoring and control.
+- Widget target: optional control-center/menu integration path.
+
+## 15. Release and Distribution
+
+Typical release workflow:
+
+1. Bump versions in project/plists.
+2. Build and notarize release artifact.
+3. Sign Sparkle update payload.
+4. Insert/update appcast item with version, URL, signature, and size.
+5. Publish GitHub release.
+6. Verify Sparkle discovery from older installed app builds.
+
+Important:
+
+- Appcast latest entry must match the intended newest version.
+- Feed URL in shipped app must resolve to current appcast location.
+
+## 16. Limitations and Tradeoffs
+
+Behavioral tradeoff while blocking AWDL:
+
+- Apple features that depend on AWDL (for example AirDrop/AirPlay/Handoff) may be unavailable until blocking is disabled.
+
+Other practical limits:
+
+- Some automation features are beta and environment-dependent.
+- Game mode detection depends on permissions and app/game behavior.
+- Network conditions and endpoint choice still influence baseline latency.
+
+## 17. Operational Best Practices
+
+Recommended usage:
+
+- Enable blocking before latency-sensitive sessions.
+- Use dashboard target auto-select periodically if your network path changes.
+- Keep update interval moderate unless actively investigating jitter.
+- Use diagnostics export before opening support issues.
+
+## 18. File Map
+
+Main application:
+
+- `AWDLControl/AWDLControl/AWDLControlApp.swift`
+- `AWDLControl/AWDLControl/AWDLMonitor.swift`
+- `AWDLControl/AWDLControl/DashboardView.swift`
+- `AWDLControl/AWDLControl/AWDLPreferences.swift`
+
+Helper:
+
+- `AWDLControl/AWDLControlHelper/main.m`
+- `AWDLControl/AWDLControlHelper/AWDLMonitor.h`
+- `AWDLControl/AWDLControlHelper/AWDLMonitor.m`
+- `AWDLControl/AWDLControlHelper/com.amesvt.pingwarden.helper.plist`
+
+Release/update:
+
+- `appcast.xml`
+- `AWDLControl/AWDLControl/release.sh`
+- `AWDLControl/AWDLControl/notarize.sh`
+
+## 19. Related Documentation
+
+- [Quick Start](QUICKSTART.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Repository Root README](../README.md)
+- [Release Notes](../RELEASE_NOTES.md)
+
+## 20. Credits
 
 - [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller)
 - [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl)
 
-## License
+## 21. License
 
 MIT License. Copyright (c) 2025-2026 Oliver Ames.

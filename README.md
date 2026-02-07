@@ -23,6 +23,28 @@ The app is Developer ID signed, notarized, and includes Sparkle for in-app updat
 - Supports menu bar workflows with optional live dropdown metrics.
 - Lets you automate behavior with launch-at-login and Game Mode auto-detect.
 
+## Why This Is Better Than `sudo ifconfig awdl0 down`
+
+Running a one-off command can be useful for quick testing, but it is not operationally equivalent to Ping Warden.
+
+- Persistence vs one-shot:
+  - `sudo ifconfig awdl0 down` is a single state change.
+  - macOS can bring AWDL back up at any time; Ping Warden keeps monitoring and re-applies protection automatically.
+- Event-driven kernel-level behavior vs delayed manual reaction:
+  - A shell command is manual and reactive.
+  - Ping Warden’s helper listens to route/interface events and counters AWDL-UP transitions immediately (sub-millisecond class response), rather than letting AWDL stay up for seconds before an operator notices and runs a command.
+- No repeated terminal/sudo workflow:
+  - Manual control usually means frequent terminal use and repeated privileged operations.
+  - Ping Warden uses one-time helper approval, then controlled background operation from UI/menu.
+- Visibility and diagnostics:
+  - Command-line toggling gives little built-in telemetry.
+  - Ping Warden shows live ping quality, history, spikes, and AWDL intervention counts so behavior is observable.
+- Safer day-to-day control:
+  - Ping Warden has explicit enable/disable paths, pause/resume behaviors, startup handling, and diagnostics tooling.
+  - You can intentionally restore default behavior from the app without remembering shell commands.
+- Better for non-destructive tuning:
+  - Dashboard timeframe switching zooms data windows without deleting history, making comparisons easier.
+
 ## Feature Highlights
 
 - Fast helper response path for AWDL state changes.
