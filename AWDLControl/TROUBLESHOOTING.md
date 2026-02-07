@@ -276,12 +276,34 @@ defaults delete com.amesvt.pingwarden.app
 
 ---
 
+## Other Sources of Latency
+
+### Location Services
+
+macOS Location Services uses WiFi scanning to determine geographic position. The `locationd` process periodically scans nearby networks, which can cause latency spikes similar to AWDL.
+
+**To check if Location Services is causing issues:**
+```bash
+# Watch wifi.log for location-triggered scans
+tail -F /var/log/wifi.log
+```
+
+**Mitigations:**
+1. Disable Location Services entirely: System Settings → Privacy & Security → Location Services
+2. Selectively disable for apps that don't need it (check System Services at the bottom of the list)
+3. In browsers like Chrome, disable location access: Settings → Privacy and Security → Site Settings → Location
+
+Note: Ping Warden focuses specifically on AWDL because it's the most common and aggressive source of WiFi latency spikes. Location Services scans are typically less frequent but can still contribute to occasional jitter.
+
+---
+
 ## Known Limitations
 
 1. **Game Mode detection** - Only works with apps marked as games
 2. **Screen Recording permission** - Required for Game Mode detection
 3. **macOS 13.0+** - Older macOS versions not supported (SMAppService requirement)
 4. **AWDL availability** - Some Mac models may not have AWDL interface
+5. **Location Services** - Ping Warden does not currently block Location Services WiFi scans (see above for manual mitigations)
 
 ---
 

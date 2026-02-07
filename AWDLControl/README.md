@@ -19,22 +19,17 @@ Primary goals:
 
 ## 2. Why Not Just Run `sudo ifconfig awdl0 down`?
 
-A one-time shell command can be useful for experiments, but it does not provide production-style behavior.
+A one-time shell command might seem like a simple fix, but it doesn't actually solve the problem.
 
-- One-shot vs continuous control:
-  - `sudo ifconfig awdl0 down` changes state once.
-  - macOS may bring AWDL back up later.
-- Manual reaction vs event-driven reaction:
-  - Manual command execution is reactive and human-timed.
-  - Ping Warden listens for interface-route events and immediately counters AWDL-up transitions while protection is active.
-- No observability with ad-hoc commands:
-  - Shell commands do not provide built-in timeline/history/counter views.
-  - Ping Warden records intervention counts and network quality telemetry.
-- Operational ergonomics:
-  - Repeated terminal/sudo flow is error-prone.
-  - Ping Warden gives one-time approval, then menu/UI controls.
-- Safety and lifecycle behavior:
-  - Ping Warden has explicit startup, reconnect, health-check, and shutdown behavior.
+**The core issue:** macOS will bring AWDL back up automatically—often within seconds. You might write a script that polls every few seconds and takes AWDL down whenever it comes back up. This still introduces ping spikes during the seconds AWDL spools up. In some cases, this makes things *worse* because AWDL performs a channel scan each time it comes up, causing additional latency. Even reducing the polling interval to 0.5 seconds doesn't truly solve the problem—something at a deeper level is needed to prevent the system from ever calling the process to start.
+
+**Why Ping Warden is different:** Instead of polling and reacting after AWDL is already up, the helper daemon listens to kernel route/interface events via `AF_ROUTE` sockets. When macOS signals that AWDL is coming up, the helper immediately counters the transition (sub-millisecond response) before the system can initiate its channel scan.
+
+Additional benefits:
+
+- **No repeated sudo prompts:** One-time approval during setup, then background operation.
+- **Observability:** Live dashboard with ping history, intervention counts, and spike timeline.
+- **Proper lifecycle:** Explicit startup, reconnect, health-check, and shutdown behavior.
 
 ## 3. High-Level Architecture
 

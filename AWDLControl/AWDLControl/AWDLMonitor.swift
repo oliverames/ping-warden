@@ -125,7 +125,7 @@ class AWDLMonitor {
 
     private init() {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        log.info("AWDLMonitor v2.1.1 initializing (SMAppService + XPC)...")
+        log.info("AWDLMonitor v2.1.2 initializing (SMAppService + XPC)...")
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         let status = helperService.status
@@ -590,7 +590,7 @@ class AWDLMonitor {
                 DispatchQueue.main.async {
                     let alert = NSAlert()
                     alert.messageText = "Setup Complete!"
-                    alert.informativeText = "AWDLControl is now running.\n\nAWDL is being kept disabled to prevent network latency spikes.\n\nYou can toggle monitoring from the menu bar."
+                    alert.informativeText = "Ping Warden is now running.\n\nAWDL is being kept disabled to prevent network latency spikes.\n\nYou can toggle monitoring from the menu bar."
                     alert.alertStyle = .informational
                     alert.addButton(withTitle: "OK")
                     alert.runModal()

@@ -18,7 +18,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration
 APP_NAME="Ping Warden"
-VERSION="${1:-2.1.1}"
+VERSION="${1:-2.1.2}"
 BUNDLE_ID="com.amesvt.pingwarden"
 KEYCHAIN_PROFILE="notarytool-profile"  # Must match setup in NOTARIZATION_GUIDE.md
 TEAM_ID="PV3W52NDZ3"  # Your Apple Developer Team ID

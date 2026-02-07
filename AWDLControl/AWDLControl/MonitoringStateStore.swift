@@ -28,7 +28,9 @@ final class MonitoringStateStore: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.refresh()
+            Task { @MainActor in
+                self?.refresh()
+            }
         }
 
         monitoringEffectiveObserver = DistributedNotificationCenter.default().addObserver(
@@ -36,15 +38,21 @@ final class MonitoringStateStore: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.refresh()
+            Task { @MainActor in
+                self?.refresh()
+            }
         }
 
         monitorStateObserverToken = AWDLMonitor.shared.addStateObserver { [weak self] in
-            self?.refresh()
+            Task { @MainActor in
+                self?.refresh()
+            }
         }
 
         interventionTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            self?.refreshInterventionCount()
+            Task { @MainActor in
+                self?.refreshInterventionCount()
+            }
         }
 
         refresh()

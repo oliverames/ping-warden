@@ -18,7 +18,7 @@
 #import "AWDLMonitor.h"
 
 #define LOG OS_LOG_DEFAULT
-#define HELPER_VERSION @"2.1.1"
+#define HELPER_VERSION @"2.1.2"
 
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"

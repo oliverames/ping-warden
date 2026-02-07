@@ -81,7 +81,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var menuInterventionCount: Int?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        log.info("AWDLControl launching...")
+        log.info("Ping Warden launching...")
 
         // Initialize Sparkle updater and start explicitly so failures can be logged clearly.
         updaterController = SPUStandardUpdaterController(
@@ -193,7 +193,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        log.info("AWDLControl terminating...")
+        log.info("Ping Warden terminating...")
 
         gameModeDetector?.stop()
         quickPauseTimer?.invalidate()
