@@ -1,21 +1,13 @@
-# Ping Warden 2.1.1
+# Ping Warden 2.1.2
 
-## Dashboard and settings polish
+## Documentation improvements
 
-- Refined dashboard card hierarchy and spacing so metrics and controls read more clearly.
-- Reworked the `Connection Settings` card into aligned setting rows for cleaner scanability.
-- Fixed `HOW IT WORKS` width behavior in General settings so it fills the panel consistently.
+- Expanded "Why Not Just Run `sudo ifconfig awdl0 down`?" section with detailed explanation of why polling scripts don't work—AWDL performs a channel scan each time it comes up, so even sub-second polling still introduces latency spikes.
+- Added new "Other Sources of WiFi Latency" section covering Location Services WiFi scanning and manual mitigations.
+- Added "Will Apple Fix This in Hardware?" section summarizing current research (including RIPE 91 October 2025 findings) on whether newer Apple chips might address this at the hardware level.
+- Updated troubleshooting guide with Location Services diagnostics and workarounds.
 
-## Timeframe behavior and chart clarity
+## Code quality
 
-- Added a `1 min` timeframe option to ping history.
-- Timeframe changes now clearly "zoom" the chart window to the selected recent duration.
-- Added explicit zoom context text in the chart header and improved short-window x-axis labeling.
-- Timeframe switching remains non-destructive and does not clear collected ping history.
-
-## Menu bar metrics option
-
-- Added a new option to show live metrics in the menu dropdown:
-  - Current ping
-  - AWDL intervention count
-- Added a matching toggle in `General -> App -> Menu Dropdown Metrics`.
+- Fixed Swift 6 actor isolation warnings in MonitoringStateStore.
+- Updated user-facing strings from "AWDLControl" to "Ping Warden" for consistency.
