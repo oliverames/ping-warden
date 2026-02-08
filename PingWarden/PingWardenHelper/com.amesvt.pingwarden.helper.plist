@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.amesvt.pingwarden.helper.plist
+  SMAppService daemon configuration for PingWardenHelper
+
+  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
+  Licensed under the MIT License.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.amesvt.pingwarden.helper</string>
+
+	<key>BundleProgram</key>
+	<string>Contents/MacOS/PingWardenHelper</string>
+
+	<key>AssociatedBundleIdentifiers</key>
+	<array>
+		<string>com.amesvt.pingwarden</string>
+		<string>com.amesvt.pingwarden.widget</string>
+	</array>
+
+	<key>MachServices</key>
+	<dict>
+		<key>com.amesvt.pingwarden.xpc</key>
+		<true/>
+	</dict>
+
+	<key>RunAtLoad</key>
+	<true/>
+
+	<!-- Run as root to allow ioctl on network interfaces -->
+	<key>UserName</key>
+	<string>root</string>
+
+	<!-- Keep helper alive for responsive network control -->
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+</dict>
+</plist>
