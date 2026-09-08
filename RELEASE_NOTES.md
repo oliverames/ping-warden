@@ -1,7 +1,5 @@
 # Ping Warden 4.1.2
 
-**Prepared update, not yet published.** The current public app release remains 4.1.1.
-
 Ping Warden now has a dedicated website at [pingwarden.app](https://pingwarden.app/), with complete setup, technical, privacy, and troubleshooting documentation.
 
 ## Improvements
