@@ -57,7 +57,7 @@ reminder behavior and Help links. Existing binaries cannot change remotely.
 - The site follows [Google's SEO starter guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide).
   These checks establish crawlable content and accurate metadata, not indexing or
   ranking results. No Search Console submission is claimed.
-- Cloudflare Worker version `6d2ccb49-4f6e-4eba-a20f-2cc7707e5d06` serves both
+- Cloudflare Worker version `b3b6552b-86a5-4db0-9185-b1ff2f21b517` serves both
   custom domains with active certificates. The www redirect preserves path and
   query. Unknown paths return the custom page with HTTP 404. All 14 published
   page and asset files matched local bytes, including robots.txt and the sitemap.
@@ -77,7 +77,26 @@ and Build Verification passed on GitHub. The website and standard Gumroad produc
 page are live. Existing notary and Gumroad credentials passed their read-only
 preflight checks.
 
-Oliver approved publishing version 4.1.2 on September 8, 2026, after automatic
-approval review initially held the release for explicit authorization. The
-release is proceeding through signing, notarization, GitHub, update feeds, and
-Gumroad. Completion will be recorded after verifying those receiving services.
+Oliver approved publishing version 4.1.2 on September 8, 2026. The signed release
+is live on [GitHub](https://github.com/oliverames/ping-warden/releases/tag/v4.1.2)
+and Gumroad. The tag points to the built source, `7991c2a`. Apple accepted the
+app and DMG notarizations. The archive passed universal architecture, bundle,
+version, signature, and notarization validation. Sentry symbols and release
+metadata were published successfully.
+
+Both public update feeds match the local signed files, verify against the app's
+embedded public key, and offer version 4.1.2, build 41200. GitHub and Gumroad
+downloads match the signed installer byte for byte:
+
+`81f9cefb149d125317f9b4c204cebbfe4aa14988c1b539580b0a2e42f67486dc`
+
+Gumroad offers exactly the current DMG in buyer content. Earlier uploaded files
+remain stored. Buyer text and license-key structure match preserved content.
+The new file, rotating download URLs, and content update timestamps are expected
+publication changes. Price and other protected product settings are unchanged.
+
+The final website release notes are live. All 13 normal public files and the
+custom 404 matched local bytes, and the www redirect passed again. Build and
+Website Verification passed on the tagged release source. CodeQL analysis was
+still running when this report was finalized. The installed app and its real
+license data were not changed during verification.
