@@ -1,0 +1,13 @@
+{
+  "name": "ping-warden-site",
+  "main": "worker.mjs",
+  "account_id": "059585806715245840e5581f7174246d",
+  "compatibility_date": "2026-09-08",
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "pingwarden.app", "custom_domain": true },
+    { "pattern": "www.pingwarden.app", "custom_domain": true }
+  ],
+  "assets": { "directory": "./public", "binding": "ASSETS", "not_found_handling": "404-page", "run_worker_first": true },
+  "observability": { "enabled": false }
+}

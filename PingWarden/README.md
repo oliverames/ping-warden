@@ -2,6 +2,8 @@
 
 This document is the detailed technical and operational guide for Ping Warden.
 
+Read it on the [Ping Warden website](https://pingwarden.app/docs/technical). The [documentation hub](https://pingwarden.app/docs/) includes setup, pricing, privacy, troubleshooting, and release notes.
+
 For quick setup, see [Quick Start](QUICKSTART.md). For issue recovery, see [Troubleshooting](TROUBLESHOOTING.md).
 
 ## 1. Overview
@@ -205,6 +207,7 @@ Tools:
 - Enter a license key and verify with Gumroad, or open the Gumroad product page.
 - The transition applies when protection was enabled with an approved helper at the first launch of version 4. It lasts 90 days from that launch, and updates preserve the deadline. For donations before version 4, the pane explains how to request a license at [oliver@ames.consulting](mailto:oliver@ames.consulting).
 - Activation and refresh send the license key and product ID to Gumroad over HTTPS. The key stays in the macOS Keychain between checks.
+- Eligible users receive a weekly transition reminder with the remaining days. The presentation date persists across restarts. Reminders defer during detected games and latency sessions, stop after activation or expiry, and never extend the original deadline.
 
 ### 8.6 Targets
 
@@ -221,6 +224,7 @@ Menu bar:
 - Latency Sessions stay in the dashboard so they are not confused with the persistent protection control.
 - Optional live metrics in dropdown.
 - Settings, About, Buy a License (while unlicensed), and update actions.
+- Help and Documentation opens `https://pingwarden.app/docs/`. The Help menu includes troubleshooting and the website. About includes both website and documentation links.
 
 App menu (frontmost app state):
 

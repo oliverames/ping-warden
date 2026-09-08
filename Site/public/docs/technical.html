@@ -1,0 +1,402 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Technical Documentation | Ping Warden</title><meta name="description" content="How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates.">
+<meta name="author" content="Oliver Ames"><meta name="theme-color" content="#ffffff">
+<meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="https://pingwarden.app/docs/technical">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Ping Warden">
+<meta property="og:title" content="Technical Documentation | Ping Warden"><meta property="og:description" content="How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates.">
+<meta property="og:url" content="https://pingwarden.app/docs/technical"><meta property="og:image" content="https://pingwarden.app/app-icon.png"><meta property="og:image:alt" content="Ping Warden app icon">
+<meta name="twitter:card" content="summary"><meta name="twitter:title" content="Technical Documentation | Ping Warden"><meta name="twitter:description" content="How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates."><meta name="twitter:image" content="https://pingwarden.app/app-icon.png">
+<link rel="icon" type="image/png" href="/app-icon.png"><link rel="stylesheet" href="/styles.css"><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"TechArticle","headline":"Technical Documentation","description":"How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates.","url":"https://pingwarden.app/docs/technical","author":{"@type":"Person","name":"Oliver Ames"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Ping Warden","item":"https://pingwarden.app/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://pingwarden.app/docs/"},{"@type":"ListItem","position":3,"name":"Technical Documentation","item":"https://pingwarden.app/docs/technical"}]}]}</script></head><body><a class="skip" href="#main">Skip to content</a><header class="wrap"><a class="brand" href="/">Ping Warden</a><nav aria-label="Main navigation"><a href="/docs/">Docs</a><a href="/docs/setup">Setup</a><a href="https://amesconsulting.gumroad.com/l/pingwarden">Buy a license</a></nav></header><main id="main" class="wrap doc-layout"><aside><nav class="doc-nav" aria-label="Documentation"><a href="/docs/overview">Features, Pricing, and Privacy</a><a href="/docs/setup">Setup Guide</a><a href="/docs/technical">Technical Documentation</a><a href="/docs/troubleshooting">Troubleshooting and Removal</a><a href="/docs/releases">Release Notes</a><a href="/docs/security">Security and Reporting</a></nav></aside><article class="prose"><p class="breadcrumb"><a href="/docs/">Documentation</a></p><h1>Technical Documentation</h1><p class="doc-intro">How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates.</p><details class="toc"><summary>On this page</summary><ol><li><a href="#1-overview">1. Overview</a></li><li><a href="#2-why-not-just-run-sudo-ifconfig-awdl0-down">2. Why Not Just Run sudo ifconfig awdl0 down?</a></li><li><a href="#3-high-level-architecture">3. High-Level Architecture</a></li><li><a href="#4-key-components">4. Key Components</a></li><li><a href="#5-monitoring-model-and-timing-behavior">5. Monitoring Model and Timing Behavior</a></li><li><a href="#6-state-model">6. State Model</a></li><li><a href="#7-setup-and-approval-flow">7. Setup and Approval Flow</a></li><li><a href="#8-settings-and-ui-areas">8. Settings and UI Areas</a></li><li><a href="#9-menu-bar-and-app-menu-integration">9. Menu Bar and App Menu Integration</a></li><li><a href="#10-sparkle-update-system">10. Sparkle Update System</a></li><li><a href="#11-security-model">11. Security Model</a></li><li><a href="#12-diagnostics-and-health-checks">12. Diagnostics and Health Checks</a></li><li><a href="#13-performance-characteristics">13. Performance Characteristics</a></li><li><a href="#14-build-and-development">14. Build and Development</a></li><li><a href="#15-release-and-distribution">15. Release and Distribution</a></li><li><a href="#16-limitations-and-tradeoffs">16. Limitations and Tradeoffs</a></li><li><a href="#17-operational-best-practices">17. Operational Best Practices</a></li><li><a href="#18-file-map">18. File Map</a></li><li><a href="#19-related-documentation">19. Related Documentation</a></li><li><a href="#20-credits">20. Credits</a></li><li><a href="#21-license-and-pricing">21. License and Pricing</a></li></ol></details><p>This document is the detailed technical and operational guide for Ping Warden.</p>
+<p>Read it on the <a href="https://pingwarden.app/docs/technical">Ping Warden website</a>. The <a href="https://pingwarden.app/docs/">documentation hub</a> includes setup, pricing, privacy, troubleshooting, and release notes.</p>
+<p>For quick setup, see <a href="/docs/setup">Quick Start</a>. For issue recovery, see <a href="/docs/troubleshooting">Troubleshooting</a>.</p>
+<h2 id="1-overview">1. Overview</h2>
+<p>Ping Warden is a macOS utility that keeps AWDL from reactivating during latency-sensitive work.</p>
+<p>AWDL (Apple Wireless Direct Link) is used by Apple ecosystem features such as AirDrop, AirPlay, and Handoff. On some networks and workflows, AWDL interface transitions can correlate with sudden latency jumps. Ping Warden provides a controlled, user-friendly way to keep AWDL suppressed when desired, while retaining the ability to restore normal behavior instantly.</p>
+<p>Primary goals:</p>
+<ul>
+<li>Keep AWDL suppressed during latency-sensitive games, cloud streaming, and calls.</li>
+<li>Avoid repeated password prompts for normal day-to-day usage.</li>
+<li>Provide clear observability (status, ping history, interventions).</li>
+<li>Offer safe operational controls (enable/disable/pause/restore).</li>
+</ul>
+<h2 id="2-why-not-just-run-sudo-ifconfig-awdl0-down">2. Why Not Just Run <code>sudo ifconfig awdl0 down</code>?</h2>
+<p>A one-time shell command might seem like a simple fix, but it doesn't actually solve the problem.</p>
+<p><strong>The core issue:</strong> macOS can bring AWDL back up automatically. A polling script reacts only after the interface is active, so it cannot prevent the transition itself.</p>
+<p><strong>Why Ping Warden is different:</strong> Instead of polling, the helper daemon waits for kernel route and interface events through an <code>AF_ROUTE</code> socket. When macOS raises AWDL while protection is active, the helper takes the interface back down and records an intervention. Ping Warden does not claim that a specific intervention proves a particular latency spike was avoided.</p>
+<p>Additional benefits:</p>
+<ul>
+<li><strong>No repeated sudo prompts:</strong> One-time approval during setup, then background operation.</li>
+<li><strong>Observability:</strong> Live dashboard with ping history, intervention counts, and spike timeline.</li>
+<li><strong>Proper lifecycle:</strong> Explicit startup, reconnect, health-check, and shutdown behavior.</li>
+</ul>
+<h2 id="3-high-level-architecture">3. High-Level Architecture</h2>
+<p>Ping Warden uses a split architecture:</p>
+<ul>
+<li>Main app (Swift/SwiftUI + AppKit bridge):
+<ul>
+<li>UI, settings, dashboard, diagnostics, automation, Sparkle updates.</li>
+</ul>
+</li>
+<li>Helper daemon (Objective-C):
+<ul>
+<li>Privileged AWDL control and low-level monitoring.</li>
+</ul>
+</li>
+</ul>
+<p>Communication boundary:</p>
+<ul>
+<li>XPC service: <code>com.amesvt.pingwarden.xpc</code></li>
+<li>Protocol: <code>PingWardenHelperProtocol</code> (in <code>PingWarden/Common/HelperProtocol.h</code>)</li>
+</ul>
+<p>Registration model:</p>
+<ul>
+<li>Helper is registered using <code>SMAppService.daemon(plistName:)</code>.</li>
+<li>Registration requires one-time user approval in System Settings.</li>
+</ul>
+<h2 id="4-key-components">4. Key Components</h2>
+<h3 id="41-main-app">4.1 Main App</h3>
+<p>Important files:</p>
+<ul>
+<li><code>PingWarden/PingWarden/PingWardenApp.swift</code></li>
+<li><code>PingWarden/PingWarden/PingWardenMonitor.swift</code></li>
+<li><code>PingWarden/PingWarden/DashboardView.swift</code></li>
+<li><code>PingWarden/PingWarden/ProtectedSessionCoordinator.swift</code></li>
+<li><code>PingWarden/PingWarden/PingWardenPreferences.swift</code></li>
+<li><code>PingWarden/PingWarden/DiagnosticsExporter.swift</code></li>
+</ul>
+<p>Responsibilities:</p>
+<ul>
+<li>Menu bar app behavior and settings window lifecycle.</li>
+<li>User intent state persistence (<code>isMonitoringEnabled</code>).</li>
+<li>Effective runtime state tracking (<code>effectiveMonitoringEnabled</code>).</li>
+<li>Dashboard data collection and charting.</li>
+<li>Latency Session lifecycle and local recap history.</li>
+<li>Sparkle update checks and update menu entries.</li>
+</ul>
+<h3 id="42-helper-daemon">4.2 Helper Daemon</h3>
+<p>Important files:</p>
+<ul>
+<li><code>PingWarden/PingWardenHelper/main.m</code></li>
+<li><code>PingWarden/PingWardenHelper/PingWardenMonitor.h</code></li>
+<li><code>PingWarden/PingWardenHelper/PingWardenMonitor.m</code></li>
+<li><code>PingWarden/PingWardenHelper/com.amesvt.pingwarden.helper.plist</code></li>
+</ul>
+<p>Responsibilities:</p>
+<ul>
+<li>Monitor interface change events through <code>AF_ROUTE</code>.</li>
+<li>Enforce desired AWDL state through <code>ioctl</code> on interface flags.</li>
+<li>Count and report interventions.</li>
+<li>Restore AWDL to enabled state when helper exits.</li>
+</ul>
+<h2 id="5-monitoring-model-and-timing-behavior">5. Monitoring Model and Timing Behavior</h2>
+<p>Core behavior:</p>
+<ul>
+<li>AWDL blocking mode means: keep <code>awdl0</code> down.</li>
+<li>Allow mode means: permit <code>awdl0</code> to remain up.</li>
+<li>Helper thread blocks on <code>poll()</code> waiting for:
+<ul>
+<li>Route/interface events (<code>AF_ROUTE</code> socket).</li>
+<li>Internal control messages (<code>pipe</code>).</li>
+</ul>
+</li>
+</ul>
+<p>When monitoring is active and the system raises AWDL:</p>
+<ol>
+<li>Kernel route event arrives.</li>
+<li>Helper identifies <code>awdl0</code> state change (<code>RTM_IFINFO</code>).</li>
+<li>Helper clears <code>IFF_UP</code> on <code>awdl0</code> via <code>SIOCSIFFLAGS</code>.</li>
+<li>Intervention counter increments.</li>
+</ol>
+<p>This is event-driven, not a delayed periodic shell loop.</p>
+<h2 id="6-state-model">6. State Model</h2>
+<p>Two state concepts are used:</p>
+<ul>
+<li>User intent state:
+<ul>
+<li>Preference for whether monitoring should be enabled.</li>
+<li>Stored in user defaults.</li>
+</ul>
+</li>
+<li>Effective runtime state:
+<ul>
+<li>Actual active status considering helper availability and XPC connectivity.</li>
+</ul>
+</li>
+</ul>
+<p>This separation allows robust behavior during reconnects, restarts, or temporary failures.</p>
+<h2 id="7-setup-and-approval-flow">7. Setup and Approval Flow</h2>
+<p>Initial setup sequence:</p>
+<ol>
+<li>Launch app.</li>
+<li>App checks helper registration status via <code>SMAppService</code>.</li>
+<li>If unregistered or approval required, user is guided to System Settings.</li>
+<li>App polls registration status and proceeds once enabled.</li>
+<li>XPC connection is activated.</li>
+</ol>
+<p>The design avoids recurring password prompts after the one-time approval step.</p>
+<h2 id="8-settings-and-ui-areas">8. Settings and UI Areas</h2>
+<p>Settings sections:</p>
+<ul>
+<li>Dashboard</li>
+<li>General</li>
+<li>License</li>
+<li>Automation</li>
+<li>Advanced</li>
+</ul>
+<h3 id="81-dashboard">8.1 Dashboard</h3>
+<p>Provides real-time latency visibility and tuning controls.</p>
+<p>Cards include:</p>
+<ul>
+<li>
+<p>Latency Session:</p>
+<ul>
+<li>Start and end a measured game or call.</li>
+<li>Review duration, median, p95, jitter, Probe Failures, and interventions.</li>
+<li>Share a privacy-scrubbed text recap.</li>
+</ul>
+</li>
+<li>
+<p>Network Quality:</p>
+<ul>
+<li>Current ping, average, best, worst, jitter, Probe Failures, AWDL state.</li>
+</ul>
+</li>
+<li>
+<p>Ping History:</p>
+<ul>
+<li>Timeframe zoom windows: 1 min, 5 min, 15 min, 30 min, 1 hour.</li>
+<li>Timeframe changes are non-destructive (history is not deleted by zoom changes).</li>
+</ul>
+</li>
+<li>
+<p>Latency Timeline:</p>
+<ul>
+<li>Spike and intervention event list.</li>
+</ul>
+</li>
+<li>
+<p>Ping Protection:</p>
+<ul>
+<li>Intervention counter and explanatory status.</li>
+</ul>
+</li>
+<li>
+<p>Ping Target:</p>
+<ul>
+<li>Shows the current target with a Change… button that opens Settings &gt; Targets.</li>
+</ul>
+</li>
+</ul>
+<p>Data retention behavior:</p>
+<ul>
+<li>Dashboard keeps a rolling history window (approximately one hour plus buffer).</li>
+<li>Chart zoom filters the in-memory history for display only.</li>
+</ul>
+<h3 id="82-general">8.2 General</h3>
+<p>Controls:</p>
+<ul>
+<li>Ping Protection setup and status.</li>
+<li>Launch at Login.</li>
+<li>Show Dock Icon.</li>
+<li>Show Live Metrics in Menu (current ping and interventions in the menu dropdown; the same toggle appears in the menu itself).</li>
+</ul>
+<p>Status block:</p>
+<ul>
+<li>Displays helper registration and effective blocking status.</li>
+</ul>
+<h3 id="83-automation">8.3 Automation</h3>
+<p>Controls:</p>
+<ul>
+<li>Game Mode Auto-Detect: engages when a recognized game is the frontmost app, no permission needed; an optional Enable Fullscreen Detection… button requests Screen Recording to also catch fullscreen games behind other windows. Skipped while the Mac is on Ethernet.</li>
+<li>Hide Menu Bar Icon mode for people who use the Control Center toggle (macOS 26+, signed release builds only).</li>
+</ul>
+<h3 id="84-advanced">8.4 Advanced</h3>
+<p>Tools:</p>
+<ul>
+<li>Test the registered helper and signed XPC connection.</li>
+<li>Open Console logs.</li>
+<li>Create a local diagnostics snapshot and review it before sharing.</li>
+<li>Repair the helper connection without changing the protection preference.</li>
+<li>Prepare for removal by turning off protection, unregistering services, clearing local data, revealing the app, and quitting.</li>
+</ul>
+<h3 id="85-license">8.5 License</h3>
+<ul>
+<li>View status (Licensed, transition period with days remaining, or Unlicensed).</li>
+<li>Enter a license key and verify with Gumroad, or open the Gumroad product page.</li>
+<li>The transition applies when protection was enabled with an approved helper at the first launch of version 4. It lasts 90 days from that launch, and updates preserve the deadline. For donations before version 4, the pane explains how to request a license at <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a>.</li>
+<li>Activation and refresh send the license key and product ID to Gumroad over HTTPS. The key stays in the macOS Keychain between checks.</li>
+<li>Eligible users receive a weekly transition reminder with the remaining days. The presentation date persists across restarts. Reminders defer during detected games and latency sessions, stop after activation or expiry, and never extend the original deadline.</li>
+</ul>
+<h3 id="86-targets">8.6 Targets</h3>
+<ul>
+<li>Ping target selection, including discovered GeForce NOW zones and the network gateway.</li>
+<li>Find Fastest Target.</li>
+<li>Update interval selection.</li>
+<li>Custom servers (add, edit, remove).</li>
+</ul>
+<h2 id="9-menu-bar-and-app-menu-integration">9. Menu Bar and App Menu Integration</h2>
+<p>Menu bar:</p>
+<ul>
+<li>One primary Ping Protection action, plus a contextual 10-minute pause.</li>
+<li>Latency Sessions stay in the dashboard so they are not confused with the persistent protection control.</li>
+<li>Optional live metrics in dropdown.</li>
+<li>Settings, About, Buy a License (while unlicensed), and update actions.</li>
+<li>Help and Documentation opens <code>https://pingwarden.app/docs/</code>. The Help menu includes troubleshooting and the website. About includes both website and documentation links.</li>
+</ul>
+<p>App menu (frontmost app state):</p>
+<ul>
+<li><code>Check for Updates...</code> is injected/ensured when app is active with regular activation policy.</li>
+<li>This complements the status item update command.</li>
+</ul>
+<h2 id="10-sparkle-update-system">10. Sparkle Update System</h2>
+<p>Update stack:</p>
+<ul>
+<li>Framework: Sparkle 2.9.4.</li>
+<li>Stable feed: <code>https://oliverames.github.io/ping-warden/appcast.xml</code>.</li>
+<li>Beta feed: <code>https://oliverames.github.io/ping-warden/appcast-beta.xml</code>, selected in <strong>Settings → Advanced → Updates</strong>. Stable releases also reach this feed.</li>
+<li>Signature model: EdDSA (<code>SUPublicEDKey</code> in app plist).</li>
+<li>Signed feeds and pre-extraction archive verification are required.</li>
+</ul>
+<p>Operational details:</p>
+<ul>
+<li>App clears stale user-default feed overrides at startup.</li>
+<li>Updater delegate provides canonical feed URL.</li>
+<li>Manual update checks available from both menu entry points.</li>
+<li>The paid-upgrade boundary at build 40000 requires users of free versions to review the upgrade before installation.</li>
+</ul>
+<p>Release wiring:</p>
+<ul>
+<li><code>PingWarden/PingWarden/release.sh</code> builds a fresh archive, signs and notarizes the app and DMG, and publishes signed update feeds.</li>
+<li>Stable releases replace the Gumroad app download while preserving the license-key block and other buyer content.</li>
+<li>GitHub release artifacts and appcast metadata must remain synchronized.</li>
+</ul>
+<h2 id="11-security-model">11. Security Model</h2>
+<p>Security controls include:</p>
+<ul>
+<li>Privileged helper exposed only through XPC interface.</li>
+<li>Mandatory code-signing requirements for the app and widget XPC clients.</li>
+<li>Exact Team ID and bundle identifier validation in the helper bootstrap path.</li>
+<li>Unsigned or ad-hoc helper builds fail closed instead of falling back to UID-only access.</li>
+<li>Shared defaults and distributed notifications never authorize privileged changes.</li>
+<li>Bounded error handling and controlled shutdown paths.</li>
+<li>Developer ID signing, Hardened Runtime, notarization, and stapling are release gates.</li>
+</ul>
+<h2 id="12-diagnostics-and-health-checks">12. Diagnostics and Health Checks</h2>
+<p>Built-in diagnostics surface:</p>
+<ul>
+<li>Helper registration state.</li>
+<li>XPC reachability.</li>
+<li>Helper version and status calls.</li>
+<li>Current <code>awdl0</code> flags snapshot.</li>
+<li>Health check pass/fail messaging.</li>
+<li>Intervention counter and reset support.</li>
+</ul>
+<p>Export diagnostics:</p>
+<ul>
+<li>Generates a local support snapshot with owner-only permissions.</li>
+<li>Redacts custom ping targets to a category before writing.</li>
+<li>Shows the contents for review and never uploads the file automatically.</li>
+</ul>
+<h2 id="13-performance-characteristics">13. Performance Characteristics</h2>
+<p>Design choices for low overhead:</p>
+<ul>
+<li>Event-driven helper thread using <code>poll()</code> rather than busy loops.</li>
+<li>One reference-counted telemetry stream shared by dashboard, menu, and sessions.</li>
+<li>Rolling bounded history with statistics calculated off the main thread.</li>
+<li>Five-minute hostname and address caching with cancellable probe deadlines.</li>
+<li>Game Mode uses event-triggered checks plus a 10-second inactive safety interval.</li>
+<li>Narrow command surface over XPC.</li>
+<li>Dashboard sampling rate configurable by user.</li>
+</ul>
+<h2 id="14-build-and-development">14. Build and Development</h2>
+<p>Prerequisites:</p>
+<ul>
+<li>macOS 13+</li>
+<li>Xcode supporting project targets and current SDK requirements</li>
+</ul>
+<p>Open in Xcode:</p>
+<pre><code class="language-bash">cd PingWarden
+open PingWarden.xcodeproj
+</code></pre>
+<p>Build from CLI (example):</p>
+<pre><code class="language-bash">xcodebuild -project PingWarden.xcodeproj -scheme PingWarden -configuration Debug build
+</code></pre>
+<p>Key project areas:</p>
+<ul>
+<li>App target: UI and orchestration.</li>
+<li>Helper target: privileged monitoring and control.</li>
+<li>Widget target: optional control-center/menu integration path.</li>
+</ul>
+<h2 id="15-release-and-distribution">15. Release and Distribution</h2>
+<p>Run the release command from a clean commit that is already pushed:</p>
+<pre><code class="language-bash">cd PingWarden/PingWarden
+bash release.sh X.Y.Z ../../RELEASE_NOTES.md
+</code></pre>
+<p>The command creates a fresh unsigned archive and dSYMs, validates and signs the
+app, helper, and widget, notarizes and staples the app and DMG, mount-tests the
+DMG, signs the Sparkle archive and appcast, publishes the GitHub release and
+Sentry dSYMs, and updates <code>gh-pages</code>.</p>
+<p>Important:</p>
+<ul>
+<li>Appcast latest entry must match the intended newest version.</li>
+<li>Feed URL in shipped app must resolve to current appcast location.</li>
+</ul>
+<h2 id="16-limitations-and-tradeoffs">16. Limitations and Tradeoffs</h2>
+<p>Behavioral tradeoff while blocking AWDL:</p>
+<ul>
+<li>Apple features that depend on AWDL (for example AirDrop/AirPlay/Handoff) may be unavailable until blocking is disabled.</li>
+</ul>
+<p>Other practical limits:</p>
+<ul>
+<li>Automation features depend on system permissions, game metadata, and signed-release packaging.</li>
+<li>Game mode detection depends on permissions and app/game behavior.</li>
+<li>Network conditions and endpoint choice still influence baseline latency.</li>
+</ul>
+<h2 id="17-operational-best-practices">17. Operational Best Practices</h2>
+<p>Recommended usage:</p>
+<ul>
+<li>Start a Latency Session before a latency-sensitive game or call.</li>
+<li>Use dashboard target auto-select periodically if your network path changes.</li>
+<li>Keep update interval moderate unless actively investigating jitter.</li>
+<li>Use diagnostics export before opening support issues.</li>
+</ul>
+<h2 id="18-file-map">18. File Map</h2>
+<p>Main application:</p>
+<ul>
+<li><code>PingWarden/PingWarden/PingWardenApp.swift</code></li>
+<li><code>PingWarden/PingWarden/PingWardenMonitor.swift</code></li>
+<li><code>PingWarden/PingWarden/DashboardView.swift</code></li>
+<li><code>PingWarden/PingWarden/PingWardenPreferences.swift</code></li>
+</ul>
+<p>Helper:</p>
+<ul>
+<li><code>PingWarden/PingWardenHelper/main.m</code></li>
+<li><code>PingWarden/PingWardenHelper/PingWardenMonitor.h</code></li>
+<li><code>PingWarden/PingWardenHelper/PingWardenMonitor.m</code></li>
+<li><code>PingWarden/PingWardenHelper/com.amesvt.pingwarden.helper.plist</code></li>
+</ul>
+<p>Release/update:</p>
+<ul>
+<li><code>appcast.xml</code></li>
+<li><code>PingWarden/PingWarden/release.sh</code></li>
+<li><code>PingWarden/PingWarden/notarize.sh</code></li>
+</ul>
+<h2 id="19-related-documentation">19. Related Documentation</h2>
+<ul>
+<li><a href="/docs/setup">Quick Start</a></li>
+<li><a href="/docs/troubleshooting">Troubleshooting</a></li>
+<li><a href="/docs/overview">Repository Root README</a></li>
+<li><a href="/docs/releases">Release Notes</a></li>
+</ul>
+<h2 id="20-credits">20. Credits</h2>
+<ul>
+<li><a href="https://github.com/jamestut/awdlkiller">jamestut/awdlkiller</a></li>
+<li><a href="https://github.com/james-howard/AWDLControl">james-howard/AWDLControl</a>, SMAppService and XPC architecture inspiration</li>
+</ul>
+<h2 id="21-license-and-pricing">21. License and Pricing</h2>
+<p>The welcome appears automatically once. Dismiss it to use the free dashboard without helper setup. To set up Ping Protection later, use <strong>Settings → General → Finish Setup</strong> or the menu bar protection action.</p>
+<p>The source code is MIT, Copyright (c) 2025-2026 Oliver Ames. You can build from source under MIT whether you buy a license or not. See the repository <a href="https://github.com/oliverames/ping-warden/blob/main/LICENSE">LICENSE</a>.</p>
+<p>The prebuilt, signed, and notarized app is free to download. Everything except enabling Ping Protection is free to use. Enabling Ping Protection in the prebuilt app requires a one-time $15 license at <a href="https://amesconsulting.gumroad.com/l/pingwarden">Gumroad</a>. One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours and at launch; verification is offline-friendly for up to 14 days.</p>
+<p>Why a license: After two years of free builds, donations cover only a fraction of the ongoing work — Developer ID signing, Apple notarization, testing across macOS releases, and release engineering. A one-time license for the Ping Protection feature makes that work sustainable without subscriptions, ads, or analytics. The source stays MIT and auditable.</p>
+<p>If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in <strong>Settings → License</strong>. When the transition ends, enter a license key there to keep protection available. If you donated through <a href="https://www.buymeacoffee.com/oliverames">Buy Me a Coffee</a> before version 4, email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with your receipt and it will be honored as a full license.</p>
+<p class="source-note"><a href="https://github.com/oliverames/ping-warden/blob/main/PingWarden/README.md">View this guide on GitHub</a></p></article></main><footer class="wrap"><p>Ping Warden by Oliver Ames</p><nav aria-label="Resources"><a href="/">Website</a><a href="https://github.com/oliverames/ping-warden">Source</a><a href="mailto:oliver@ames.consulting">Support</a></nav></footer></body></html>

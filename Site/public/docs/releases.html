@@ -1,0 +1,480 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release Notes | Ping Warden</title><meta name="description" content="Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.">
+<meta name="author" content="Oliver Ames"><meta name="theme-color" content="#ffffff">
+<meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="https://pingwarden.app/docs/releases">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Ping Warden">
+<meta property="og:title" content="Release Notes | Ping Warden"><meta property="og:description" content="Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.">
+<meta property="og:url" content="https://pingwarden.app/docs/releases"><meta property="og:image" content="https://pingwarden.app/app-icon.png"><meta property="og:image:alt" content="Ping Warden app icon">
+<meta name="twitter:card" content="summary"><meta name="twitter:title" content="Release Notes | Ping Warden"><meta name="twitter:description" content="Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details."><meta name="twitter:image" content="https://pingwarden.app/app-icon.png">
+<link rel="icon" type="image/png" href="/app-icon.png"><link rel="stylesheet" href="/styles.css"><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"TechArticle","headline":"Release Notes","description":"Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.","url":"https://pingwarden.app/docs/releases","author":{"@type":"Person","name":"Oliver Ames"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Ping Warden","item":"https://pingwarden.app/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://pingwarden.app/docs/"},{"@type":"ListItem","position":3,"name":"Release Notes","item":"https://pingwarden.app/docs/releases"}]}]}</script></head><body><a class="skip" href="#main">Skip to content</a><header class="wrap"><a class="brand" href="/">Ping Warden</a><nav aria-label="Main navigation"><a href="/docs/">Docs</a><a href="/docs/setup">Setup</a><a href="https://amesconsulting.gumroad.com/l/pingwarden">Buy a license</a></nav></header><main id="main" class="wrap doc-layout"><aside><nav class="doc-nav" aria-label="Documentation"><a href="/docs/overview">Features, Pricing, and Privacy</a><a href="/docs/setup">Setup Guide</a><a href="/docs/technical">Technical Documentation</a><a href="/docs/troubleshooting">Troubleshooting and Removal</a><a href="/docs/releases">Release Notes</a><a href="/docs/security">Security and Reporting</a></nav></aside><article class="prose"><p class="breadcrumb"><a href="/docs/">Documentation</a></p><h1>Release Notes</h1><p class="doc-intro">Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.</p><details class="toc"><summary>On this page</summary><ol><li><a href="#ping-warden-412">Ping Warden 4.1.2</a></li><li><a href="#improvements">Improvements</a></li><li><a href="#upgrading-from-a-free-version">Upgrading from a free version</a></li><li><a href="#ping-warden-411">Ping Warden 4.1.1</a></li><li><a href="#fixes">Fixes</a></li><li><a href="#improvements-1">Improvements</a></li><li><a href="#upgrading-from-a-free-version-1">Upgrading from a free version</a></li><li><a href="#ping-warden-410">Ping Warden 4.1.0</a></li><li><a href="#improvements-2">Improvements</a></li><li><a href="#upgrading-from-a-free-version-2">Upgrading from a free version</a></li><li><a href="#ping-warden-404">Ping Warden 4.0.4</a></li><li><a href="#fixes-1">Fixes</a></li><li><a href="#upgrading-from-a-free-version-3">Upgrading from a free version</a></li><li><a href="#ping-warden-403">Ping Warden 4.0.3</a></li><li><a href="#improvements-3">Improvements</a></li><li><a href="#upgrading-from-a-free-version-4">Upgrading from a free version</a></li><li><a href="#ping-warden-402">Ping Warden 4.0.2</a></li><li><a href="#upgrading-from-version-3-or-earlier">Upgrading from version 3 or earlier</a></li><li><a href="#fixes-2">Fixes</a></li><li><a href="#ping-warden-401">Ping Warden 4.0.1</a></li><li><a href="#fixes-3">Fixes</a></li><li><a href="#upgrade-notes">Upgrade notes</a></li><li><a href="#ping-warden-400">Ping Warden 4.0.0</a></li><li><a href="#pricing">Pricing</a></li><li><a href="#transition-for-existing-users">Transition for existing users</a></li><li><a href="#donors">Donors</a></li><li><a href="#license-management">License management</a></li><li><a href="#ping-warden-310">Ping Warden 3.1.0</a></li><li><a href="#protection">Protection</a></li><li><a href="#cloud-gaming">Cloud gaming</a></li><li><a href="#battery-and-idle-power">Battery and idle power</a></li><li><a href="#security">Security</a></li><li><a href="#release-engineering">Release engineering</a></li><li><a href="#ping-warden-300">Ping Warden 3.0.0</a></li><li><a href="#latency-sessions-and-recaps">Latency Sessions and recaps</a></li><li><a href="#performance">Performance</a></li><li><a href="#security-and-privacy">Security and privacy</a></li><li><a href="#setup-and-donations">Setup and donations</a></li><li><a href="#release-engineering-1">Release engineering</a></li><li><a href="#ping-warden-250">Ping Warden 2.5.0</a></li><li><a href="#changelog">Changelog</a></li><li><a href="#ping-warden-243">Ping Warden 2.4.3</a></li><li><a href="#reliability">Reliability</a></li><li><a href="#ping-warden-242">Ping Warden 2.4.2</a></li><li><a href="#reliability-1">Reliability</a></li><li><a href="#ping-warden-241">Ping Warden 2.4.1</a></li><li><a href="#reliability-2">Reliability</a></li><li><a href="#ping-warden-240">Ping Warden 2.4.0</a></li><li><a href="#changelog-1">Changelog</a></li><li><a href="#ping-warden-234">Ping Warden 2.3.4</a></li><li><a href="#ux">UX</a></li><li><a href="#packaging">Packaging</a></li><li><a href="#ping-warden-233">Ping Warden 2.3.3</a></li><li><a href="#ux-1">UX</a></li><li><a href="#internal">Internal</a></li><li><a href="#ping-warden-232">Ping Warden 2.3.2</a></li><li><a href="#reliability-4">Reliability</a></li><li><a href="#internal-1">Internal</a></li><li><a href="#ping-warden-231">Ping Warden 2.3.1</a></li><li><a href="#features-1">Features</a></li><li><a href="#internal-2">Internal</a></li><li><a href="#documentation">Documentation</a></li><li><a href="#ping-warden-230">Ping Warden 2.3.0</a></li><li><a href="#features-2">Features</a></li><li><a href="#internal-3">Internal</a></li><li><a href="#ping-warden-222">Ping Warden 2.2.2</a></li><li><a href="#reliability-5">Reliability</a></li><li><a href="#correctness">Correctness</a></li><li><a href="#code-quality">Code Quality</a></li><li><a href="#test-infrastructure">Test infrastructure</a></li><li><a href="#ping-warden-221">Ping Warden 2.2.1</a></li><li><a href="#security-1">Security</a></li><li><a href="#reliability-6">Reliability</a></li><li><a href="#performance-1">Performance</a></li><li><a href="#quality">Quality</a></li><li><a href="#ping-warden-220">Ping Warden 2.2.0</a></li><li><a href="#bug-fixes">Bug Fixes</a></li><li><a href="#improvements-4">Improvements</a></li><li><a href="#code-quality-1">Code Quality</a></li><li><a href="#ping-warden-212">Ping Warden 2.1.2</a></li><li><a href="#documentation-improvements">Documentation improvements</a></li><li><a href="#code-quality-2">Code quality</a></li></ol></details><h2 id="ping-warden-412">Ping Warden 4.1.2</h2>
+<p>Ping Warden now has a dedicated website at <a href="https://pingwarden.app/">pingwarden.app</a>, with complete setup, technical, privacy, and troubleshooting documentation.</p>
+<h2 id="improvements">Improvements</h2>
+<ul>
+<li>The Help menu, menu bar, and About window link to the new website and documentation.</li>
+<li>Eligible users in the existing 90-day transition receive a weekly reminder to buy and activate a license, with their remaining days shown. The schedule persists across restarts and preserves the original deadline.</li>
+<li>Reminders wait during detected games and latency sessions. They stop after activation or expiry, and missed weeks never create stacked prompts.</li>
+<li>Buy a License remains available during the transition. About now distinguishes a paid license from temporary transition access.</li>
+</ul>
+<h2 id="upgrading-from-a-free-version">Upgrading from a free version</h2>
+<p>Ping Protection requires a one-time $15 license. The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing eligible users retain their original 90-day transition. Donations through Buy Me a Coffee before version 4 are honored as licenses. See <a href="https://pingwarden.app/docs/overview#pricing">pricing and transition details</a>.</p>
+<h2 id="ping-warden-411">Ping Warden 4.1.1</h2>
+<p>Settings now describe Game Mode auto-detect the way 4.1.0 made it work, and a review of every screen tidied the places where the free-app era still showed.</p>
+<h2 id="fixes">Fixes</h2>
+<ul>
+<li><strong>Automation</strong> no longer shows &quot;Needs Permission&quot; on Game Mode Auto-Detect, and the toggle turns on without Screen Recording. The row explains that detection works from the frontmost app, and an optional &quot;Enable Fullscreen Detection…&quot; button opens the permission only if you want fullscreen games behind other windows caught too. The launch-time permission alert is gone.</li>
+<li><strong>License</strong> now says &quot;before version 4&quot; for the donation offer instead of &quot;before this release&quot;, and shows the price beside Buy a License.</li>
+</ul>
+<h2 id="improvements-1">Improvements</h2>
+<ul>
+<li><strong>Targets</strong> is a new Settings section that holds the ping server picker and your custom targets. The dashboard shows which target it is pinging with a Change… button, and stays a read-out.</li>
+<li>The dashboard opens tall enough to show every card, including the ping history chart, instead of hiding four of six below the fold.</li>
+<li>Session results colour Median, P95, and Probe Failures the way Network Quality already does, so a bad session looks bad at a glance.</li>
+<li>The menu bar menu opens on the app's state first, and offers Buy a License… while unlicensed instead of Donate. The dashboard's donation line is gone; the General and License panes still explain how a pre-version-4 donation becomes a licence.</li>
+<li>About shows the real app icon and puts the licence link first.</li>
+<li>The welcome screen says what the app is for: stopping the stutter when you cloud game on a Mac.</li>
+<li>The Settings sidebar separates Dashboard from the settings sections, and the live-metrics toggle has one name in both places it appears.</li>
+</ul>
+<h2 id="upgrading-from-a-free-version-1">Upgrading from a free version</h2>
+<p>Ping Protection requires a <a href="https://amesconsulting.gumroad.com/l/pingwarden">one-time $15 license</a>. The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing users whose protection was enabled with an approved helper when they first launched version 4 keep their original 90-day transition. Check <strong>Settings → License</strong> for the time remaining. If you donated before version 4, email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with your receipt for a license.</p>
+<h2 id="ping-warden-410">Ping Warden 4.1.0</h2>
+<p>Game Mode auto-detect now recognizes a game the moment it comes to the front, and protection stays out of the way on a wired connection.</p>
+<h2 id="improvements-2">Improvements</h2>
+<ul>
+<li>Protection turns on when a game is the frontmost app, with no Screen Recording permission needed. A windowed GeForce NOW session now triggers it the same as a fullscreen one.</li>
+<li>Screen Recording permission is optional. Granting it adds detection of fullscreen games sitting behind other windows, and the permission prompt now says so.</li>
+<li>Ping Warden skips protection while your Mac is on Ethernet, since AWDL shares the Wi-Fi radio and cannot interfere with a wired connection. It engages again when you move back to Wi-Fi.</li>
+</ul>
+<h2 id="upgrading-from-a-free-version-2">Upgrading from a free version</h2>
+<p>Ping Protection requires a <a href="https://amesconsulting.gumroad.com/l/pingwarden">one-time $15 license</a>. The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing users whose protection was enabled with an approved helper when they first launched version 4 keep their original 90-day transition. Check <strong>Settings → License</strong> for the time remaining. If you donated before version 4, email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with your receipt for a license.</p>
+<h2 id="ping-warden-404">Ping Warden 4.0.4</h2>
+<p>The welcome screen now appears automatically only once, so you can dismiss setup and use the free dashboard without repeated prompts.</p>
+<h2 id="fixes-1">Fixes</h2>
+<ul>
+<li>Choosing <strong>Not Now</strong>, closing the welcome, or opening License settings no longer makes the introduction reappear at the next launch when helper setup is incomplete.</li>
+<li>You can still start setup from the menu bar or <strong>Settings → General → Finish Setup</strong> whenever you want Ping Protection.</li>
+<li>Removing app data restores the introduction for a fresh installation. Dismissing it does not change protection settings or license access.</li>
+</ul>
+<h2 id="upgrading-from-a-free-version-3">Upgrading from a free version</h2>
+<p>Ping Protection requires a <a href="https://amesconsulting.gumroad.com/l/pingwarden">one-time $15 license</a>. The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing users whose protection was enabled with an approved helper when they first launched version 4 keep their original 90-day transition. Check <strong>Settings → License</strong> for the time remaining. If you donated before version 4, email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with your receipt for a license.</p>
+<h2 id="ping-warden-403">Ping Warden 4.0.3</h2>
+<p>The welcome screen now uses the app icon, native macOS controls, and a shorter introduction to protection, live latency, and wireless sharing.</p>
+<h2 id="improvements-3">Improvements</h2>
+<ul>
+<li>The first welcome screen fits without scrolling, with the price and license link visible before setup.</li>
+<li>Light and dark appearances use system colors. Setup actions remain accessible when the layout needs to scroll for larger text.</li>
+<li>Setup instructions explain how to continue from <strong>Settings → General → Finish Setup</strong> if the welcome window is closed.</li>
+<li>Gumroad publication waits for uploaded file metadata before checking the download and updating buyer content.</li>
+</ul>
+<h2 id="upgrading-from-a-free-version-4">Upgrading from a free version</h2>
+<p>Ping Protection requires a <a href="https://amesconsulting.gumroad.com/l/pingwarden">one-time $15 license</a>. The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing users whose protection was enabled with an approved helper when they first launched version 4 keep their original 90-day transition. Check <strong>Settings → License</strong> for the time remaining. Previous donors can email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with their receipt for a license.</p>
+<h2 id="ping-warden-402">Ping Warden 4.0.2</h2>
+<p>This update fixes protection controls, license verification, and the transition from free builds.</p>
+<h2 id="upgrading-from-version-3-or-earlier">Upgrading from version 3 or earlier</h2>
+<p>Ping Protection in the signed app requires a <a href="https://amesconsulting.gumroad.com/l/pingwarden">one-time $15 license</a>, which covers the Macs you own and future updates. If protection was enabled with an approved helper when you first launched version 4, you have a 90-day transition from that launch. Check <strong>Settings → License</strong> for the time remaining. The dashboard, diagnostics, and updates stay free, and the source remains MIT.</p>
+<p>If you donated before version 4, email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with your receipt and I'll honor that support as a license. You can review or skip the paid upgrade in Sparkle before installation.</p>
+<h2 id="fixes-2">Fixes</h2>
+<ul>
+<li>Existing 4.0.0 transition deadlines survive the update, including when protection was temporarily off. Updating does not start a new 90-day window.</li>
+<li>Settings distinguishes <strong>Free Transition</strong> from <strong>Licensed</strong>, and shows the transition even when a refunded key remains stored.</li>
+<li>Temporary verification failures preserve the 14-day offline allowance. Routine verification no longer increases Gumroad's license-use count.</li>
+<li>Pause expiry, Game Mode, and reconnects respect the current license. Expired protection turns off while the app runs.</li>
+<li>Reconnecting to the helper cannot override a newer Off command.</li>
+<li>Control Center opens Ping Warden in the background when needed, so protection continues after the widget finishes.</li>
+<li>The welcome window opens larger so its introduction and setup explanation fit without scrolling.</li>
+<li>Setup explains the license requirement and reports whether protection actually turned on. Successful activation clears obsolete license errors.</li>
+<li>Uninstall prevents a pending verification response from restoring removed license data.</li>
+<li>Users opted into beta updates also receive stable releases. Both feeds require older free builds to show the paid-upgrade notice before installation.</li>
+<li>Gumroad offers the current app download with the license key, and the landing page explains activation order and which controls require protection access.</li>
+</ul>
+<h2 id="ping-warden-401">Ping Warden 4.0.1</h2>
+<p>A licensing hardening release. Nothing changes for a paid license or for building from source.</p>
+<h2 id="fixes-3">Fixes</h2>
+<ul>
+<li>The in-app <strong>Buy a License…</strong> button and every document now point at the current storefront, <code>https://amesconsulting.gumroad.com/l/pingwarden</code>. The old <code>olivera40</code> address returns 404.</li>
+<li>Persisted protection no longer turns AWDL off at launch unless the license gate still holds. An install whose 90-day transition ended, or whose key was refunded, now starts with protection off and a note in the menu pointing to <strong>Settings → License</strong>, instead of quietly restoring protection from the saved preference.</li>
+<li>The cached license state in the shared App Group defaults is now sealed with an HMAC bound to the Mac's hardware UUID. A hand-written <code>defaults write</code>, or a preferences file copied from a licensed Mac, reads as unlicensed until the app verifies online again. The Control Center widget checks the same seal.</li>
+<li>A clock rolled backwards past the last verification no longer stretches the 14-day offline window; the cache is ignored until the next online verification.</li>
+<li>The 90-day transition is granted only when the helper was already approved on the Mac, which a fresh install cannot fake, and the one-shot marker now lives in the keychain so clearing the App Group defaults cannot re-arm it.</li>
+<li>The stored key is re-verified once at launch, as the documentation already said, not only on the 6-hour timer.</li>
+</ul>
+<h2 id="upgrade-notes">Upgrade notes</h2>
+<ul>
+<li>Licensed 4.0.0 installs re-verify with Gumroad on first launch of 4.0.1 to seal their cached state. An offline first launch shows protection off until the Mac is online once; the key stays stored.</li>
+<li>3.x installs that upgrade directly still get the 90-day transition.</li>
+</ul>
+<h2 id="ping-warden-400">Ping Warden 4.0.0</h2>
+<p>Ping Warden is moving to a license for the AWDL-blocking feature. The source stays MIT and everything except enabling Ping Protection is free.</p>
+<p>Starting with this release, enabling Ping Protection in the prebuilt, signed, and notarized app requires a one-time $15 license at <a href="https://amesconsulting.gumroad.com/l/pingwarden">Gumroad</a>. One key works on the Macs you own and covers all future updates. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch. Verification is offline-friendly for up to 14 days. Building from source under MIT remains free and unchanged.</p>
+<h2 id="pricing">Pricing</h2>
+<ul>
+<li>Ping Protection now requires a license in the prebuilt app. All other features remain free.</li>
+<li>The source code remains MIT. You can build from source, inspect it, and modify it whether you buy a license or not.</li>
+<li>The license is a one-time $15 purchase at <a href="https://amesconsulting.gumroad.com/l/pingwarden">Gumroad</a>. No subscription, no ads, no analytics. Taxes are handled by Gumroad as merchant of record — the 10% + 50¢ direct fee (30% via Discover) covers processing.</li>
+</ul>
+<h2 id="transition-for-existing-users">Transition for existing users</h2>
+<ul>
+<li>If Ping Protection was enabled on this Mac before the licensed build first ran, it keeps working for a 90-day transition that starts on that first launch. No action is needed today.</li>
+<li>Check the time remaining in <strong>Settings → License</strong>. When the transition ends, enter a license key there to keep protection available.</li>
+<li>On first launch of the licensed build, existing users see a one-time notice that explains the change and points to <strong>Settings → License</strong>. The notice appears only once per install.</li>
+</ul>
+<h2 id="donors">Donors</h2>
+<ul>
+<li>If you supported Ping Warden through <a href="https://www.buymeacoffee.com/oliverames">Buy Me a Coffee</a> before this release, email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with your receipt and it will be honored as a full license after receipt verification. The License pane and the gate error both surface this offer, and the developer handles the conversion after reviewing the receipt.</li>
+<li>The in-app donation prompt that appeared after latency sessions has been removed. The menu, Settings → Support, About, and Dashboard still offer a Donate link, and the full documentation now describes the licensed model instead.</li>
+</ul>
+<h2 id="license-management">License management</h2>
+<ul>
+<li>New <strong>Settings → License</strong> pane shows status (Licensed, transition with days remaining, or Unlicensed), key entry with verification, and a direct link to the Gumroad product page. The transition pane explains why the change is happening and carries the donor-honoring note with a mailto button.</li>
+<li>License keys are verified at <code>api.gumroad.com/v2/licenses/verify</code> with your product ID and key, then cached so the app works offline. A cached valid result stands in for 14 days when the API cannot be reached. Refunded, chargebacked, or disabled keys are treated as revoked and turn protection off with a notice at the next verification. An install still inside its 90-day transition keeps protection under that window, since the transition is granted for prior use rather than for a purchase.</li>
+<li>The Control Center widget reads the same cached entitlement from the shared app group and refuses to enable protection without a valid license. Disabling is always allowed.</li>
+<li>Uninstall clears all licensing state from the App Group defaults and the keychain.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-310">Ping Warden 3.1.0</h2>
+<p><a href="https://buymeacoffee.com/oliverames">Donate to Ping Warden on Buy Me a Coffee</a></p>
+<p>Ping Warden 3.1 keeps your choices where you put them. A pause now survives a quit, a failed server refresh tells you instead of going quiet, and the app stops working when nobody is looking at it.</p>
+<h2 id="protection">Protection</h2>
+<ul>
+<li>Pausing protection survives quitting and relaunching. Ping Warden used to store nothing on disk when you paused, so quitting during the ten minute window silently re-blocked AWDL while you were still trying to AirDrop or share a screen. The pause window now persists, and every path that genuinely ends it still clears it.</li>
+<li>Protection controls stay responsive when several state changes race each other. Toggling from the menu, the dashboard, or the Control Center widget at the same time could strand the controls mid-transition and disable them until relaunch.</li>
+<li>Stopping protection no longer leaves monitoring stuck on. A slow reply from the privileged helper used to be discarded after the timeout, so the app reported protection as active across relaunch while AWDL was already restored.</li>
+</ul>
+<h2 id="cloud-gaming">Cloud gaming</h2>
+<ul>
+<li>A failed GeForce NOW zone refresh now says so and offers Retry. The server picker previously dropped its &quot;Refreshing&quot; caption and left a stale list with no explanation. Existing zones are kept through the failure, so a network blip cannot reset your selection or chart history.</li>
+</ul>
+<h2 id="battery-and-idle-power">Battery and idle power</h2>
+<ul>
+<li>Live menu metrics run only while the menu is open. Turning on &quot;Show Live Metrics in Menu&quot; used to start a permanent two second probe and a five second intervention poll, which sent tens of thousands of pointless network connections a day toward numbers nobody was reading. Opening the menu still shows a fresh reading immediately.</li>
+<li>Game Mode detection backs off while you are idle. Auto-detect scanned the full window list every ten seconds forever; after about ninety quiet seconds it now moves to thirty. App and display events still trigger an immediate check, so a game launching from deep idle is caught right away.</li>
+</ul>
+<h2 id="security">Security</h2>
+<ul>
+<li>Sparkle updates to 2.9.6, which carries a symlink hardening fix in the installer's archive handling and a privilege escalation fix for root-invoked Sparkle processes.</li>
+<li>The privileged helper now accepts XPC only from root and the logged-in console user. The previous check rejected system accounts but would have let any second desktop account drive the root daemon with a copy of the signed app.</li>
+<li>Sentry updates to 9.26.0. Crash reporting remains off by default.</li>
+</ul>
+<h2 id="release-engineering">Release engineering</h2>
+<ul>
+<li>Release validation now checks the helper's embedded version metadata, not just the app and widget. The helper's version lives in a plist compiled into its binary, so a half-applied version bump could previously ship with validation still reporting success.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-300">Ping Warden 3.0.0</h2>
+<p><a href="https://buymeacoffee.com/oliverames">Donate to Ping Warden on Buy Me a Coffee</a></p>
+<p>Ping Warden 3 turns Ping Protection into measurable Latency Sessions. Start a session for a game or call, watch one shared latency stream, and finish with a local recap that explains what happened without exposing network targets or claiming more than the measurements show.</p>
+<h2 id="latency-sessions-and-recaps">Latency Sessions and recaps</h2>
+<ul>
+<li>Start and end Latency Sessions from the dashboard. Game Mode can manage sessions automatically.</li>
+<li>The menu bar now has one clear Ping Protection control. Latency Sessions stay in the dashboard so the two actions cannot be mistaken for duplicates.</li>
+<li>Review duration, median and P95 latency, jitter, Probe Failures, sample count, and wireless interventions.</li>
+<li>Share a privacy-scrubbed text recap. Hostnames, IP addresses, game names, and raw samples are never written to session history.</li>
+<li>Keep a bounded local history and clear it from the dashboard at any time.</li>
+</ul>
+<h2 id="performance">Performance</h2>
+<ul>
+<li>The dashboard, menu, and sessions now share one probe stream instead of running duplicate monitors.</li>
+<li>Hostname lookups use a bounded five-minute address cache, one connection deadline, and cancellation that reaches DNS and socket work.</li>
+<li>Rolling history avoids repeated array shifts. Statistics and snapshots are prepared off the main thread and published once per sample.</li>
+<li>Game Mode detection moved its window scan off the main thread. App and display events trigger immediate checks, with a slower safety interval when no game is active.</li>
+</ul>
+<h2 id="security-and-privacy">Security and privacy</h2>
+<ul>
+<li>Sparkle 2.9.4 replaces 2.8.1. Ping Warden now requires signed appcast metadata and verifies updates before extraction.</li>
+<li>The Control Center widget applies protection directly through the helper's signed-client XPC boundary. Shared preferences and distributed notifications no longer authorize root operations.</li>
+<li>Shared app and widget settings now use a Team-ID-prefixed macOS App Group, restoring reliable persistence on macOS 15 and later without an embedded provisioning profile.</li>
+<li>Unsigned helper builds fail closed, and the helper launches on demand instead of staying alive after boot.</li>
+<li>Diagnostics redact custom targets, use owner-only file permissions, and show their contents before sharing.</li>
+<li>Crash reporting is off by default. Turning it off is immediate; opting in takes effect after relaunch.</li>
+</ul>
+<h2 id="setup-and-donations">Setup and donations</h2>
+<ul>
+<li>The welcome screen explains the AirDrop, AirPlay, and Handoff tradeoff before approval.</li>
+<li>Choosing Later no longer strands setup. Settings now has a visible Finish Setup action.</li>
+<li>Unsupported CPU and latency claims have been removed from the app.</li>
+<li>Every completed Latency Session recap includes a quiet donation link that never interrupts the recap or gates features. Permanent donation links are also available in the menu, Settings, About window, README, and GitHub repository.</li>
+</ul>
+<h2 id="release-engineering-1">Release engineering</h2>
+<ul>
+<li>Releases build a fresh archive and validate the staged app, helper, widget, DMG, signatures, Team ID, entitlements, Hardened Runtime, Gatekeeper result, notarization ticket, and version metadata before publishing.</li>
+<li>Marketing versions and numeric bundle builds are validated separately.</li>
+<li>CI builds the complete app on macOS 26, runs the Foundation core on macOS and Linux, lints release scripts, and adds CodeQL and Dependabot coverage.</li>
+<li>The update minimum is derived from the built app, fixing the appcast metadata that incorrectly excluded macOS 13 through 25 from recent updates.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-250">Ping Warden 2.5.0</h2>
+<p><a href="https://buymeacoffee.com/oliverames">Support Ping Warden on Buy Me a Coffee</a></p>
+<p>Ping Warden 2.5.0 is a reliability-focused release: a full audit of the helper daemon, XPC layer, widget sync, monitoring pipeline, and release tooling, with dozens of fixes.</p>
+<h2 id="changelog">Changelog</h2>
+<h3 id="protection-reliability">Protection Reliability</h3>
+<ul>
+<li><strong>Protection now survives quit + relaunch</strong>: Quitting the app no longer silently turns the Ping Protection preference off. If protection was on when you quit, it turns back on at the next launch.</li>
+<li><strong>Helper can never strand your Wi-Fi radio off</strong>: Every helper exit path (grace-period shutdown, system termination) now guarantees the wireless interface is restored via a direct fallback, even if the helper's internal monitoring thread had died.</li>
+<li><strong>Honest failure reporting from the helper</strong>: If the helper's kernel-event thread stops, protection commands now fail visibly instead of pretending to succeed while nothing was being enforced.</li>
+<li><strong>XPC reconnect fixed</strong>: The reconnect retry counter is now only reset after the helper actually responds, closing an infinite silent reconnect loop when the helper was unregistered mid-session. Abandoned connections are also properly invalidated (fixing a slow resource leak), and a reconnect can no longer overwrite a stop you issued while it was in flight.</li>
+<li><strong>Helper setup can no longer wedge</strong>: An interrupted registration flow used to permanently block future &quot;Enable Ping Protection&quot; attempts until app restart; registration polling now always resolves.</li>
+<li><strong>Race-free helper shutdown</strong>: The helper's exit decision is now atomic with connection tracking, so an app reconnect can never be dropped mid-shutdown (which previously caused a brief AWDL flap — the exact latency spike the app prevents).</li>
+<li><strong>Hardened privileged daemon</strong>: Release builds of the root helper now refuse to run if their code signature fails validation instead of downgrading to weaker checks.</li>
+</ul>
+<h3 id="game-mode--quick-pause">Game Mode &amp; Quick Pause</h3>
+<ul>
+<li><strong>Game detection now recognizes most games</strong>: Apps declaring a game <em>subcategory</em> (action, RPG, strategy, …) in their Info.plist were never detected as games; now they are.</li>
+<li><strong>Pause and Game Mode no longer fight each other</strong>: Pausing during a game session is honored when the game ends; a pause that expires mid-game restores your protection preference instead of leaving protection off permanently.</li>
+<li><strong>Pause timer reliability</strong>: The 10-minute auto-resume now fires even while a menu or dialog is open, and the menu's Pause/Resume items enable/disable correctly.</li>
+</ul>
+<h3 id="control-center-widget">Control Center Widget</h3>
+<ul>
+<li><strong>Widget state stays in sync</strong>: The app now tells Control Center to refresh the toggle whenever protection changes from the menu bar, Settings, or Game Mode — the widget no longer displays stale state indefinitely.</li>
+<li><strong>Toggling off no longer snaps back to on</strong>: The widget now displays and toggles the same state, fixing both the visual snap-back after disabling and a Shortcuts toggle that could never turn auto-enabled protection off.</li>
+<li><strong>Launch failures surface</strong>: If the main app can't be launched to apply a widget toggle, the toggle now reverts and reports an error instead of showing protection as on while nothing happened.</li>
+<li><strong>Lockout prevention hardened</strong>: Hiding the dock icon while in Control Center mode (menu bar hidden) is now blocked at all times, not just at the moment Control Center mode is enabled.</li>
+</ul>
+<h3 id="ping-monitoring--dashboard">Ping Monitoring &amp; Dashboard</h3>
+<ul>
+<li><strong>Accurate latency numbers</strong>: Measured ping now excludes DNS resolution time and failed connection attempts — dual-stack hostnames no longer report ~1000 ms &quot;successful&quot; pings that poisoned averages, jitter, spike events, and Auto-Select rankings.</li>
+<li><strong>Unresponsive DNS can't freeze monitoring</strong>: Hostname resolution now runs with a bounded deadline, so a hung resolver no longer stalls the entire ping pipeline and dashboard.</li>
+<li><strong>Saved server selection survives relaunch</strong>: A selected GeForce NOW zone or local-gateway target is now restored once its source loads, instead of silently falling back to Cloudflare DNS forever.</li>
+<li><strong>Transient GFN outages keep your zones</strong>: A failed GeForce NOW server-list refresh no longer wipes previously discovered zones (which reset your selection and erased chart history).</li>
+<li><strong>Dashboard chart performance</strong>: Chart data is now memoized and downsampled (spikes always preserved), cutting per-second CPU dramatically on long timeframes — exactly during the gaming sessions the app protects.</li>
+<li><strong>Smaller fixes</strong>: duplicate server entries are deduplicated everywhere; protection events that occur while the dashboard is closed no longer appear as one mistimed event; auto-select probes no longer starve the app's async runtime; settings window size/position is remembered again; diagnostics export falls back to a temp folder if Desktop access is denied; the quarantine-fix command now uses the app's real location; automatic update checks start correctly after first-run setup.</li>
+</ul>
+<h3 id="release-tooling--ci">Release Tooling &amp; CI</h3>
+<ul>
+<li><strong>Cross-platform test suite</strong>: The core logic package now compiles and tests on Linux; CI gained an <code>ubuntu-latest</code> <code>swift test</code> job (plus 8 new tests) and shellcheck coverage for all scripts.</li>
+<li><strong>Release script fixes</strong>: Sentry upload failures can no longer abort a release before the appcast is published; first-ever beta appcasts publish correctly; beta releases are marked as GitHub pre-releases; GitHub release pages now show only that version's notes; notarization failures print their diagnostics instead of dying silently; version arguments are validated against Info.plist.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-243">Ping Warden 2.4.3</h2>
+<p><a href="https://buymeacoffee.com/oliverames">Support Ping Warden on Buy Me a Coffee</a></p>
+<p>Patch release for the 2.4 line.</p>
+<h2 id="reliability">Reliability</h2>
+<ul>
+<li><strong>Settings crash fix</strong>: Fixed a rare startup crash on macOS 26 and later. The hidden helper window that backs the standard Settings menu command was pinned to a one-pixel-wide size, which on newer macOS could send the layout engine into an endless update loop and abort the app. The window is now left to size itself, removing the loop.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-242">Ping Warden 2.4.2</h2>
+<p><a href="https://buymeacoffee.com/oliverames">Support Ping Warden on Buy Me a Coffee</a></p>
+<p>Patch release for the 2.4 line.</p>
+<h2 id="reliability-1">Reliability</h2>
+<ul>
+<li><strong>Donation prompt crash fix</strong>: The support prompt now uses an explicit SwiftUI content size and matching AppKit window content rect. This avoids an unbounded macOS 27 SwiftUI/AppKit button measurement loop that could abort with an AttributeGraph stack overflow.</li>
+<li><strong>Dashboard picker layout fix</strong>: The Ping History timeframe segmented control no longer shows a squeezed visible picker label when the dashboard card is narrow.</li>
+<li><strong>Settings title readability</strong>: Settings section titles now use the native macOS titlebar material and soft scroll-edge treatment so scrolled content fades underneath without muddying the header text.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-241">Ping Warden 2.4.1</h2>
+<p><a href="https://buymeacoffee.com/oliverames">Support Ping Warden on Buy Me a Coffee</a></p>
+<p>Patch release for the 2.4 line.</p>
+<h2 id="reliability-2">Reliability</h2>
+<ul>
+<li><strong>Crash-reporting privacy/noise fix</strong>: Sentry now explicitly disables failed HTTP request capture, so transient GitHub/Sparkle download errors like a 502 from a release asset do not get reported as Ping Warden errors. Crash reporting remains crash-only.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-240">Ping Warden 2.4.0</h2>
+<p><a href="https://buymeacoffee.com/oliverames">Support Ping Warden on Buy Me a Coffee</a></p>
+<p>Ping Warden 2.4.0 is a macOS 26-focused release that brings the app's settings, dashboard, and menu surfaces up to the current Tahoe design direction while tightening the release pipeline and Swift concurrency posture.</p>
+<h2 id="changelog-1">Changelog</h2>
+<h3 id="interface">Interface</h3>
+<ul>
+<li><strong>Native settings redesign</strong>: Settings now uses a single native split-view window with macOS sidebar chrome, consistent section spacing, and Tahoe-friendly rounded surfaces.</li>
+<li><strong>Liquid Glass polish</strong>: Settings, dashboard cards, and first-run callouts now use macOS 26 glass materials and concentric corners where appropriate, with older fallback styling kept in place.</li>
+<li><strong>Dashboard layout cleanup</strong>: The Ping Protection and Connection Settings panels have tighter alignment, clearer status states, and a more readable ping graph.</li>
+<li><strong>Menu bar icons</strong>: Status menu actions now include SF Symbols so the dropdown matches the icon-led macOS 26 menu style.</li>
+</ul>
+<h3 id="features">Features</h3>
+<ul>
+<li><strong>Game Mode Auto-Detect is production-ready</strong>: The setting is no longer labeled beta and now has steadier fullscreen-game detection behavior.</li>
+<li><strong>Control Center Widget is production-ready</strong>: The widget path is no longer labeled beta. Settings now distinguishes widget availability from signing state without implying the feature is experimental.</li>
+<li><strong>Beta update channel</strong>: Advanced settings include an opt-in Sparkle beta channel for testing pre-release builds.</li>
+</ul>
+<h3 id="reliability-3">Reliability</h3>
+<ul>
+<li><strong>Swift 6 strict concurrency</strong>: The app target now builds with complete strict-concurrency checking, with sendable observer callbacks, explicit main-actor UI hops, and locked XPC callback state.</li>
+<li><strong>CI fix</strong>: GitHub Actions now runs the maintained SwiftPM test suite instead of the removed smoke-test script.</li>
+<li><strong>Packaging hardening</strong>: Release tooling validates notes, notarization prerequisites, appcast updates, and Sentry symbol upload paths before publishing.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-234">Ping Warden 2.3.4</h2>
+<p>Post-release stability and polish pass from manual macOS app testing.</p>
+<h2 id="ux">UX</h2>
+<ul>
+<li><strong>Ping Protection language</strong>: Settings, Dashboard, and the Control Center widget now consistently use &quot;Ping Protection&quot; and &quot;protection events&quot; in primary UI instead of implementation-level AWDL labels.</li>
+<li><strong>Dashboard state copy</strong>: The interventions panel now reflects the actual protection state instead of saying protection is active when it is off or not set up.</li>
+</ul>
+<h2 id="packaging">Packaging</h2>
+<ul>
+<li><strong>Leaner app bundle</strong>: Release automation scripts are excluded from the shipped app resources.</li>
+<li><strong>macOS metadata</strong>: The app now declares the Utilities category in its Info.plist.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-233">Ping Warden 2.3.3</h2>
+<p>First-launch and Settings polish found during manual macOS app testing.</p>
+<h2 id="ux-1">UX</h2>
+<ul>
+<li><strong>Cleaner first launch</strong> — Sparkle no longer opens its automatic-update prompt before Ping Warden's own welcome/setup flow. Manual &quot;Check for Updates&quot; still works from the menu.</li>
+<li><strong>Settings scrolling</strong> — Settings tabs now keep their section header pinned outside the scroll view, and Dashboard no longer nests a second scroll view inside Settings. Dashboard content can scroll without sliding under the titlebar.</li>
+</ul>
+<h2 id="internal">Internal</h2>
+<ul>
+<li><strong>Release automation</strong> — The release script now accepts App Store Connect API-key notarization credentials as well as the legacy keychain profile, and the gh-pages appcast commit disables GPG signing in non-interactive automation.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-232">Ping Warden 2.3.2</h2>
+<p>Stability-focused beta with packaging fixes for the Control Center widget and tighter reconnect behavior around the privileged helper.</p>
+<h2 id="reliability-4">Reliability</h2>
+<ul>
+<li><strong>Control Center widget packaging</strong> — The widget target now builds with its own <code>Info.plist</code> and entitlements instead of inheriting the main app metadata. The built <code>.appex</code> now carries the required <code>NSExtension</code> payload and correct extension package type.</li>
+<li><strong>Helper reconnect hardening</strong> — Replacing an XPC connection can no longer let the old connection's invalidation handler clear the fresh connection. This avoids false &quot;lost helper&quot; states during reconnect churn.</li>
+<li><strong>Ping monitor session isolation</strong> — Stale ping probes are dropped after a target change or monitor restart, and overlapping probes are skipped instead of building a backlog when a network call is slow.</li>
+<li><strong>Helper control pipe</strong> — The helper's write side of the control pipe is now non-blocking, so rapid toggle/reconnect churn cannot hang an XPC handler thread.</li>
+</ul>
+<h2 id="internal-1">Internal</h2>
+<ul>
+<li>Version metadata is consistent across the app, helper, widget, Xcode build settings, and helper runtime version string.</li>
+<li>XPC helper connection counting now guards against underflow on duplicate invalidation callbacks.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-231">Ping Warden 2.3.1</h2>
+<p>Adds opt-in crash reporting and hardens the release pipeline so future updates ship with symbolicated crash reports and properly-formatted release notes. Recommended for all users.</p>
+<h2 id="features-1">Features</h2>
+<ul>
+<li><strong>Crash reporting</strong> — On by default to help find bugs you don't see. Anonymous data only: no IP address, no usage telemetry, no information about your ping targets, and no app-lifecycle session events. Toggle it off under Settings → Advanced → Privacy if you'd rather not send anything.</li>
+</ul>
+<h2 id="internal-2">Internal</h2>
+<ul>
+<li><strong>Sparkle release notes</strong> — The update window now renders the actual release notes from <code>RELEASE_NOTES.md</code> (categorized &quot;Features / Internal&quot; with brand-styled HTML, light and dark mode) instead of &quot;See release notes on GitHub&quot;. v2.3.0 also retroactively updated on the live appcast.</li>
+<li><strong><code>release.sh</code> pre-flight hardening</strong> — <code>notarytool</code>, <code>sentry-cli</code>, the 1Password CLI, and the vaulted Sentry token are all checked up-front. Missing tooling aborts before notarization rather than silently shipping a release with no dSYMs uploaded.</li>
+<li><strong>dSYM upload to Sentry</strong> — Each release now uploads the xcarchive's dSYMs so crash reports come in symbolicated, and creates a Sentry release object tagged with the version. The pipeline is fail-soft after the GitHub release publishes: a Sentry-side network blip warns but does not abort the script before the gh-pages appcast push.</li>
+<li><strong>Critical-update marker</strong> — Sparkle prompts every user on a prior version to install this update, since the crash-reporting infrastructure is what the next several releases will depend on.</li>
+</ul>
+<h2 id="documentation">Documentation</h2>
+<ul>
+<li><strong>README refresh</strong> — Imperative tagline, live release-version badge, and a new Privacy section documenting the opt-in Sentry posture and the data we never collect. Restructured so the &quot;How It Works&quot; section reads as product positioning rather than objection-handling.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-230">Ping Warden 2.3.0</h2>
+<p>Two user-facing features plus the usual round of testing improvements.</p>
+<h2 id="features-2">Features</h2>
+<ul>
+<li><strong>Custom ping servers</strong> (<a href="https://github.com/oliverames/ping-warden/issues/29">#29</a>) — Add your own DNS or ping targets (NextDNS, Control D, anything else) under Dashboard → Custom Servers. Targets persist in the App Group, survive updates, and feed into the same auto-select-nearest flow as the built-in list.</li>
+<li><strong>One-time donation prompt</strong> — A polite, dismissible Buy Me a Coffee ask that appears once on launch and again only on minor-version bumps. A &quot;Don't ask again&quot; button is a permanent kill switch, and the entire flow is governed by <code>VersionPromptPolicy</code> so it cannot accidentally re-fire after a patch release.</li>
+</ul>
+<h2 id="internal-3">Internal</h2>
+<ul>
+<li>New <code>VersionPromptPolicy</code> and <code>CustomPingTargetStore</code> in <code>Core/</code>, both pure-Foundation and covered by <code>swift test</code>. Total Core test count: 33 (up from 15 in v2.2.2).</li>
+<li><code>PingWardenPreferences.defaults</code> is now exposed so non-singleton consumers (custom-target store, future targets) can share the App Group suite without duplicating the suite name.</li>
+<li><code>performUninstall</code> resets the new donation-prompt and custom-targets state alongside the existing keys.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-222">Ping Warden 2.2.2</h2>
+<p>Correctness, concurrency, and tooling improvements. No user-visible feature changes.</p>
+<h2 id="reliability-5">Reliability</h2>
+<ul>
+<li><strong>TCPProbe</strong>: removed a <code>freeaddrinfo</code> call on the <code>getaddrinfo</code> failure path. POSIX leaves the result pointer's contents unspecified on resolver failure, so calling <code>freeaddrinfo</code> on it was undefined behavior — tolerated on macOS today but a latent portability bug. Tightened the success-path defer to use a non-optional pointer.</li>
+<li><strong>Process pipes</strong>: three subprocess invocations (<code>getAWDLInterfaceStatus</code>, <code>runIfconfig</code>, <code>NetworkGatewayResolver</code>) used a wait-then-read pipe pattern that can deadlock if a subprocess fills the kernel pipe buffer. Now read first (which unblocks on subprocess EOF) and route unused streams to <code>/dev/null</code>.</li>
+<li><strong>Concurrency</strong>: <code>xpcRetryCount += 1</code> opened a brief unlocked window between read and write through the property accessor. Replaced with an atomic <code>incrementXPCRetryCount()</code> helper that does read-modify-write under a single locked critical section.</li>
+<li><strong>Game Mode cache</strong>: PID → isGame cache now evicts entries when the application terminates (via <code>NSWorkspace.didTerminateApplicationNotification</code>), so the cache stays bounded over long sessions and cannot be poisoned by PID reuse.</li>
+</ul>
+<h2 id="correctness">Correctness</h2>
+<ul>
+<li><strong>Median calculation</strong>: <code>PingStatistics.calculate</code> now uses the true median for even-count windows (mean of two middle elements) instead of the upper-middle pick. Improves quality classification for edge cases like a 2-sample window.</li>
+</ul>
+<h2 id="code-quality">Code Quality</h2>
+<ul>
+<li><strong>Removed <code>connectXPCWithRetry()</code></strong>: it was a no-op wrapper that reset a counter <code>connectXPC()</code> was about to reset anyway.</li>
+<li><strong>Removed dead <code>onStateChange</code> callback</strong>: declared on <code>PingWardenMonitor</code> and called, but never assigned anywhere in the codebase — guaranteed nil.</li>
+<li><strong>Extracted <code>StateObserverRegistry</code></strong> into <code>Core/</code>: thread-safe observer registry with its own lock, reducing contention on <code>PingWardenMonitor.stateLock</code>.</li>
+<li><strong>Extracted <code>HelperBundleValidator</code></strong> into <code>Core/</code>: pure-Foundation validator for the helper-bundle layout, fully unit-testable.</li>
+<li><strong>Decomposed <code>DashboardView.swift</code></strong> (was 1304 lines):
+<ul>
+<li><code>NetworkGatewayResolver</code> → its own file</li>
+<li><code>GeForceNOWDiscovery</code> → its own file</li>
+<li><code>DashboardViewModel</code> → its own file</li>
+<li>Remaining <code>DashboardView.swift</code> is 673 lines of view code</li>
+</ul>
+</li>
+</ul>
+<h2 id="test-infrastructure">Test infrastructure</h2>
+<ul>
+<li><strong><code>Package.swift</code> test target</strong>: smoke tests are now driven by <code>swift test</code> via a proper SwiftPM <code>XCTest</code> target at <code>Tests/PingWardenCoreTests/</code>. The Xcode app build is unaffected — the SwiftPM target references the same <code>Core/</code> sources via an explicit <code>path:</code>.</li>
+<li><strong>Coverage</strong>: 15 tests across <code>PingStatistics</code>, <code>XPCReconnectPolicy</code>, <code>TCPProbe</code> (failure and success paths), <code>StateObserverRegistry</code>, and <code>HelperBundleValidator</code>.</li>
+</ul>
+<hr>
+<h2 id="ping-warden-221">Ping Warden 2.2.1</h2>
+<p>Security hardening, reliability, and performance improvements.</p>
+<h2 id="security-1">Security</h2>
+<ul>
+<li>XPC helper now validates caller identity (UID-based defense-in-depth)</li>
+<li>AWDL state control uses atomic operations and returns accurate success/failure</li>
+<li>Sparkle update feed uses Info.plist as single source of truth</li>
+</ul>
+<h2 id="reliability-6">Reliability</h2>
+<ul>
+<li>Fixed potential socket hang in network probes when fcntl fails</li>
+<li>Fixed potential pipe buffer deadlock in helper response test</li>
+<li>Complete App Group preferences reset on uninstall (prevents stale widget state)</li>
+<li>DiagnosticsExporter enforces background thread contract</li>
+</ul>
+<h2 id="performance-1">Performance</h2>
+<ul>
+<li>Game Mode detector caches app category lookups (eliminates repeated disk I/O)</li>
+<li>Dashboard gateway resolution moved off main thread</li>
+</ul>
+<h2 id="quality">Quality</h2>
+<ul>
+<li>Removed dead code (unused variables, redundant dispatch)</li>
+<li>Helper version synced with app version</li>
+</ul>
+<hr>
+<h2 id="ping-warden-220">Ping Warden 2.2.0</h2>
+<h2 id="bug-fixes">Bug Fixes</h2>
+<ul>
+<li><strong>Fixed permanent lockout when menu bar icon is hidden</strong> (Issue #28) — Three-layer protection:
+<ul>
+<li>Relaunching Ping Warden with no visible windows now opens Settings automatically, so you can always get back in</li>
+<li>The app now refuses to hide the menu bar icon unless the Dock icon is enabled — preventing the lockout state entirely</li>
+<li>Uninstalling the helper now resets all preferences, so reinstalling starts fresh without inheriting a locked-out state</li>
+</ul>
+</li>
+<li><strong>Fixed build regression from project rename</strong> — Stale <code>AWDLControlHelper</code> references in the Xcode project caused the helper binary to be missing from the app bundle after the AWDLControl → PingWarden rename; all references updated to <code>PingWardenHelper</code></li>
+<li><strong>Fixed game category detection</strong> — Games in certain App Store categories were not being detected by Game Mode auto-detect due to an exact-match check; now uses prefix matching to cover all game subcategories</li>
+</ul>
+<h2 id="improvements-4">Improvements</h2>
+<ul>
+<li>
+<p><strong>Plain-English status labels</strong> — &quot;AWDL Monitoring&quot; is now &quot;Ping Protection&quot;; technical AWDL jargon replaced with clearer language throughout the UI</p>
+</li>
+<li>
+<p><strong>Confirmation before hiding menu bar icon</strong> — Added a dialog explaining the Dock icon requirement before making the menu bar icon invisible, preventing accidental lockout</p>
+</li>
+<li>
+<p><strong>Ping quality based on recent median</strong> — The quality indicator (Excellent/Good/Fair/Poor) now uses the median of the last 5 samples instead of the most recent one, reducing flickering from single-sample outliers</p>
+</li>
+<li>
+<p><strong>Version shown in health alerts</strong> — The &quot;helper needs reinstall&quot; alert now shows the actual bundle version instead of a hardcoded string</p>
+</li>
+<li>
+<p><strong>Rebuilt settings window chrome</strong> — Replaced dual settings window paths (manual NSWindow + SwiftUI Settings scene) with a single NavigationSplitView inside the Settings scene, restoring native macOS sidebar-under-titlebar appearance with proper vibrancy</p>
+</li>
+</ul>
+<h2 id="code-quality-1">Code Quality</h2>
+<ul>
+<li><strong>Thread safety</strong> — Fixed a race condition in <code>xpcRetryCount</code> and standardized all lock/unlock calls to use <code>defer { stateLock.unlock() }</code> to prevent unlock skips on early returns</li>
+<li><strong>Eliminated dead code</strong> — Removed 7 unnecessary <code>guard let</code> blocks from Preferences and a dead <code>checkControlCenterWidgetAvailable()</code> method</li>
+<li><strong>Security</strong> — Pinned ControlCenter widget signing requirement to the specific team ID instead of accepting any Developer ID certificate</li>
+<li><strong>Crash safety</strong> — Replaced two unsafe force-unwraps in QuarantineHelper with proper guard-let error handling</li>
+</ul>
+<hr>
+<h2 id="ping-warden-212">Ping Warden 2.1.2</h2>
+<h2 id="documentation-improvements">Documentation improvements</h2>
+<ul>
+<li>Expanded &quot;Why Not Just Run <code>sudo ifconfig awdl0 down</code>?&quot; section with detailed explanation of why polling scripts don't work—AWDL performs a channel scan each time it comes up, so even sub-second polling still introduces latency spikes.</li>
+<li>Added new &quot;Other Sources of WiFi Latency&quot; section covering Location Services WiFi scanning and manual mitigations.</li>
+<li>Added &quot;Will Apple Fix This in Hardware?&quot; section summarizing current research (including RIPE 91 October 2025 findings) on whether newer Apple chips might address this at the hardware level.</li>
+<li>Updated troubleshooting guide with Location Services diagnostics and workarounds.</li>
+</ul>
+<h2 id="code-quality-2">Code quality</h2>
+<ul>
+<li>Fixed Swift 6 actor isolation warnings in MonitoringStateStore.</li>
+<li>Updated user-facing strings from &quot;AWDLControl&quot; to &quot;Ping Warden&quot; for consistency.</li>
+</ul>
+<p class="source-note"><a href="https://github.com/oliverames/ping-warden/blob/main/RELEASE_NOTES.md">View this guide on GitHub</a></p></article></main><footer class="wrap"><p>Ping Warden by Oliver Ames</p><nav aria-label="Resources"><a href="/">Website</a><a href="https://github.com/oliverames/ping-warden">Source</a><a href="mailto:oliver@ames.consulting">Support</a></nav></footer></body></html>

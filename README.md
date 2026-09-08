@@ -23,6 +23,7 @@
 </p>
 
 <p align="center">
+  <a href="https://pingwarden.app">Website</a> &bull;
   <a href="#install-approve-and-verify">Install</a> &bull;
   <a href="#pricing">Pricing</a> &bull;
   <a href="#how-it-works">How it works</a> &bull;
@@ -33,7 +34,7 @@
 
 ---
 
-Ping Warden (formerly AWDL Control) is an open source (MIT) macOS menu bar app built for cloud gaming on a Mac. If GeForce NOW or Xbox Cloud Gaming stutters every few seconds over Wi-Fi, the cause is usually AWDL, and Ping Warden holds it down while you play. It also works for any latency-sensitive game or call. The source stays MIT and everything except enabling Ping Protection is free. Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection. Eligible existing users receive the [90-day transition described below](#pricing).
+Ping Warden (formerly AWDL Control) is an open source (MIT) macOS menu bar app built for cloud gaming on a Mac. AWDL can contribute to Wi-Fi stutters in GeForce NOW, Xbox Cloud Gaming, and other latency-sensitive games or calls. Ping Warden keeps it paused while you play. The source stays MIT and everything except enabling Ping Protection is free. Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection. Eligible existing users receive the [90-day transition described below](#pricing). Visit [pingwarden.app](https://pingwarden.app/) for the product website and [complete documentation](https://pingwarden.app/docs/).
 
 <p align="center">
   <img src="docs/images/ping-warden-3-dashboard.png" width="920" alt="Ping Warden 3 dashboard showing a Latency Session, live latency, jitter, probe failures, and ping history">
@@ -101,7 +102,7 @@ Ping Warden stays open source under MIT. You can build from source, inspect it, 
 
 Enabling Ping Protection in the prebuilt app requires that license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch; verification is offline-friendly for up to 14 days.
 
-**Transition for existing users:** If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in **Settings → License**. When the transition ends, enter a license key to keep protection available. The app shows a one-time notice when it grants the transition.
+**Transition for existing users:** If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in **Settings → License**. When the transition ends, enter a license key to keep protection available. The app introduces the transition once and reminds eligible users weekly during app use, showing the days remaining. Reminders wait until a detected game or latency session ends and stop after license activation. Missed weeks do not produce stacked reminders.
 
 **Donors:** If you supported Ping Warden through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
 
@@ -127,6 +128,7 @@ If you supported Ping Warden on [Buy Me a Coffee](https://www.buymeacoffee.com/o
 
 ## Documentation
 
+- [Documentation website](https://pingwarden.app/docs/) includes the complete guides below, pricing, privacy, and release notes.
 - [Quick Start](PingWarden/QUICKSTART.md) covers installation and first-run setup.
 - [Full documentation](PingWarden/README.md) explains the architecture, settings, and operating model.
 - [Troubleshooting](PingWarden/TROUBLESHOOTING.md) provides safe recovery steps and diagnostic commands.

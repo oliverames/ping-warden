@@ -1,0 +1,12 @@
+{
+  "name": "ping-warden-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "python3 check.py && node --test worker.test.mjs",
+    "dev": "wrangler dev",
+    "deploy": "npm run build && npm run check && wrangler deploy"
+  },
+  "devDependencies": { "markdown-it": "15.0.1", "wrangler": "4.129.1" }
+}

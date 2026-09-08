@@ -1,0 +1,174 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting and Removal | Ping Warden</title><meta name="description" content="Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app.">
+<meta name="author" content="Oliver Ames"><meta name="theme-color" content="#ffffff">
+<meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="https://pingwarden.app/docs/troubleshooting">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Ping Warden">
+<meta property="og:title" content="Troubleshooting and Removal | Ping Warden"><meta property="og:description" content="Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app.">
+<meta property="og:url" content="https://pingwarden.app/docs/troubleshooting"><meta property="og:image" content="https://pingwarden.app/app-icon.png"><meta property="og:image:alt" content="Ping Warden app icon">
+<meta name="twitter:card" content="summary"><meta name="twitter:title" content="Troubleshooting and Removal | Ping Warden"><meta name="twitter:description" content="Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app."><meta name="twitter:image" content="https://pingwarden.app/app-icon.png">
+<link rel="icon" type="image/png" href="/app-icon.png"><link rel="stylesheet" href="/styles.css"><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"TechArticle","headline":"Troubleshooting and Removal","description":"Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app.","url":"https://pingwarden.app/docs/troubleshooting","author":{"@type":"Person","name":"Oliver Ames"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Ping Warden","item":"https://pingwarden.app/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://pingwarden.app/docs/"},{"@type":"ListItem","position":3,"name":"Troubleshooting and Removal","item":"https://pingwarden.app/docs/troubleshooting"}]}]}</script></head><body><a class="skip" href="#main">Skip to content</a><header class="wrap"><a class="brand" href="/">Ping Warden</a><nav aria-label="Main navigation"><a href="/docs/">Docs</a><a href="/docs/setup">Setup</a><a href="https://amesconsulting.gumroad.com/l/pingwarden">Buy a license</a></nav></header><main id="main" class="wrap doc-layout"><aside><nav class="doc-nav" aria-label="Documentation"><a href="/docs/overview">Features, Pricing, and Privacy</a><a href="/docs/setup">Setup Guide</a><a href="/docs/technical">Technical Documentation</a><a href="/docs/troubleshooting">Troubleshooting and Removal</a><a href="/docs/releases">Release Notes</a><a href="/docs/security">Security and Reporting</a></nav></aside><article class="prose"><p class="breadcrumb"><a href="/docs/">Documentation</a></p><h1>Troubleshooting and Removal</h1><p class="doc-intro">Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app.</p><details class="toc"><summary>On this page</summary><ol><li><a href="#ping-protection-says-not-set-up">Ping Protection says &quot;Not Set Up&quot;</a></li><li><a href="#ping-protection-is-active-but-latency-still-spikes">Ping Protection is active, but latency still spikes</a></li><li><a href="#cpu-or-energy-use-is-higher-than-expected">CPU or energy use is higher than expected</a></li><li><a href="#game-mode-auto-detect-does-not-work">Game Mode auto-detect does not work</a></li><li><a href="#the-control-center-widget-does-not-appear">The Control Center widget does not appear</a></li><li><a href="#the-menu-bar-icon-or-settings-window-stops-updating">The menu bar icon or Settings window stops updating</a></li><li><a href="#the-app-crashes-on-launch">The app crashes on launch</a></li><li><a href="#airdrop-airplay-or-handoff-does-not-work">AirDrop, AirPlay, or Handoff does not work</a></li><li><a href="#uninstall-ping-warden">Uninstall Ping Warden</a></li><li><a href="#collect-useful-diagnostics">Collect useful diagnostics</a></li><li><a href="#other-sources-of-wi-fi-latency">Other sources of Wi-Fi latency</a></li><li><a href="#known-limitations">Known limitations</a></li></ol></details><p>Start with the checks below. Ping Warden includes its own helper repair, diagnostics snapshot, and removal-preparation flows, so Terminal cleanup should not be the first step.</p>
+<h2 id="ping-protection-says-not-set-up">Ping Protection says &quot;Not Set Up&quot;</h2>
+<h3 id="check-helper-approval">Check helper approval</h3>
+<ol>
+<li>Open <strong>System Settings &gt; General &gt; Login Items &amp; Extensions</strong>. Older macOS releases may label this page <strong>Login Items</strong>.</li>
+<li>Find Ping Warden under the background items or extensions section.</li>
+<li>Turn it on if it is disabled.</li>
+<li>Quit and reopen Ping Warden.</li>
+</ol>
+<p>macOS can report that approval is required as an &quot;Operation not permitted&quot; registration result. This is expected until you approve the helper in System Settings.</p>
+<h3 id="repair-the-helper-connection">Repair the helper connection</h3>
+<ol>
+<li>Open <strong>Settings &gt; Advanced</strong>.</li>
+<li>Click <strong>Repair</strong> under Repair Helper Connection.</li>
+<li>Approve Ping Warden in System Settings if macOS asks.</li>
+<li>Return to the app and run <strong>Settings &gt; Advanced &gt; Run Test</strong>.</li>
+</ol>
+<h3 id="reinstall-safely">Reinstall safely</h3>
+<p>Use the app's removal flow before deleting the application. It stops Ping Protection, restores AWDL, unregisters the helper and Launch at Login, clears Ping Warden's local data, and reveals the app in Finder.</p>
+<ol>
+<li>Open <strong>Settings &gt; Advanced &gt; Prepare to Remove</strong> and confirm.</li>
+<li>Move <code>/Applications/Ping Warden.app</code> to the Trash in Finder.</li>
+<li>Download a fresh DMG from the <a href="https://github.com/oliverames/ping-warden/releases/latest">latest release</a>.</li>
+<li>Drag Ping Warden to Applications and complete setup again.</li>
+</ol>
+<p>If the app cannot open far enough to run its uninstall flow, do not delete LaunchDaemon files or shared containers by hand. <a href="https://github.com/oliverames/ping-warden/issues/new?template=bug_report.md">Open a bug report</a> so the helper can be recovered without leaving AWDL in the wrong state.</p>
+<h2 id="ping-protection-is-active-but-latency-still-spikes">Ping Protection is active, but latency still spikes</h2>
+<p>Ping Warden addresses AWDL-related interruptions. Internet congestion, a busy router, VPN software, Location Services scans, and the remote service itself can also affect latency.</p>
+<ol>
+<li>
+<p>Open the dashboard and confirm that Ping Protection is active.</p>
+</li>
+<li>
+<p>Open <strong>Settings &gt; Advanced</strong> and run the helper test.</p>
+</li>
+<li>
+<p>Check that the AWDL interface exists:</p>
+<pre><code class="language-bash">ifconfig awdl0
+</code></pre>
+</li>
+<li>
+<p>Temporarily disable other network-control tools or VPN software, then test again.</p>
+</li>
+<li>
+<p>Compare the dashboard against a target close to the service you are using. A public DNS target may not reflect the path to a game server.</p>
+</li>
+</ol>
+<p>If the helper test fails, re-register the helper. If it passes, export diagnostics and include the approximate time of the spike in the bug report.</p>
+<h2 id="cpu-or-energy-use-is-higher-than-expected">CPU or energy use is higher than expected</h2>
+<p>Use Activity Monitor's CPU and Energy tabs to confirm that Ping Warden is the process using resources.</p>
+<ol>
+<li>Close the dashboard and compare usage. Faster dashboard update intervals perform more probes and chart updates.</li>
+<li>Turn off <strong>Game Mode Auto-Detect</strong> under <strong>Settings &gt; Automation</strong> and compare again.</li>
+<li>Quit and reopen Ping Warden.</li>
+<li>Export diagnostics and report the macOS version, app version, selected ping interval, and whether the dashboard was open.</li>
+</ol>
+<p>Do not use a fixed CPU percentage as the only test. Activity Monitor readings vary with the Mac, selected interval, open windows, and current network state.</p>
+<h2 id="game-mode-auto-detect-does-not-work">Game Mode auto-detect does not work</h2>
+<h3 id="check-that-the-game-is-frontmost">Check that the game is frontmost</h3>
+<p>Since 4.1.0, detection works from the frontmost app and needs no permission. Bring the game to the front and wait a few seconds; the menu bar status changes when protection engages. Detection is skipped while the Mac is on Ethernet.</p>
+<h3 id="optional-screen-recording-access">Optional: Screen Recording access</h3>
+<p>Screen Recording only adds detection of a fullscreen game sitting behind other windows. To enable it, open <strong>Settings &gt; Automation</strong> and click <strong>Enable Fullscreen Detection…</strong>, or open <strong>System Settings &gt; Privacy &amp; Security &gt; Screen Recording</strong> and turn on access for Ping Warden. Ping Warden reads only window metadata and never records or uploads the screen.</p>
+<h3 id="check-the-game">Check the game</h3>
+<p>Automatic detection depends on the app metadata used by macOS Game Mode. Some fullscreen apps and games do not declare <code>LSApplicationCategoryType</code> or <code>LSSupportsGameMode</code>. Use the menu bar toggle when a title is not detected.</p>
+<h2 id="the-control-center-widget-does-not-appear">The Control Center widget does not appear</h2>
+<p>The widget requires <a href="https://support.apple.com/en-us/122868">macOS Tahoe 26</a> or newer and a signed Ping Warden release build.</p>
+<ol>
+<li>Install the latest signed release from GitHub rather than a local debug build.</li>
+<li>Open <strong>Settings &gt; Automation</strong> and turn on <strong>Hide Menu Bar Icon</strong>.</li>
+<li>Open <strong>System Settings &gt; Control Center</strong>.</li>
+<li>Find Ping Warden and add it to Control Center or the menu bar.</li>
+</ol>
+<p>If the setting says <strong>Unavailable</strong>, confirm the macOS version and reinstall the signed release.</p>
+<h2 id="the-menu-bar-icon-or-settings-window-stops-updating">The menu bar icon or Settings window stops updating</h2>
+<ol>
+<li>
+<p>Turn Ping Protection off and back on.</p>
+</li>
+<li>
+<p>Quit and reopen Ping Warden.</p>
+</li>
+<li>
+<p>Confirm that the processes are present:</p>
+<pre><code class="language-bash">pgrep -fl 'Ping Warden|PingWardenHelper'
+</code></pre>
+</li>
+<li>
+<p>Open <strong>Settings &gt; Advanced</strong>, run the helper test, and export diagnostics if the problem continues.</p>
+</li>
+</ol>
+<h2 id="the-app-crashes-on-launch">The app crashes on launch</h2>
+<ol>
+<li>
+<p>Confirm that the Mac is running macOS 13 Ventura or newer:</p>
+<pre><code class="language-bash">sw_vers
+</code></pre>
+</li>
+<li>
+<p>Open Console and search for the <code>Ping Warden</code> and <code>PingWardenHelper</code> processes.</p>
+</li>
+<li>
+<p>Look for a Ping Warden crash report under <strong>Crash Reports</strong> in Console.</p>
+</li>
+<li>
+<p>Reinstall the latest signed release. If the app can open Settings first, use <strong>Settings &gt; Advanced &gt; Prepare to Remove</strong> before reinstalling.</p>
+</li>
+</ol>
+<p>Do not clear the app's preferences or shared container before collecting diagnostics. That state can explain the crash and makes the report more useful.</p>
+<h2 id="airdrop-airplay-or-handoff-does-not-work">AirDrop, AirPlay, or Handoff does not work</h2>
+<p>These features depend on AWDL and are expected to be unavailable while Ping Protection is active.</p>
+<ul>
+<li>
+<p>Choose <strong>Turn Off Ping Protection</strong> to restore them until you turn protection on again.</p>
+</li>
+<li>
+<p>Choose <strong>Pause for 10 Minutes</strong> if you need them briefly.</p>
+</li>
+<li>
+<p>If they remain unavailable after protection is off, quit Ping Warden and check the interface:</p>
+<pre><code class="language-bash">ifconfig awdl0
+</code></pre>
+</li>
+</ul>
+<p>Report the issue if <code>awdl0</code> does not return to an active state.</p>
+<h2 id="uninstall-ping-warden">Uninstall Ping Warden</h2>
+<ol>
+<li>
+<p>Open <strong>Settings &gt; Advanced &gt; Prepare to Remove</strong> and confirm.</p>
+</li>
+<li>
+<p>Wait for Ping Warden to quit.</p>
+</li>
+<li>
+<p>Move <code>/Applications/Ping Warden.app</code> to the Trash in Finder.</p>
+</li>
+<li>
+<p>Confirm that AWDL has returned:</p>
+<pre><code class="language-bash">ifconfig awdl0
+</code></pre>
+</li>
+</ol>
+<p>The built-in flow is important because deleting the app alone does not reliably unregister its privileged helper.</p>
+<h2 id="collect-useful-diagnostics">Collect useful diagnostics</h2>
+<ol>
+<li>Open <strong>Settings &gt; Advanced</strong>.</li>
+<li>Click <strong>Create Snapshot</strong> under Diagnostics Snapshot.</li>
+<li>Review the text file before sharing it. It contains app and macOS versions, helper state, relevant settings, an AWDL status snapshot, and only the selected target category. Custom hostnames and IP addresses are redacted.</li>
+<li>Note the approximate time of the problem and what Ping Warden was doing.</li>
+<li>Attach the file to a <a href="https://github.com/oliverames/ping-warden/issues/new?template=bug_report.md">bug report</a>.</li>
+</ol>
+<p>For a short read-only log sample, run:</p>
+<pre><code class="language-bash">log show --last 15m --predicate 'subsystem == &quot;com.amesvt.pingwarden&quot; OR process == &quot;PingWardenHelper&quot;' --info
+</code></pre>
+<p>Do not post unrelated Console output, account names, or network details that are not needed to reproduce the problem.</p>
+<h2 id="other-sources-of-wi-fi-latency">Other sources of Wi-Fi latency</h2>
+<p>Location Services can ask macOS to scan nearby Wi-Fi networks. If the dashboard still shows spikes while Ping Protection is active, compare a test with Location Services disabled under <strong>System Settings &gt; Privacy &amp; Security &gt; Location Services</strong>. You can also disable access for individual apps and system services instead of turning it off globally.</p>
+<p>Ping Warden does not block Location Services scans.</p>
+<h2 id="known-limitations">Known limitations</h2>
+<ul>
+<li>Ping Warden requires macOS 13 Ventura or newer.</li>
+<li>Ping Protection temporarily disables AWDL-dependent features.</li>
+<li>Game Mode detection requires compatible app metadata; Screen Recording access is optional and only adds fullscreen games behind other windows.</li>
+<li>The Control Center widget requires macOS 26 or newer and a signed release build.</li>
+<li>Ping Warden addresses AWDL-related interruptions, not every source of network latency.</li>
+</ul>
+<p class="source-note"><a href="https://github.com/oliverames/ping-warden/blob/main/PingWarden/TROUBLESHOOTING.md">View this guide on GitHub</a></p></article></main><footer class="wrap"><p>Ping Warden by Oliver Ames</p><nav aria-label="Resources"><a href="/">Website</a><a href="https://github.com/oliverames/ping-warden">Source</a><a href="mailto:oliver@ames.consulting">Support</a></nav></footer></body></html>

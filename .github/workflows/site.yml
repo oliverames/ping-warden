@@ -1,0 +1,19 @@
+name: Website Verification
+on:
+  push:
+    branches: [main]
+    paths: ['Site/**', 'README.md', 'PingWarden/*.md', 'RELEASE_NOTES.md', 'SECURITY.md', '.github/workflows/site.yml']
+  pull_request:
+    paths: ['Site/**', 'README.md', 'PingWarden/*.md', 'RELEASE_NOTES.md', 'SECURITY.md', '.github/workflows/site.yml']
+permissions:
+  contents: read
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - run: npm ci --prefix Site
+      - run: npm run build --prefix Site
+      - run: npm run check --prefix Site
+      - name: Ensure committed pages match source guides
+        run: git diff --exit-code -- Site/public

@@ -65,6 +65,11 @@ struct PingWardenApp: App {
                     appDelegate.openAbout()
                 }
             }
+            CommandGroup(replacing: .help) {
+                Link("Ping Warden Help", destination: LicenseManager.documentationURL)
+                Link("Troubleshooting", destination: LicenseManager.troubleshootingURL)
+                Link("Ping Warden Website", destination: LicenseManager.websiteURL)
+            }
             CommandGroup(replacing: .appSettings) {
                 Button("Settings...") {
                     appDelegate.openSettings()
@@ -144,6 +149,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         LicenseManager.shared.onReverificationSettled = { [weak self] in
             Task { @MainActor in
                 await self?.protectionExperience.handleLicenseReverification()
+                self?.presentDueLicenseNotice()
             }
         }
         LicenseManager.shared.startPeriodicReverification()
@@ -167,17 +173,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
         }
 
-        // One-time notice for grandfathered installs so the move to a
-        // paid model is explained, never a surprise.
-        if LicenseManager.shared.isGrandfathered,
-           !LicenseManager.shared.transitionNoticeShown {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                guard let self else { return }
-                guard LicenseManager.shared.isGrandfathered,
-                      !LicenseManager.shared.transitionNoticeShown else { return }
-                LicenseManager.shared.transitionNoticeShown = true
-                self.showLicenseTransitionNotice()
-            }
+        // Check on launch and while the app is in use. The persisted timestamp
+        // prevents relaunches or missed weeks from producing repeated prompts.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.presentDueLicenseNotice(allowBackground: true)
         }
 #if DEBUG
         let debugWindowPrefix = "--show-window="
@@ -355,6 +354,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     func applicationDidBecomeActive(_ notification: Notification) {
         ensureApplicationMenuItems()
+        presentDueLicenseNotice()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -578,15 +578,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     // MARK: - License Transition Notice
 
-    /// One-time window explaining the paid-model transition to
-    /// grandfathered installs. Shown only on the first launch of the
-    /// licensed build that observes protection already enabled.
-    private func showLicenseTransitionNotice() {
+    private func presentDueLicenseNotice(allowBackground: Bool = false) {
+        let license = LicenseManager.shared
+        guard !isTerminating else { return }
+        guard license.isGrandfathered else {
+            if licenseNoticeWindow != nil { closeLicenseNoticeWindow() }
+            return
+        }
+        guard licenseNoticeWindow == nil, welcomeWindow?.isVisible != true,
+              !isStatusMenuOpen, !protectionExperience.gameModeActive,
+              sessionCoordinator.phase == .idle, !license.isVerifying,
+              license.storedLicenseKey == nil,
+              allowBackground || NSApp.isActive else { return }
+        let isReminder = license.transitionNoticeShown
+        guard !isReminder || license.transitionReminderIsDue else { return }
+        showLicenseTransitionNotice(isReminder: isReminder)
+    }
+
+    private func showLicenseTransitionNotice(isReminder: Bool) {
         guard licenseNoticeWindow == nil,
               LicenseManager.shared.isGrandfathered else { return }
 
         let view = LicenseTransitionNoticeView(
-            daysRemaining: LicenseManager.shared.grandfatherDaysRemaining,
+            isReminder: isReminder,
             onOpenLicenseSettings: { [weak self] in
                 self?.closeLicenseNoticeWindow()
                 self?.settingsNavigation.selectedSection = .license
@@ -607,7 +621,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             defer: false
         )
         window.contentViewController = hostingController
-        window.title = "Ping Warden Is Moving to a License"
+        window.title = isReminder ? "Keep Ping Protection After Your Transition" : "Ping Warden License Transition"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
@@ -617,6 +631,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.delegate = self
 
         licenseNoticeWindow = window
+        LicenseManager.shared.recordTransitionNoticePresented()
 
         NSApp.setActivationPolicy(.regular)
         window.makeKeyAndOrderFront(nil)
@@ -767,6 +782,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         updateItem.image = menuSymbol("arrow.trianglehead.2.clockwise.rotate.90")
         statusMenu?.addItem(updateItem)
 
+        let helpItem = NSMenuItem(title: "Help and Documentation", action: #selector(openDocumentation), keyEquivalent: "")
+        helpItem.target = self
+        helpItem.image = menuSymbol("questionmark.circle")
+        statusMenu?.addItem(helpItem)
+
         // About
         let aboutItem = NSMenuItem(
             title: "About Ping Warden",
@@ -787,7 +807,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         licenseItem.target = self
         licenseItem.tag = 170
         licenseItem.image = menuSymbol("checkmark.seal")
-        licenseItem.isHidden = LicenseManager.shared.canEnableProtection
+        licenseItem.isHidden = LicenseManager.shared.hasValidPaidLicense
         statusMenu?.addItem(licenseItem)
 
         statusMenu?.addItem(NSMenuItem.separator())
@@ -973,6 +993,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         ensureApplicationMenuItems()
+    }
+
+    @objc private func openDocumentation() {
+        NSWorkspace.shared.open(LicenseManager.documentationURL)
     }
 
     @objc private func supportPingWarden() {
@@ -1214,7 +1238,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        menu.items.first(where: { $0.tag == 170 })?.isHidden = LicenseManager.shared.canEnableProtection
+        menu.items.first(where: { $0.tag == 170 })?.isHidden = LicenseManager.shared.hasValidPaidLicense
         guard menu === statusMenu else { return }
         isStatusMenuOpen = true
         syncMenuMetricsTargetIfNeeded()
@@ -1231,6 +1255,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func menuDidClose(_ menu: NSMenu) {
         guard menu === statusMenu else { return }
         isStatusMenuOpen = false
+        DispatchQueue.main.async { [weak self] in
+            self?.presentDueLicenseNotice(allowBackground: true)
+        }
         if PingWardenPreferences.shared.showMenuDropdownMetrics {
             stopMenuMetricsMonitoring()
         }
@@ -1427,13 +1454,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
 // MARK: - License Transition Notice View
 
-/// One-time notice shown on the first launch of the licensed build for
-/// grandfathered installs. Explains the paid-model move, the 90-day
-/// transition, and the donation-honoring offer.
+/// Introductory notice and weekly reminders share the purchase and activation flow.
 struct LicenseTransitionNoticeView: View {
-    static let contentSize = CGSize(width: 460, height: 460)
+    static let contentSize = CGSize(width: 480, height: 560)
 
-    let daysRemaining: Int?
+    let isReminder: Bool
+    @ObservedObject private var license = LicenseManager.shared
+    private var daysRemaining: Int? { license.grandfatherDaysRemaining }
     let onOpenLicenseSettings: () -> Void
     let onDismiss: () -> Void
 
@@ -1449,18 +1476,19 @@ struct LicenseTransitionNoticeView: View {
                     .padding(.top, 24)
 
                 VStack(spacing: 10) {
-                    Text("Ping Warden Is Moving to a License")
+                    Text(isReminder ? "Keep Ping Protection After Your Transition" : "Ping Warden Is Moving to a License")
                         .font(.title2)
                         .fontWeight(.semibold)
                         .multilineTextAlignment(.center)
 
                     VStack(spacing: 8) {
                         if let daysRemaining {
-                            Text("Starting with this release, the AWDL blocking feature (Ping Protection) requires a one-time $15 license.")
-                            Text("As a thank-you for being an early user, this Mac keeps full Ping Protection for \(daysRemaining) more days. Nothing changes today, and no action is needed right now.")
-                        } else {
-                            Text("Starting with this release, the AWDL blocking feature (Ping Protection) requires a one-time $15 license.")
-                            Text("As a thank-you for being an early user, this Mac keeps full Ping Protection during a 90-day transition. Nothing changes today, and no action is needed right now.")
+                            Text("Your transition has \(daysRemaining) \(daysRemaining == 1 ? "day" : "days") remaining.")
+                                .fontWeight(.semibold)
+                            Text("Buy and activate a one-time $15 license before the transition ends to keep Ping Protection available. Until then, protection continues to work on this Mac.")
+                        }
+                        if isReminder {
+                            Text("We’ll remind you once a week during your remaining transition. Buying and activating your license stops these reminders.")
                         }
                         Text("Everything else in Ping Warden stays free, and the source code remains open under the MIT License.")
                     }
@@ -1490,12 +1518,20 @@ struct LicenseTransitionNoticeView: View {
 
                 VStack(spacing: 10) {
                     Button {
-                        onOpenLicenseSettings()
+                        onDismiss()
+                        NSWorkspace.shared.open(LicenseManager.purchaseURL)
                     } label: {
-                        Text("View License Options")
-                            .frame(maxWidth: .infinity)
+                        Text("Buy Ping Protection · $15").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    Button {
+                        onOpenLicenseSettings()
+                    } label: {
+                        Text("Enter a License Key")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
                     .controlSize(.large)
                     .keyboardShortcut(.defaultAction)
 
@@ -2800,6 +2836,7 @@ struct AboutView: View {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 12) {
                         aboutLicenseLink
+                        aboutWebsiteLink
                         aboutDocumentationLink
                         aboutIssueLink
                         aboutDonateButton
@@ -2807,6 +2844,7 @@ struct AboutView: View {
 
                     VStack(spacing: 8) {
                         aboutLicenseLink
+                        aboutWebsiteLink
                         aboutDocumentationLink
                         aboutIssueLink
                         aboutDonateButton
@@ -2855,7 +2893,7 @@ struct AboutView: View {
 
     @ViewBuilder
     private var aboutLicenseLink: some View {
-        if license.canEnableProtection {
+        if license.hasValidPaidLicense {
             Text("Licensed")
                 .foregroundStyle(.secondary)
         } else {
@@ -2871,10 +2909,14 @@ struct AboutView: View {
         }
     }
 
+    private var aboutWebsiteLink: some View {
+        Link("Website", destination: LicenseManager.websiteURL)
+    }
+
     private var aboutDocumentationLink: some View {
         Link(
             "Documentation",
-            destination: URL(string: "https://github.com/oliverames/ping-warden#readme")!
+            destination: LicenseManager.documentationURL
         )
     }
 

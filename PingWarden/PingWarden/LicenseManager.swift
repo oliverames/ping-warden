@@ -36,6 +36,9 @@ final class LicenseManager: ObservableObject {
     /// Where to buy a license. The Gumroad storefront moved from
     /// olivera40 to amesconsulting on 2026-09-03; the old host 404s.
     nonisolated static let purchaseURL = URL(string: "https://amesconsulting.gumroad.com/l/pingwarden")!
+    nonisolated static let websiteURL = URL(string: "https://pingwarden.app/")!
+    nonisolated static let documentationURL = URL(string: "https://pingwarden.app/docs/")!
+    nonisolated static let troubleshootingURL = URL(string: "https://pingwarden.app/docs/troubleshooting")!
 
     nonisolated private static let appGroupSuiteName = "PV3W52NDZ3.com.amesvt.pingwarden"
     private let keychainService = "com.amesvt.pingwarden.license"
@@ -49,6 +52,7 @@ final class LicenseManager: ObservableObject {
     nonisolated private static let sealKey = "LicenseStateSeal"
     private let legacyGrandfatherCheckedKey = "LicenseGrandfatherChecked"
     private let transitionNoticeShownKey = "LicenseTransitionNoticeShown"
+    private let transitionLastPresentedKey = "LicenseTransitionLastPresentedAt"
 
     @Published private(set) var lastVerificationResult: LicensePolicy.Verification?
     @Published private(set) var isVerifying = false
@@ -234,11 +238,25 @@ final class LicenseManager: ObservableObject {
 
     /// Whether the one-time transition notice window has already been
     /// shown on this Mac. The notice explains the paid-model move once,
-    /// on the first launch of the licensed build; the License pane
-    /// carries the ongoing messaging afterward.
+    /// on the first launch of the licensed build. Weekly reminders use
+    /// a separate timestamp so legacy installs retain their notice state.
     var transitionNoticeShown: Bool {
         get { defaults.bool(forKey: transitionNoticeShownKey) }
         set { defaults.set(newValue, forKey: transitionNoticeShownKey) }
+    }
+
+    var transitionReminderIsDue: Bool {
+        LicenseReminderPolicy.isDue(
+            now: Date(), deadline: grandfatherDeadline,
+            eligible: isGrandfathered && storedLicenseKey == nil && !isVerifying,
+            lastPresentedAt: defaults.object(forKey: transitionLastPresentedKey) as? Date
+        )
+    }
+
+    /// Persist only after presenting a window, not when a check is deferred.
+    func recordTransitionNoticePresented() {
+        transitionNoticeShown = true
+        defaults.set(Date(), forKey: transitionLastPresentedKey)
     }
 
     /// One-time grandfathering for the licensed build's first launch:
@@ -556,6 +574,7 @@ final class LicenseManager: ObservableObject {
             Self.sealKey,
             legacyGrandfatherCheckedKey,
             transitionNoticeShownKey,
+            transitionLastPresentedKey,
         ] {
             defaults.removeObject(forKey: key)
         }

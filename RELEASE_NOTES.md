@@ -1,3 +1,18 @@
+# Ping Warden 4.1.2
+
+Ping Warden now has a dedicated website at [pingwarden.app](https://pingwarden.app/), with complete setup, technical, privacy, and troubleshooting documentation.
+
+## Improvements
+
+- The Help menu, menu bar, and About window link to the new website and documentation.
+- Eligible users in the existing 90-day transition receive a weekly reminder to buy and activate a license, with their remaining days shown. The schedule persists across restarts and preserves the original deadline.
+- Reminders wait during detected games and latency sessions. They stop after activation or expiry, and missed weeks never create stacked prompts.
+- Buy a License remains available during the transition. About now distinguishes a paid license from temporary transition access.
+
+## Upgrading from a free version
+
+Ping Protection requires a one-time $15 license. The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing eligible users retain their original 90-day transition. Donations through Buy Me a Coffee before version 4 are honored as licenses. See [pricing and transition details](https://pingwarden.app/docs/overview#pricing).
+
 # Ping Warden 4.1.1
 
 Settings now describe Game Mode auto-detect the way 4.1.0 made it work, and a review of every screen tidied the places where the free-app era still showed.

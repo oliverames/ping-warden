@@ -95,6 +95,9 @@ iOSInjectionProject/
 # Claude Code
 .claude/
 
+# Local website runtime
+.wrangler/
+
 # Compiled daemon binary (built from source)
 AWDLControl/AWDLMonitorDaemon/awdl_monitor_daemon
 
