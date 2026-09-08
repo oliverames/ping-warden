@@ -70,4 +70,14 @@ reminder behavior and Help links. Existing binaries cannot change remotely.
   reminder view was rendered using fictional state in a separate preview app,
   without modifying the installed app's data.
 
-Signed publication and final CI results will be recorded after release.
+## Publication status
+
+The implementation is committed and pushed as `b19177b`. Website Verification
+passed. The website and standard Gumroad product page are live. Version 4.1.2 is
+prepared and locally verified, but the published app remains 4.1.1.
+
+Automatic approval review rejected running the full release command because
+publishing the signed app through GitHub, update feeds, and Gumroad had not been
+explicitly approved. No release command ran. Signing, notarization, and app
+publication await Oliver's explicit approval. Existing notary and Gumroad
+credentials passed their read-only preflight checks.
