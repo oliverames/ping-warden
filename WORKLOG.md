@@ -1,5 +1,17 @@
 # Ping Warden Worklog
 
+## 2026-09-09 - Publish Ping Warden 4.1.3
+
+**What changed**: Released 4.1.3 / 41300 from `2a23d0e` through the maintained signing, notarization, GitHub, Sparkle, Sentry, and Gumroad pipeline. This ships the obsolete donation-policy removal and dependency/build updates.
+
+**Verification**: 131 core tests and nine release-tool tests passed. Independently downloaded the public DMG and verified its bytes, app/helper/widget signatures, notarization tickets, and Gatekeeper acceptance. Both live signed feeds match source and advertise 4.1.3. Gumroad has exactly one embedded DMG with matching bytes and preserves license-key delivery. Sentry symbols were accepted and the release finalized. See [release evidence](docs/2026-09-09-release-4.1.3.md).
+
+**Left off at**: Published on GitHub and Gumroad September 9, 2026 at approximately 13:28 UTC. The signed feed copies are recorded on main. Website source pages were regenerated but not deployed to Cloudflare.
+
+**Open questions**: Still tracked: [#63](https://github.com/oliverames/ping-warden/issues/63) hosted CodeQL completion, [#64](https://github.com/oliverames/ping-warden/issues/64) live-game validation, and [#65](https://github.com/oliverames/ping-warden/issues/65) the website development dependency advisory. No new blocker prevented app publication.
+
+---
+
 ## 2026-09-09 - Resolve open issues and dependency pull requests
 
 **What changed**: Resolved this session: merged #42, #53, #56, #59, and #60 in `0feb152`, then removed the unused donation-prompt policy and corrected documentation in `954f74b`. Issues #61 and #62 are closed. A new private 100% donor offer is active and stored in 1Password as "Ping Warden Private Donor Offer." The previously disclosed offer remains disabled.
