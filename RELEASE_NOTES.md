@@ -400,6 +400,8 @@ Adds opt-in crash reporting and hardens the release pipeline so future updates s
 
 Two user-facing features plus the usual round of testing improvements.
 
+Historical note, September 9, 2026: The donation prompt described below was removed for the licensed model. Its unused policy and tests have also been removed. Current license-transition reminders use a separate policy.
+
 ## Features
 - **Custom ping servers** ([#29](https://github.com/oliverames/ping-warden/issues/29)) — Add your own DNS or ping targets (NextDNS, Control D, anything else) under Dashboard → Custom Servers. Targets persist in the App Group, survive updates, and feed into the same auto-select-nearest flow as the built-in list.
 - **One-time donation prompt** — A polite, dismissible Buy Me a Coffee ask that appears once on launch and again only on minor-version bumps. A "Don't ask again" button is a permanent kill switch, and the entire flow is governed by `VersionPromptPolicy` so it cannot accidentally re-fire after a patch release.

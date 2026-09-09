@@ -54,11 +54,11 @@
 
 ## Follow-up that still needs a decision (parked)
 
-- **Offer code vs manual license for donors.** The product is draft and `gumroad products publish` plus a 100%-off offer code (e.g., `DONOR-THANKYOU`, hidden) would give you a private URL to honor donor receipts without hand-minting keys. Create it when ready; no public visibility until you share it.
+- **Donor offer, resolved September 9, 2026 ([#62](https://github.com/oliverames/ping-warden/issues/62)).** The product is published. A new private, product-specific 100% offer is active and stored in 1Password as "Ping Warden Private Donor Offer." Its code and URL are intentionally omitted here. The previously disclosed offer remains disabled. Verify donor eligibility before sharing the private link.
 
 - **Spec doc.** If you want `PING_WARDEN_3_SPEC.md` to mention the License settings pane as a first-class surface, add it to the `Provide persistent ... actions in the menu, Settings, and` line.
 
-- **Donation prompt eligibility after licensing.** `SupportPromptPolicy` still shows the sheet based on sessions/interventions. Licensed users will still see it. If you want it suppressed for licensed installs, gate `showDonationPromptIfNeeded` on `!canEnableProtection` or similar. Low priority before ship.
+- **Donation prompt, resolved September 9, 2026 ([#61](https://github.com/oliverames/ping-warden/issues/61)).** The donation sheet was removed for the licensed model. The unused launch-prompt policy and its tests have now been removed too. Earlier beta release notes describe historical behavior, not the current app. The separate license-transition reminder remains active for eligible unlicensed users.
 
 ## Verification
 
