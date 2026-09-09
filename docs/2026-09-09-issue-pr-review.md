@@ -36,3 +36,5 @@ The changes are committed and pushed to main. No new app release or website depl
 ## Wrap-up verification follow-ups
 
 Hosted build, Linux core tests, and shell checks passed for `31fc177`. Website verification passed for `954f74b`. CodeQL is still running and is tracked in [#63](https://github.com/oliverames/ping-warden/issues/63). The previously documented live-game validation gap is carried forward in [#64](https://github.com/oliverames/ping-warden/issues/64). Neither item is a confirmed new defect. The worklog records both outcomes and next steps.
+
+The final push also surfaced [Dependabot alert #1](https://github.com/oliverames/ping-warden/security/dependabot/1), now tracked in [#65](https://github.com/oliverames/ping-warden/issues/65). The installed dependency chain is `wrangler@4.129.1 -> miniflare@5.20260907.0-alpha -> sharp@0.35.2`. GitHub identifies 0.35.4 as the first patched version for high-severity advisory GHSA-rgj7-g3m4-5g8c. This confirms an affected development dependency, not application exploitability. Remediation is deferred to the owning issue.

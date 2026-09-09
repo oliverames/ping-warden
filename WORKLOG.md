@@ -10,6 +10,8 @@
 
 **Left off at**: Source changes are pushed. No new app release or website deployment occurred. NEW: hosted CodeQL completion is tracked in [#63](https://github.com/oliverames/ping-warden/issues/63), with run and commit evidence. Still open: the September 6 live-game validation is now tracked in [#64](https://github.com/oliverames/ping-warden/issues/64). This is a validation gap, not a confirmed defect.
 
+**NEW security follow-up**: The wrap-up push surfaced Dependabot alert #1. Confirmed `wrangler -> miniflare -> sharp@0.35.2` in the website development dependencies. [#65](https://github.com/oliverames/ping-warden/issues/65) tracks GHSA-rgj7-g3m4-5g8c and the update to at least 0.35.4. Exploitability is unassessed and no fix was started.
+
 **Open questions**: No product decision is needed. Inspect the CodeQL result and arrange a suitable interactive game session for the carried validation.
 
 ---
