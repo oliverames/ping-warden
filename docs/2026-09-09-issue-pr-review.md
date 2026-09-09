@@ -8,7 +8,7 @@ Author: Oliver Ames
 - Complete: remove the orphaned donation-prompt policy, annotate historical release notes, and correct the inventory for #61.
 - Complete: create and privately store a replacement donor offer for #62.
 - Verified locally: 131 remaining core tests, 9 release-tool tests, complete unsigned Release build, and website build/check.
-- Complete: push the verified changes to main. GitHub confirms both issues are closed and no open issues or pull requests remain.
+- Complete: push the verified changes to main. GitHub confirms both original issues are closed and all five original pull requests are merged. Wrap-up verification follow-ups are tracked separately below.
 - Hosted validation: [Build Verification](https://github.com/oliverames/ping-warden/actions/workflows/build.yml), [CodeQL](https://github.com/oliverames/ping-warden/actions/workflows/codeql.yml), and [Website Verification](https://github.com/oliverames/ping-warden/actions/workflows/site.yml) provide current run results.
 
 ## Dependency review
@@ -32,3 +32,7 @@ The replacement was read back from Gumroad and verified as 100% off, product-spe
 ## Delivery boundary
 
 The changes are committed and pushed to main. No new app release or website deployment was performed. GitHub accepted the direct push using the existing owner bypass and reported the combined merge commit against its linear-history rule, along with pre-push status checks. Repository rules and permissions were not changed.
+
+## Wrap-up verification follow-ups
+
+Hosted build, Linux core tests, and shell checks passed for `31fc177`. Website verification passed for `954f74b`. CodeQL is still running and is tracked in [#63](https://github.com/oliverames/ping-warden/issues/63). The previously documented live-game validation gap is carried forward in [#64](https://github.com/oliverames/ping-warden/issues/64). Neither item is a confirmed new defect. The worklog records both outcomes and next steps.
