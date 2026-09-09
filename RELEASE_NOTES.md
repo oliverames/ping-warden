@@ -1,3 +1,16 @@
+# Ping Warden 4.1.3
+
+A maintenance release that removes unused donation-prompt code and updates build dependencies.
+
+## Improvements
+
+- Removed the obsolete launch-donation policy. License-transition reminders continue to use their separate policy.
+- Updated dependency requirements and build checks, including matching versions for the CodeQL security-analysis steps.
+
+## Upgrading from a free version
+
+Ping Protection requires a one-time $15 license. The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing eligible users retain their original 90-day transition. Donations through Buy Me a Coffee before version 4 are honored as licenses. See [pricing and transition details](https://pingwarden.app/docs/overview#pricing).
+
 # Ping Warden 4.1.2
 
 Ping Warden now has a dedicated website at [pingwarden.app](https://pingwarden.app/), with complete setup, technical, privacy, and troubleshooting documentation.
