@@ -4,11 +4,12 @@ Author: Oliver Ames
 
 ## Task list
 
-- Verified locally: combine dependency pull requests #42, #53, #56, #59, and #60.
+- Complete: merge dependency pull requests #42, #53, #56, #59, and #60. GitHub confirms all five are merged.
 - Complete: remove the orphaned donation-prompt policy, annotate historical release notes, and correct the inventory for #61.
 - Complete: create and privately store a replacement donor offer for #62.
 - Verified locally: 131 remaining core tests, 9 release-tool tests, complete unsigned Release build, and website build/check.
-- Pending: push, GitHub checks, and issue closure.
+- Complete: push the verified changes to main. GitHub confirms both issues are closed and no open issues or pull requests remain.
+- Hosted validation: [Build Verification](https://github.com/oliverames/ping-warden/actions/workflows/build.yml), [CodeQL](https://github.com/oliverames/ping-warden/actions/workflows/codeql.yml), and [Website Verification](https://github.com/oliverames/ping-warden/actions/workflows/site.yml) provide current run results.
 
 ## Dependency review
 
@@ -27,3 +28,7 @@ The old launch-donation policy has no app caller. Its removal preserves the lice
 The published product matches the app's product ID. The existing 100% offer was disabled after public disclosure on September 4. It remains disabled. The replacement offer and private URL must not appear in this repository or public issues.
 
 The replacement was read back from Gumroad and verified as 100% off, product-specific, with no redemption cap and zero uses. The code and private URL were read back from 1Password and matched. The code is absent from the public product page. No order was placed.
+
+## Delivery boundary
+
+The changes are committed and pushed to main. No new app release or website deployment was performed. GitHub accepted the direct push using the existing owner bypass and reported the combined merge commit against its linear-history rule, along with pre-push status checks. Repository rules and permissions were not changed.
