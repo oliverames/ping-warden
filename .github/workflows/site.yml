@@ -1,10 +1,11 @@
-name: Website Verification
+name: Website
 on:
   push:
     branches: [main]
     paths: ['Site/**', 'README.md', 'PingWarden/*.md', 'RELEASE_NOTES.md', 'SECURITY.md', '.github/workflows/site.yml']
   pull_request:
     paths: ['Site/**', 'README.md', 'PingWarden/*.md', 'RELEASE_NOTES.md', 'SECURITY.md', '.github/workflows/site.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -17,3 +18,21 @@ jobs:
       - run: npm run check --prefix Site
       - name: Ensure committed pages match source guides
         run: git diff --exit-code -- Site/public
+  deploy:
+    needs: site
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: npm ci --prefix Site
+      - name: Deploy to Cloudflare Workers
+        working-directory: Site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN is not set; skipping deploy."
+            echo "Add it under Settings > Secrets and variables > Actions, then re-run this workflow."
+            exit 0
+          fi
+          npm run deploy
