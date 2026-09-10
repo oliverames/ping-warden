@@ -61,6 +61,10 @@
         <h2>Sharing takes a pause.</h2>
         <p>AirDrop, AirPlay, Handoff, and other AWDL-dependent features are unavailable while protection is on. Turn it off or pause for 10 minutes when you need them.</p>
       </article>
+      <article>
+        <h2>Earlier than a script.</h2>
+        <p>Running <code>sudo ifconfig awdl0 down</code> once does not stick: macOS can raise the interface again within seconds. A script on a timer only notices after it is already back up, which still leaves time for the channel switching that causes the stutter. Ping Protection watches the system for the moment macOS tries to raise it and puts it back down immediately. The dashboard counts each intervention, next to your live latency.</p>
+      </article>
     </section>
 
     <section id="setup" class="setup" aria-labelledby="setup-heading">
