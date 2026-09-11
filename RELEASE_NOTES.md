@@ -1,3 +1,21 @@
+# Ping Warden 4.1.5
+
+Transition reminders now arrive when they have something to tell you, instead of every week.
+
+## Improvements
+
+- The transition reminder no longer repeats weekly. Eligible users see it once at the start, then again when 30 days and 7 days remain. Each reminder shows the days left, and the last one is a real warning before protection ends.
+- A reminder missed while the app was closed no longer stacks with the next one.
+- Buying and activating a license still stops the reminders immediately, and nothing about the transition deadline or what is included has changed.
+
+## Upgrading from a free version
+
+Ping Protection now requires a one-time $15 license. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT.
+
+If you already had protection turned on with the helper approved, updating gives you a 90-day transition that starts at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. Later updates preserve your original deadline. Check the time remaining in Settings → License.
+
+Donations through Buy Me a Coffee before version 4 are honored as full licenses. See [pricing and transition details](https://pingwarden.app/docs/overview#pricing).
+
 # Ping Warden 4.1.4
 
 A maintenance release that stops a brief, unnecessary protection engagement on wired connections and makes troubleshooting reports more useful.
