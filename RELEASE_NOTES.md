@@ -1,3 +1,17 @@
+# Ping Warden 4.1.4
+
+A maintenance release that stops a brief, unnecessary protection engagement on wired connections and makes troubleshooting reports more useful.
+
+## Improvements
+
+- Protection no longer engages for a few seconds on a wired connection when a game is already in the foreground as Ping Warden starts. The first check now waits for the real network path instead of acting on an unknown one.
+- Diagnostic logs now name the detected network type, so a support report can show whether Ping Warden saw Wi-Fi or Ethernet.
+- Diagnostic logs now record when protection is declined because a license is missing or the transition period has ended, instead of stopping without a stated reason.
+
+## Upgrading from a free version
+
+Ping Protection requires a one-time $15 license. The dashboard, diagnostics, and updates stay free, and the source remains MIT. Existing eligible users retain their original 90-day transition. Donations through Buy Me a Coffee before version 4 are honored as licenses. See [pricing and transition details](https://pingwarden.app/docs/overview#pricing).
+
 # Ping Warden 4.1.3
 
 A maintenance release that removes unused donation-prompt code and updates build dependencies.
