@@ -6,6 +6,70 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 4.1.5</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.5</link>
+      <sparkle:version>41500</sparkle:version>
+      <sparkle:shortVersionString>4.1.5</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Ping Protection in the signed app now requires a one-time $15 license. Existing users whose protection was enabled with an approved helper keep a 90-day transition from their first launch of version 4. Check Settings → License for the remaining time. The dashboard and updates stay free, and the source remains MIT. Previous donors can email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with their receipt for a license. &lt;a href="https://amesconsulting.gumroad.com/l/pingwarden"&gt;License details&lt;/a&gt;.&lt;/p&gt;
+&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;Transition reminders now arrive when they have something to tell you, instead of every week.&lt;/p&gt;
+&lt;h2&gt;Improvements&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The transition reminder no longer repeats weekly. Eligible users see it once at the start, then again when 30 days and 7 days remain. Each reminder shows the days left, and the last one is a real warning before protection ends.&lt;/li&gt;
+&lt;li&gt;A reminder missed while the app was closed no longer stacks with the next one.&lt;/li&gt;
+&lt;li&gt;Buying and activating a license still stops the reminders immediately, and nothing about the transition deadline or what is included has changed.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Upgrading from a free version&lt;/h2&gt;
+&lt;p&gt;Ping Protection now requires a one-time $15 license. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT.&lt;/p&gt;
+&lt;p&gt;If you already had protection turned on with the helper approved, updating gives you a 90-day transition that starts at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. Later updates preserve your original deadline. Check the time remaining in Settings → License.&lt;/p&gt;
+&lt;p&gt;Donations through Buy Me a Coffee before version 4 are honored as full licenses. See &lt;a href="https://pingwarden.app/docs/overview#pricing" rel="nofollow"&gt;pricing and transition details&lt;/a&gt;.&lt;/p&gt;
+      </description>
+      <pubDate>Fri, 11 Sep 2026 18:25:08 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.1.5/PingWarden-4.1.5.dmg" sparkle:version="41500" sparkle:shortVersionString="4.1.5" length="5804671" type="application/octet-stream" sparkle:edSignature="OW/DPKcNLOB8hoSPb+luuQMPk6twcvolQZDnLy/wcGuRY/Ti2CcUTztm1SBZNK7l+0mhJh/SNzmufh8vlmdYCQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.1.4</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.4</link>
       <sparkle:version>41400</sparkle:version>
@@ -1455,6 +1519,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 2TKiyscxzaYSl58HV0G+NWtdhU3SslggdxuYBFNCB4l/1PyTt7lT1D16oO5s2f9n8VNzOhKTI1I6oJkm+TLyCw==
-length: 90451
+edSignature: bpwtCJgTDbgIBQ0vq9hoT592pt1hFz2MYgEoMrM9qlnkTQ6I1EFs+A4SOFL/BhZ83AOvdvbogVnXfJP74pgpAw==
+length: 94586
 -->
