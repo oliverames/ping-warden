@@ -12,14 +12,22 @@ ET.register_namespace("sparkle", SPARKLE)
 PAID_BUILD = "40000"
 UPGRADE_NOTICE = (
     '<p><strong>Upgrading from Ping Warden 3 or earlier?</strong> '
-    'Ping Protection in the signed app now requires a one-time $15 license. '
-    'Existing users whose protection was enabled with an approved helper keep '
-    'a 90-day transition from their first launch of version 4. '
-    'Check Settings → License for the remaining time. The dashboard and updates '
-    'stay free, and the source remains MIT. '
-    'Previous donors can email <a href="mailto:oliver@ames.consulting">'
-    'oliver@ames.consulting</a> with their receipt for a license. '
-    '<a href="https://amesconsulting.gumroad.com/l/pingwarden">License details</a>.</p>'
+    'Your protection keeps working when you update. If it was enabled with the helper '
+    'approved, updating starts a 90-day transition that begins at your first launch of '
+    'version 4. That offer has no expiry date, so it is the same 90 days whenever you '
+    'update. After it ends, keeping Ping Protection in the signed app is a one-time $15. '
+    'The dashboard, latency history, diagnostics, and updates stay free, and the source '
+    'remains MIT. Licenses are what fund continued development, and the support means a lot. '
+    'Donated through Buy Me a Coffee before version 4? Email '
+    '<a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with your receipt '
+    'and it will be honored as a full license. '
+    '<a href="https://pingwarden.app/docs/overview#pricing">Pricing and transition details</a>.</p>'
+)
+# Matches any previously injected notice so the text can be revised in place.
+# Without this the "already present" check below would pin the first wording
+# ever published and silently ignore every later edit.
+NOTICE_PATTERN = re.compile(
+    r"<p><strong>Upgrading from Ping Warden 3 or earlier\?</strong>.*?</p>", re.S
 )
 
 
@@ -47,8 +55,8 @@ def normalize(item):
         text = (description.text or "").replace("https://olivera40.gumroad.com/", "https://amesconsulting.gumroad.com/")
         # This coupon is no longer redeemable. Do not propagate it in updates.
         text = re.sub(r" via a hidden 100% off code \(<code\b[^>]*>[^<]+</code>\)", " after receipt verification", text)
-        if "Upgrading from Ping Warden 3 or earlier?" not in text:
-            text = UPGRADE_NOTICE + text
+        text = NOTICE_PATTERN.sub("", text, count=1).lstrip()
+        text = UPGRADE_NOTICE + text
         description.text = text
 
 
