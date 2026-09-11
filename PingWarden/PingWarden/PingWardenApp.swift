@@ -2961,6 +2961,11 @@ final class GameModeDetector: @unchecked Sendable {
     private var frontmostPID: pid_t?
     private var pathMonitor: NWPathMonitor?
     private var pathInterface: GameModeActivationPolicy.PathInterface = .unknown
+    /// NWPathMonitor delivers its first sample asynchronously, so the initial
+    /// status check has to wait for it. Without this the check would run against
+    /// the `.unknown` default, which fails toward protection, and a game already
+    /// frontmost at start would briefly take AWDL down even on a wired path.
+    private var hasPathSample = false
 
     private static let ignoredFullscreenOwners: Set<String> = [
         "Finder",
@@ -3007,7 +3012,9 @@ final class GameModeDetector: @unchecked Sendable {
             self.isRunning = true
             self.frontmostPID = initialFrontmostPID
             self.startPathMonitor()
-            self.checkGameModeStatus()
+            // The first status check is driven by the path monitor's first
+            // sample. The safety timer remains the backstop if none arrives,
+            // where an unknown path correctly fails toward protection.
             self.scheduleSafetyTimer()
         }
 
@@ -3082,6 +3089,7 @@ final class GameModeDetector: @unchecked Sendable {
             pathMonitor?.cancel()
             pathMonitor = nil
             pathInterface = .unknown
+            hasPathSample = false
             frontmostPID = nil
             gameCheckCache.removeAll()
             inactiveSamples = 0
@@ -3151,9 +3159,11 @@ final class GameModeDetector: @unchecked Sendable {
         monitor.pathUpdateHandler = { [weak self] path in
             guard let self, self.isRunning else { return }
             let interface = Self.pathInterface(for: path)
-            guard interface != self.pathInterface else { return }
+            let isFirstSample = !self.hasPathSample
+            guard isFirstSample || interface != self.pathInterface else { return }
+            self.hasPathSample = true
             self.pathInterface = interface
-            self.log.info("Network path is now \(String(describing: interface))")
+            self.log.info("Network path is now \(String(describing: interface), privacy: .public)")
             self.checkGameModeStatus()
         }
         monitor.start(queue: detectionQueue)
