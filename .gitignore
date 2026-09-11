@@ -114,3 +114,7 @@ secrets.json
 *.pem
 *.p12
 *.key
+
+# Python bytecode from scripts/
+__pycache__/
+*.pyc
