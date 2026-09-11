@@ -194,10 +194,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             userDriverDelegate: nil
         )
         updaterController?.updater.clearFeedURLFromUserDefaults()
-        if monitor.isHelperRegistered {
+        // Defer only while the first-run introduction is still pending. Someone
+        // who declines the helper and stays on the free dashboard is in a
+        // supported state, and must still get scheduled update checks, security
+        // fixes included. Keying this to helper registration alone left those
+        // installs never checking for updates at all.
+        if monitor.isHelperRegistered
+            || !welcomePresentation.shouldPresentAutomatically(helperIsRegistered: monitor.isHelperRegistered) {
             _ = startUpdaterIfNeeded()
         } else {
-            log.info("Deferring Sparkle updater start during first-run setup")
+            log.info("Deferring Sparkle updater start until the first-run introduction closes")
         }
 
         // Check for quarantine issues and help user if needed
@@ -447,6 +453,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
             if window === welcomeWindow {
                 welcomeWindow = nil
+                // The introduction has been seen, so the first-run deferral is
+                // over whether or not the helper was approved. Starting here
+                // rather than when the window opens keeps Sparkle's own
+                // permission prompt from stacking on top of the welcome.
+                _ = startUpdaterIfNeeded()
             }
             if window === licenseNoticeWindow {
                 licenseNoticeWindow = nil
