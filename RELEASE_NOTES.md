@@ -1,3 +1,20 @@
+# Ping Warden 4.1.6
+
+Automatic update checks now run for everyone, including installs that only use the free dashboard.
+
+## Improvements
+
+- Automatic update checks previously started only after the privileged helper was approved. If you used the free dashboard and never approved the helper, the app never checked for updates on its own, so it could sit on an old version indefinitely and miss fixes. Checks now start once the introduction closes, whether or not the helper was approved.
+- Checking manually from the menu bar worked before and still does.
+
+## Upgrading from a free version
+
+Ping Protection now requires a one-time $15 license. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT.
+
+If you already had protection turned on with the helper approved, updating gives you a 90-day transition that starts at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. Later updates preserve your original deadline. Check the time remaining in Settings → License.
+
+Donations through Buy Me a Coffee before version 4 are honored as full licenses. See [pricing and transition details](https://pingwarden.app/docs/overview#pricing).
+
 # Ping Warden 4.1.5
 
 Transition reminders now arrive when they have something to tell you, instead of every week.
