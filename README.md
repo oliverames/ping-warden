@@ -62,6 +62,8 @@ Buy the [Ping Warden License on Gumroad](https://amesconsulting.gumroad.com/l/pi
 
 Want to try the free features first? The same build is on [Releases](https://github.com/oliverames/ping-warden/releases/latest). Everything except enabling Ping Protection works without a key, and any official build accepts the key from a later purchase.
 
+**Already have an older version and never see update prompts?** Before 4.1.6, automatic update checks only started once the privileged helper was approved, so an install that only used the free dashboard was never offered anything. Choose **Check for Updates** from the menu bar icon, or download the current build above and drag it over the copy in Applications. From 4.1.6 onward the checks run whether or not the helper is approved. See [updating from an earlier version](Site/guides/updating-from-an-earlier-version.md).
+
 ### 2. Activate your license
 
 Open **Settings → License** and enter the key from your receipt. The app verifies once with Gumroad and then works offline for up to 14 days. If you have an active transition, protection remains available until the deadline shown in that pane. If you donated through Buy Me a Coffee before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
