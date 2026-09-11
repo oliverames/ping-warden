@@ -1,5 +1,21 @@
 # Ping Warden Worklog
 
+## 2026-09-11 - Fix the 3.x upgrade path and publish 4.1.6
+
+**What changed**: Rewrote the appcast upgrade notice, fixed update checks for helper-less installs ([#71](https://github.com/oliverames/ping-warden/issues/71)), published 4.1.6 / 41600, added a returning-user guide, and added download-count reporting. Also landed four mechanical SEO items: aggregateRating in the homepage schema, sitemap lastmod, homepage links to the symptom guides, and Moonlight/Parsec coverage.
+
+**What the investigation found**: Delivery to 3.x installs is healthy. The feed URL and EdDSA public key are identical from 2.4.3 through 4.1.6, and minimumSystemVersion is 13.0 across 3.x and 4.x, so nothing in the feed excludes them. The barrier was copy plus one real defect. `update_appcast.py` stamps minimumAutoupdateVersion 40000 on every 4.x item, so a pre-4.0 install is never updated silently and the update dialog is the entire conversion event. That dialog opened with "now requires a one-time $15 license", buried the free transition behind two conditions, told the reader to check a Settings screen they could not have seen yet, and never mentioned that the 90 days starts whenever they update and the offer has no expiry. Separately, Sparkle only started when the privileged helper was registered, so installs that used the free dashboard and declined the helper never ran a scheduled check at all.
+
+**Decisions made**: Did not build the Worker-served appcast for measurement. Existing clients have the GitHub Pages feed URL compiled in and GitHub Pages cannot redirect XML, so it could only ever measure 4.1.6 onward, which is not the population in question; it would also put the update channel on our Worker and sits against the app's no-usage-analytics promise. Used release asset download counts instead, which measure acceptance directly and collect nothing from users. Rejected the proposed "4.0 supports macOS 27" upgrade pitch: the macOS 27 fix shipped in 2.4.2 and the macOS 26-and-later Settings crash fix in 2.4.3, both already present in 3.x, so it is not a 3.x to 4.x differentiator. Also rejected a 3.x bridge release, since Sparkle always offers the newest applicable item and would serve 4.x regardless. Skipped competitor comparison content after confirming NVIDIA article 5801 links awdlcontrol.net, a free MIT app with feature parity on game auto-detect.
+
+**Verification**: 4.1.6 published and not a draft, DMG accepted by Gatekeeper as Notarized Developer ID, enclosure length 5805195 matching the asset, both feeds verifying against the app public key. The rewritten notice was re-signed with sign_update and confirmed live on gh-pages, with every enclosure signature byte-identical to before. 134 core tests pass and the Xcode Release build succeeds. The returning-user guide returns 200 on the live site. Baseline download counts snapshotted to `docs/download-history.tsv` before 4.1.6 shipped.
+
+**Left off at**: 4.1.6 live on both feeds September 11, 2026 at approximately 19:41 UTC.
+
+**Open questions**: Whether the notice rewrite moves acceptance. The comparison to beat is v3.1.0 at 379 downloads against the 50 to 80 band each 4.x release has drawn; re-run `python3 scripts/download_stats.py --snapshot` in a few days. Note that #71 cannot reach the installs it fixes, since they are the ones not checking, so they need a manual check or a fresh download. [#64](https://github.com/oliverames/ping-warden/issues/64) live-game validation still needs an interactive session. Christophe Stenstrom bought on September 11 and has not had the ratings note the other eight buyers received.
+
+---
+
 ## 2026-09-11 - Publish 4.1.4 and 4.1.5, fix the deploy gap, and add symptom guides
 
 **What changed**: Two releases. 4.1.4 / 41400 from `2637dbd` ships the wired-path engagement fix and two diagnostic log additions. 4.1.5 / 41500 from `e5b7f96` replaces the weekly transition reminder with deadline-anchored ones at 30 and 7 days remaining, and rewrites the upgrade paragraph that reaches 3.x holdouts. Also: website deployment was repaired, issues #65, #66, #67, #68, #69 and #70 closed, and three symptom guides added to the site.
