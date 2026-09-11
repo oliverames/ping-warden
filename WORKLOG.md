@@ -1,5 +1,19 @@
 # Ping Warden Worklog
 
+## 2026-09-11 - Publish 4.1.4 and 4.1.5, fix the deploy gap, and add symptom guides
+
+**What changed**: Two releases. 4.1.4 / 41400 from `2637dbd` ships the wired-path engagement fix and two diagnostic log additions. 4.1.5 / 41500 from `e5b7f96` replaces the weekly transition reminder with deadline-anchored ones at 30 and 7 days remaining, and rewrites the upgrade paragraph that reaches 3.x holdouts. Also: website deployment was repaired, issues #65, #66, #67, #68, #69 and #70 closed, and three symptom guides added to the site.
+
+**Verification**: Both releases verified beyond the script's exit code. GitHub releases published and not drafts; enclosure lengths match the published assets exactly (5806558 for 4.1.4, 5804671 for 4.1.5); both feeds verify against the app public key with `scripts/verify_sparkle.swift`; both DMGs accepted by Gatekeeper as Notarized Developer ID. The live feed served 4.1.4 for about a minute after 4.1.5 published, which was a GitHub Pages build in progress, confirmed via the pages API and re-checked as `built` before accepting the release. 134 core tests pass. Website CI now deploys for real, confirmed by `Deployed ping-warden-site triggers` in the run log rather than by a green check.
+
+**Decisions made**: Created a dedicated "Ping Warden Site Deploy" 1Password credential scoped to Workers Scripts Edit plus Workers Routes Edit on the pingwarden.app zone only, rather than widening the shared Personal MCP token. Made the deploy step exit 1 when the token is missing, since the previous `exit 0` reported success while deploying nothing and let the live site drift two commits behind main unnoticed. Declined the researched homepage copy that asserted AWDL channel switching "is the stutter" with specific millisecond figures, because `PingWarden/README.md` deliberately says transitions "can correlate with" latency jumps and disclaims per-spike causation.
+
+**Left off at**: 4.1.5 published and live on both feeds September 11, 2026 at approximately 18:25 UTC, signed feed copies recorded on main. Site deploys automatically on push.
+
+**Open questions**: [#64](https://github.com/oliverames/ping-warden/issues/64) live-game validation still needs an interactive session; the issue now carries a verified checklist, and the diagnosability blockers behind it are fixed and shipped. Gumroad still lists eleven attached DMGs at product level, but the buyer-facing rich content embeds only the current one, so the reported "menu of DMGs" problem is not visible to buyers; the CLI offers no per-file removal and this was left alone deliberately. Ratings outreach to the nine buyers and reading NVIDIA article 5801, which has refused automated fetches three times, both need Oliver.
+
+---
+
 ## 2026-09-09 - Publish Ping Warden 4.1.3
 
 **What changed**: Released 4.1.3 / 41300 from `2a23d0e` through the maintained signing, notarization, GitHub, Sparkle, Sentry, and Gumroad pipeline. This ships the obsolete donation-policy removal and dependency/build updates.
