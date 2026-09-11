@@ -1454,7 +1454,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
 // MARK: - License Transition Notice View
 
-/// Introductory notice and weekly reminders share the purchase and activation flow.
+/// Introductory notice and deadline reminders share the purchase and activation flow.
 struct LicenseTransitionNoticeView: View {
     static let contentSize = CGSize(width: 480, height: 560)
 
@@ -1488,7 +1488,7 @@ struct LicenseTransitionNoticeView: View {
                             Text("Buy and activate a one-time $15 license before the transition ends to keep Ping Protection available. Until then, protection continues to work on this Mac.")
                         }
                         if isReminder {
-                            Text("We’ll remind you once a week during your remaining transition. Buying and activating your license stops these reminders.")
+                            Text("We’ll remind you again when 30 days and 7 days remain. Buying and activating your license stops these reminders.")
                         }
                         Text("Everything else in Ping Warden stays free, and the source code remains open under the MIT License.")
                     }
