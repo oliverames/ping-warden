@@ -372,6 +372,14 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         gameModeRequest: Int?
     ) async -> Bool {
         if !license.canEnableProtection {
+            // Without this the refusal is invisible in the log, so a session
+            // that never engages has no stated cause in a field report.
+            let refusalReason = license.grandfatherWindowExpired
+                ? "transition period ended"
+                : "no license"
+            protectionExperienceLog.info(
+                "Protection session refused for \(String(describing: trigger), privacy: .public): \(refusalReason, privacy: .public)"
+            )
             lastError = license.grandfatherWindowExpired
                 ? "The transition period has ended. Enter a license key in Settings → License to keep Ping Protection. Donated before? Email \(LicenseManager.donationConversionEmail)."
                 : "Ping Protection requires a license. Enter your key in Settings → License. Donated before? Email \(LicenseManager.donationConversionEmail)."
