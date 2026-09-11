@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://pingwarden.app/</loc></url>
-  <url><loc>https://pingwarden.app/docs/</loc></url>
-  <url><loc>https://pingwarden.app/docs/overview</loc></url>
-  <url><loc>https://pingwarden.app/docs/setup</loc></url>
-  <url><loc>https://pingwarden.app/docs/technical</loc></url>
-  <url><loc>https://pingwarden.app/docs/troubleshooting</loc></url>
-  <url><loc>https://pingwarden.app/docs/geforce-now-mac-stutter</loc></url>
-  <url><loc>https://pingwarden.app/docs/awdl0-ping-spikes</loc></url>
-  <url><loc>https://pingwarden.app/docs/airdrop-wifi-lag</loc></url>
-  <url><loc>https://pingwarden.app/docs/releases</loc></url>
-  <url><loc>https://pingwarden.app/docs/security</loc></url>
+  <url><loc>https://pingwarden.app/</loc><lastmod>2026-09-11</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/</loc><lastmod>2026-09-11</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/overview</loc><lastmod>2026-09-11</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/setup</loc><lastmod>2026-09-06</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/technical</loc><lastmod>2026-09-08</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/troubleshooting</loc><lastmod>2026-09-06</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/geforce-now-mac-stutter</loc><lastmod>2026-09-11</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/awdl0-ping-spikes</loc><lastmod>2026-09-11</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/airdrop-wifi-lag</loc><lastmod>2026-09-11</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/releases</loc><lastmod>2026-09-11</lastmod></url>
+  <url><loc>https://pingwarden.app/docs/security</loc><lastmod>2026-07-12</lastmod></url>
 </urlset>

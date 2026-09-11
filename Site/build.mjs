@@ -9,15 +9,15 @@ const root = resolve(site, '..');
 const output = resolve(site, 'public');
 const origin = 'https://pingwarden.app';
 const pages = [
-  { source: 'README.md', slug: 'overview', title: 'Features, Pricing, and Privacy', description: 'Explore Ping Warden features, the $15 Ping Protection license, the existing-user transition, privacy, system requirements, and source builds.' },
-  { source: 'PingWarden/QUICKSTART.md', slug: 'setup', title: 'Setup Guide', description: 'Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center.' },
-  { source: 'PingWarden/README.md', slug: 'technical', title: 'Technical Documentation', description: 'How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates.' },
-  { source: 'PingWarden/TROUBLESHOOTING.md', slug: 'troubleshooting', title: 'Troubleshooting and Removal', description: 'Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app.' },
-  { source: 'Site/guides/geforce-now-mac-stutter.md', slug: 'geforce-now-mac-stutter', title: 'Why GeForce NOW Stutters on a MacBook', description: 'Periodic stutter in GeForce NOW on a Mac is often the awdl0 interface. Here is how to confirm it in 30 seconds, the free fixes, and what you give up.' },
-  { source: 'Site/guides/awdl0-ping-spikes.md', slug: 'awdl0-ping-spikes', title: 'awdl0 Ping Spikes on macOS', description: "The awdl0 interface shares your Mac's Wi-Fi radio and can cause periodic ping spikes. How to measure it, why it comes back, and what suppressing it costs." },
-  { source: 'Site/guides/airdrop-wifi-lag.md', slug: 'airdrop-wifi-lag', title: 'Is AirDrop Causing Your Wi-Fi Lag?', description: 'AirDrop is not moving files in the background, but the interface behind it can interrupt calls and remote sessions. Here is how to test it in a minute.' },
-  { source: 'RELEASE_NOTES.md', slug: 'releases', title: 'Release Notes', description: 'Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.' },
-  { source: 'SECURITY.md', slug: 'security', title: 'Security and Reporting', description: 'Learn which Ping Warden releases receive security support and how to report a vulnerability privately.' }
+  { source: 'README.md', slug: 'overview', updated: '2026-09-11', title: 'Features, Pricing, and Privacy', description: 'Explore Ping Warden features, the $15 Ping Protection license, the existing-user transition, privacy, system requirements, and source builds.' },
+  { source: 'PingWarden/QUICKSTART.md', slug: 'setup', updated: '2026-09-06', title: 'Setup Guide', description: 'Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center.' },
+  { source: 'PingWarden/README.md', slug: 'technical', updated: '2026-09-08', title: 'Technical Documentation', description: 'How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates.' },
+  { source: 'PingWarden/TROUBLESHOOTING.md', slug: 'troubleshooting', updated: '2026-09-06', title: 'Troubleshooting and Removal', description: 'Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app.' },
+  { source: 'Site/guides/geforce-now-mac-stutter.md', slug: 'geforce-now-mac-stutter', updated: '2026-09-11', title: 'Why GeForce NOW Stutters on a MacBook', description: 'Periodic stutter in GeForce NOW on a Mac is often the awdl0 interface. Here is how to confirm it in 30 seconds, the free fixes, and what you give up.' },
+  { source: 'Site/guides/awdl0-ping-spikes.md', slug: 'awdl0-ping-spikes', updated: '2026-09-11', title: 'awdl0 Ping Spikes on macOS', description: "The awdl0 interface shares your Mac's Wi-Fi radio and can cause periodic ping spikes. How to measure it, why it comes back, and what suppressing it costs." },
+  { source: 'Site/guides/airdrop-wifi-lag.md', slug: 'airdrop-wifi-lag', updated: '2026-09-11', title: 'Is AirDrop Causing Your Wi-Fi Lag?', description: 'AirDrop is not moving files in the background, but the interface behind it can interrupt calls and remote sessions. Here is how to test it in a minute.' },
+  { source: 'RELEASE_NOTES.md', slug: 'releases', updated: '2026-09-11', title: 'Release Notes', description: 'Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.' },
+  { source: 'SECURITY.md', slug: 'security', updated: '2026-07-12', title: 'Security and Reporting', description: 'Learn which Ping Warden releases receive security support and how to report a vulnerability privately.' }
 ];
 const bySource = new Map(pages.map(p => [p.source, `/docs/${p.slug}`]));
 const escape = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -50,7 +50,11 @@ function link(href, source) {
   if (mapped) return mapped + (anchor ? `#${anchor}` : '');
   return `https://github.com/oliverames/ping-warden/blob/main/${target}` + (anchor ? `#${anchor}` : '');
 }
-const urls = ['/', '/docs/'];
+// `updated` is maintained by hand so the generated sitemap stays stable.
+// Deriving it from git commit dates would change the moment a source file
+// is committed, which breaks the CI check that committed pages match the build.
+const siteUpdated = '2026-09-11';
+const urls = [{ loc: '/', lastmod: siteUpdated }, { loc: '/docs/', lastmod: siteUpdated }];
 await mkdir(resolve(output, 'docs'), { recursive: true });
 for (const page of pages) {
   const source = await readFile(resolve(root, page.source), 'utf8');
@@ -78,7 +82,7 @@ for (const page of pages) {
     }
   }
   const path = `/docs/${page.slug}`;
-  urls.push(path);
+  urls.push({ loc: path, lastmod: page.updated });
   const schema = { '@context': 'https://schema.org', '@graph': [
     { '@type': 'TechArticle', headline: page.title, description: page.description, url: origin + path, author: { '@type': 'Person', name: 'Oliver Ames' }, inLanguage: 'en' },
     { '@type': 'BreadcrumbList', itemListElement: [
@@ -94,14 +98,17 @@ for (const page of pages) {
 const hubTitle = 'Documentation';
 const hubDescription = 'The complete Ping Warden documentation: setup, features, pricing, privacy, technical notes, troubleshooting, security, and release history.';
 await writeFile(resolve(output, 'docs/index.html'), `<!doctype html><html lang="en"><head>${head(hubTitle, hubDescription, '/docs/', { '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Ping Warden Documentation', url: origin + '/docs/', description: hubDescription })}</head><body>${header}<main id="main" class="wrap docs-index"><h1>Everything you need<br>to know.</h1><p class="intro">From your first install to the details of how Ping Warden works.</p><div class="doc-list">${pages.map(p => `<article><h2><a href="/docs/${p.slug}">${escape(p.title)}</a></h2><p>${escape(p.description)}</p></article>`).join('')}</div></main>${footer}</body></html>\n`);
+// Mirrors the live Gumroad rating. Update both numbers when it changes;
+// structured data must reflect the ratings actually shown to buyers.
+const rating = { '@type': 'AggregateRating', ratingValue: 5, reviewCount: 1, bestRating: 5, worstRating: 1 };
 const appSchema = { '@context': 'https://schema.org', '@graph': [
   { '@type': 'WebSite', '@id': origin + '/#website', name: 'Ping Warden', url: origin + '/', inLanguage: 'en' },
-  { '@type': 'SoftwareApplication', name: 'Ping Warden', url: origin + '/', operatingSystem: 'macOS 13 or later', applicationCategory: 'UtilitiesApplication', image: origin + '/app-icon.png', screenshot: origin + '/dashboard.png', description: 'A macOS menu bar app that monitors latency and pauses AWDL to reduce related Wi-Fi interruptions. The dashboard is free; enabling Ping Protection requires a one-time $15 license.', author: { '@type': 'Person', name: 'Oliver Ames' }, downloadUrl: 'https://github.com/oliverames/ping-warden/releases/latest', softwareHelp: { '@type': 'WebPage', url: origin + '/docs/' }, offers: [
+  { '@type': 'SoftwareApplication', name: 'Ping Warden', url: origin + '/', operatingSystem: 'macOS 13 or later', applicationCategory: 'UtilitiesApplication', image: origin + '/app-icon.png', screenshot: origin + '/dashboard.png', description: 'A macOS menu bar app that monitors latency and pauses AWDL to reduce related Wi-Fi interruptions. The dashboard is free; enabling Ping Protection requires a one-time $15 license.', author: { '@type': 'Person', name: 'Oliver Ames' }, downloadUrl: 'https://github.com/oliverames/ping-warden/releases/latest', softwareHelp: { '@type': 'WebPage', url: origin + '/docs/' }, aggregateRating: rating, offers: [
     { '@type': 'Offer', name: 'Free dashboard', price: '0', priceCurrency: 'USD', url: 'https://github.com/oliverames/ping-warden/releases/latest' },
     { '@type': 'Offer', name: 'Ping Protection license', price: '15', priceCurrency: 'USD', url: 'https://amesconsulting.gumroad.com/l/pingwarden' }
   ] }
 ] };
 await writeFile(resolve(output, 'index.html'), (await readFile(resolve(site, 'home.html'), 'utf8')).replace('<!-- structured-data -->', structured(appSchema)));
-await writeFile(resolve(output, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(path => `  <url><loc>${origin}${path}</loc></url>`).join('\n')}\n</urlset>\n`);
+await writeFile(resolve(output, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `  <url><loc>${origin}${u.loc}</loc><lastmod>${u.lastmod}</lastmod></url>`).join('\n')}\n</urlset>\n`);
 await writeFile(resolve(output, '_headers'), `/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'self'; script-src ${[...hashes].join(' ')}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\n`);
 console.log(`Built ${urls.length} pages from the complete repository guides.`);

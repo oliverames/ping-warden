@@ -48,6 +48,8 @@ This is the real cost, and it isn't small. While AWDL is down, AirDrop, AirPlay,
 
 What you can change is how long you live with it. Turning the interface back up restores everything, and Ping Warden adds a ten-minute pause for when you need to send a file mid-session, plus detection that only engages protection when a game is frontmost. It skips that detection on Ethernet, where there's no reason to break AirDrop in the first place.
 
+The same interruption hits any latency-sensitive stream over Wi-Fi, so if you play through Xbox Cloud Gaming, or host your own stream with Moonlight or Parsec, the test below applies unchanged. Nothing here is specific to GeForce NOW except the choice of ping target.
+
 ## When it isn't AWDL
 
 Plenty of Mac stutter has nothing to do with AWDL, and the test above is how you find out. If taking `awdl0` down changed nothing, work through these:

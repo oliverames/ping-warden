@@ -36,6 +36,8 @@ Pick your ping target carefully. A public DNS resolver tells you about the path 
 
 Ping Warden's dashboard does this measurement without the terminal, and it's free with no license and no privileged helper. It shows live latency, jitter, probe failures, a rolling history window with zoom, a timeline of spikes, and the current AWDL state, and it exports a diagnostics snapshot with custom hostnames redacted if you want a record of a bad session.
 
+If you stream games rather than play them locally, this is the same interface behind stutter in GeForce NOW, Xbox Cloud Gaming, and self-hosted Moonlight or Parsec sessions. The measurement above is the way to tell those apart from a slow link.
+
 ## Why it comes back
 
 macOS brings `awdl0` back up on its own, often within seconds of you taking it down. It also returns after sleep, after a network change, and after a reboot. So `sudo ifconfig awdl0 down` is a measurement tool, not a fix.
