@@ -6,6 +6,68 @@
     <description>Pre-release updates for Ping Warden</description>
     <language>en</language>
     <item>
+      <title>Version 4.1.6</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.6</link>
+      <sparkle:version>41600</sparkle:version>
+      <sparkle:shortVersionString>4.1.6</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;Automatic update checks now run for everyone, including installs that only use the free dashboard.&lt;/p&gt;
+&lt;h2&gt;Improvements&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Automatic update checks previously started only after the privileged helper was approved. If you used the free dashboard and never approved the helper, the app never checked for updates on its own, so it could sit on an old version indefinitely and miss fixes. Checks now start once the introduction closes, whether or not the helper was approved.&lt;/li&gt;
+&lt;li&gt;Checking manually from the menu bar worked before and still does.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Upgrading from a free version&lt;/h2&gt;
+&lt;p&gt;Ping Protection now requires a one-time $15 license. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT.&lt;/p&gt;
+&lt;p&gt;If you already had protection turned on with the helper approved, updating gives you a 90-day transition that starts at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. Later updates preserve your original deadline. Check the time remaining in Settings → License.&lt;/p&gt;
+&lt;p&gt;Donations through Buy Me a Coffee before version 4 are honored as full licenses. See &lt;a href="https://pingwarden.app/docs/overview#pricing" rel="nofollow"&gt;pricing and transition details&lt;/a&gt;.&lt;/p&gt;
+      </description>
+      <pubDate>Fri, 11 Sep 2026 19:41:13 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.1.6/PingWarden-4.1.6.dmg" sparkle:version="41600" sparkle:shortVersionString="4.1.6" length="5805195" type="application/octet-stream" sparkle:edSignature="VjGN8czVLZiGtjeiAOr6eGUjbCaRSSWqmBJq79+4iPQy0tRkSkBo49A5vdmsLLA6B2lQwNFM89Sl5XrNUHwPBQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.1.5</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.5</link>
       <sparkle:version>41500</sparkle:version>
@@ -1508,6 +1570,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: Nozn6rnkSPzQN5CgVrIUipZ0nf9YDN2dWalYw/pdcYOxJBQVy1WSLPadQK3ruV5tsGd1gJC0TjGrm28yZB6/BA==
-length: 97303
+edSignature: oH+k6wisntbMsBzpB611+5qmLKf/oA39HzEYFe/ak/d4ORGbG90p2/ggm16ClMCaahLRXk9tq1BPZiBFN348CQ==
+length: 101632
 -->
