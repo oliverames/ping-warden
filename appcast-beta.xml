@@ -57,11 +57,19 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
 &lt;li&gt;Automatic update checks previously started only after the privileged helper was approved. If you used the free dashboard and never approved the helper, the app never checked for updates on its own, so it could sit on an old version indefinitely and miss fixes. Checks now start once the introduction closes, whether or not the helper was approved.&lt;/li&gt;
 &lt;li&gt;Checking manually from the menu bar worked before and still does.&lt;/li&gt;
 &lt;/ul&gt;
+&lt;h2&gt;New since 4.0&lt;/h2&gt;
+&lt;p&gt;If you are coming from 4.0, Game Mode auto-detect changed in 4.1.0 and works without any permission now.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Protection turns on when a game is the frontmost app, with no Screen Recording permission needed. A windowed GeForce NOW session triggers it the same as a fullscreen one.&lt;/li&gt;
+&lt;li&gt;Screen Recording stays optional. Granting it adds detection of fullscreen games sitting behind other windows.&lt;/li&gt;
+&lt;li&gt;Protection stays off while your Mac is on Ethernet, where AWDL cannot interfere, and engages again when you move back to Wi-Fi.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Turn it on in Settings → Automation. &lt;a href="https://pingwarden.app/docs/setup" rel="nofollow"&gt;How Game Mode detection works&lt;/a&gt;.&lt;/p&gt;
 &lt;h2&gt;Upgrading from a free version&lt;/h2&gt;
 &lt;p&gt;Ping Protection now requires a one-time $15 license. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT.&lt;/p&gt;
 &lt;p&gt;If you already had protection turned on with the helper approved, updating gives you a 90-day transition that starts at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. Later updates preserve your original deadline. Check the time remaining in Settings → License.&lt;/p&gt;
 &lt;p&gt;Donations through Buy Me a Coffee before version 4 are honored as full licenses. See &lt;a href="https://pingwarden.app/docs/overview#pricing" rel="nofollow"&gt;pricing and transition details&lt;/a&gt;.&lt;/p&gt;
-      </description>
+</description>
       <pubDate>Fri, 11 Sep 2026 19:41:13 +0000</pubDate>
       <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.1.6/PingWarden-4.1.6.dmg" sparkle:version="41600" sparkle:shortVersionString="4.1.6" length="5805195" type="application/octet-stream" sparkle:edSignature="VjGN8czVLZiGtjeiAOr6eGUjbCaRSSWqmBJq79+4iPQy0tRkSkBo49A5vdmsLLA6B2lQwNFM89Sl5XrNUHwPBQ==" />
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
@@ -1570,6 +1578,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: oH+k6wisntbMsBzpB611+5qmLKf/oA39HzEYFe/ak/d4ORGbG90p2/ggm16ClMCaahLRXk9tq1BPZiBFN348CQ==
-length: 101632
+edSignature: hrR3a8RNMRswFWUnRPMO6TXVxlM+f7O0Unb2M2q20GBfMTU3mk4UDlXv/Ig4Zs/1xMoLyE79HsHSCe60SgGHCA==
+length: 102444
 -->
