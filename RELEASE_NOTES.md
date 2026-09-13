@@ -7,6 +7,16 @@ Automatic update checks now run for everyone, including installs that only use t
 - Automatic update checks previously started only after the privileged helper was approved. If you used the free dashboard and never approved the helper, the app never checked for updates on its own, so it could sit on an old version indefinitely and miss fixes. Checks now start once the introduction closes, whether or not the helper was approved.
 - Checking manually from the menu bar worked before and still does.
 
+## New since 4.0
+
+If you are coming from 4.0, Game Mode auto-detect changed in 4.1.0 and works without any permission now.
+
+- Protection turns on when a game is the frontmost app, with no Screen Recording permission needed. A windowed GeForce NOW session triggers it the same as a fullscreen one.
+- Screen Recording stays optional. Granting it adds detection of fullscreen games sitting behind other windows.
+- Protection stays off while your Mac is on Ethernet, where AWDL cannot interfere, and engages again when you move back to Wi-Fi.
+
+Turn it on in Settings → Automation. [How Game Mode detection works](https://pingwarden.app/docs/setup).
+
 ## Upgrading from a free version
 
 Ping Protection now requires a one-time $15 license. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT.
