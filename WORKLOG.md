@@ -1,5 +1,23 @@
 # Ping Warden Worklog
 
+## 2026-09-12 - Verify game auto-detect and surface it to 4.0 users
+
+**What changed**: Added a "New since 4.0" section to the 4.1.6 release notes describing the frontmost-app Game Mode detection and the Ethernet skip, re-rendered it into `appcast.xml` and `appcast-beta.xml`, re-signed both feeds, published to gh-pages, and updated the v4.1.6 GitHub release body from the same source text.
+
+**Why**: Sparkle shows only the notes of the version it offers. Someone on 4.0.x is offered 4.1.6, whose notes were entirely about update checks, so the detection work that landed in 4.1.0 never reached them in the app. The website already documented it across setup, overview, technical, troubleshooting, and the GeForce NOW symptom guide, but the update dialog is where people actually read what changed.
+
+**What the verification found**: The decision logic is correct against live system state. GeForce NOW declares `public.app-category.games`, so the shipping classifier matches it, confirmed against the live process rather than the bundle alone. A harness compiling `Core/GameModeActivationPolicy.swift` unmodified returns `shouldEngage: true` for a game on the live Wi-Fi path and `false` for a non-game frontmost. `NWPathMonitor` delivers a real first sample, so the `hasPathSample` gate from 4.1.4 has data. 134 core tests pass, 10 of them on this policy. Not verified: the `NSWorkspace` activation observer in the running app, the engage and disengage handoff, and the Ethernet skip in the field. Recorded on [#64](https://github.com/oliverames/ping-warden/issues/64).
+
+**One thing to watch**: with GeForce NOW's first-launch notification alert on screen, `NSWorkspace.shared.frontmostApplication` returned `UserNotificationCenter` rather than the game. The detector reads `frontmostPID` from activation notifications rather than polling, so the impact depends on whether that alert posts one. If it does, a modal dialog over a game could cause a transient disengage after two inactive samples.
+
+**Verification**: Both live feeds carry the new section and verify against the app's embedded `SUPublicEDKey` with `scripts/verify_sparkle.swift`. 30 items preserved in each feed, one copy each of the upgrade notice and the new section, every enclosure signature unchanged. GitHub Pages confirmed serving the new copy before accepting the change.
+
+**Left off at**: Live on both feeds and on the v4.1.6 release page, September 12, 2026.
+
+**Open questions**: Carry the "New since 4.0" section into the 4.1.7 notes when that release is cut, and keep carrying it while 4.0.x installs remain in the population; `python3 scripts/download_stats.py` shows where they sit. [#64](https://github.com/oliverames/ping-warden/issues/64) still needs the interactive game session for the engage handoff and the wired path.
+
+---
+
 ## 2026-09-11 - Fix the 3.x upgrade path and publish 4.1.6
 
 **What changed**: Rewrote the appcast upgrade notice, fixed update checks for helper-less installs ([#71](https://github.com/oliverames/ping-warden/issues/71)), published 4.1.6 / 41600, added a returning-user guide, and added download-count reporting. Also landed four mechanical SEO items: aggregateRating in the homepage schema, sitemap lastmod, homepage links to the symptom guides, and Moonlight/Parsec coverage.

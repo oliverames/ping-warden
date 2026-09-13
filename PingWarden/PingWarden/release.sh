@@ -175,6 +175,11 @@ if [ ! -f "$RELEASE_NOTES_PATH" ]; then
     exit 1
 fi
 RENDER_SCRIPT="$REPO_ROOT/scripts/render_release_notes.sh"
+# Sparkle shows only the notes of the version it offers, so anything a user
+# skipped past is invisible to them. While 4.0.x installs remain in the
+# population, keep the "New since 4.0" section in the newest release's notes
+# so they learn about Game Mode frontmost detection and the Ethernet skip.
+# Check the spread with: python3 scripts/download_stats.py
 RELEASE_NOTES_HTML=$("$RENDER_SCRIPT" "$VERSION" --html "$RELEASE_NOTES_PATH")
 
 # Colors
