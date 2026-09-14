@@ -6,6 +6,78 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 4.1.9</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.9</link>
+      <sparkle:version>41900</sparkle:version>
+      <sparkle:shortVersionString>4.1.9</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;This update removes the old donation buttons and adds a way to revisit release notes after future updates.&lt;/p&gt;
+&lt;h2&gt;Improvements&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Removed the donation buttons from Settings and About. The License pane still explains how donors from before version 4 can claim their license.&lt;/li&gt;
+&lt;li&gt;Added a “What's New” item to the menu bar and Help menu when the app detects a version change. Opening it takes you to that version's release notes and dismisses the item. The first launch with this feature records a baseline, so the prompt begins with subsequent updates.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;New since 4.0&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Game Mode can detect a recognized frontmost game without Screen Recording permission. Optional Screen Recording access also enables fullscreen-window detection. Automatic activation skips Ethernet and rechecks when the network changes.&lt;/li&gt;
+&lt;li&gt;Latency Sessions record a protected game or call and produce a local recap. Starting a session requires a license or an active transition. The dashboard, diagnostics, and past recaps remain free.&lt;/li&gt;
+&lt;li&gt;Version 4.1.8 improved saved target restoration, session sample attribution, helper-state confirmation, and diagnostics.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Updating from an older version&lt;/h2&gt;
+&lt;p&gt;Version 2.0.5 and earlier need a manual download. Quit the app, download the latest DMG, replace the copy in Applications, and launch it there. Later versions can use Check for Updates.&lt;/p&gt;
+&lt;p&gt;Ping Protection in the prebuilt app requires a one-time $15 license or an active transition. Eligible existing users receive 90 days from their first launch of version 4 with protection enabled and the helper approved. Later updates preserve that deadline. The source remains MIT-licensed.&lt;/p&gt;
+&lt;h2&gt;Release maintenance&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The release workflow now rebuilds and verifies the website before publishing.&lt;/li&gt;
+&lt;li&gt;Gumroad publication allows up to five minutes for upload processing before replacing buyer content.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Mon, 14 Sep 2026 18:00:30 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.1.9/PingWarden-4.1.9.dmg" sparkle:version="41900" sparkle:shortVersionString="4.1.9" length="5835662" type="application/octet-stream" sparkle:edSignature="Zp7s7lAFFlBLSUKUhmWEV4A1mcHwpxfmm1HZp4GCLvqMy9VkUx9qSj16dpyobV/tVeN2BO1YNLEkuV4QF33rAA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.1.8</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.8</link>
       <sparkle:version>41800</sparkle:version>
@@ -1724,6 +1796,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: Pd/e6REMjyzSJ9siqCQQ8ce0FkPoqSvD9877mIHJkDdUGO0/LaF9OWL28TEWMa6xli1uwQjJWj5GXmT+JbNNAA==
-length: 114019
+edSignature: 98K0IIaxgB63VSSw0eMHyPYRG5vap1OHCpnEUJMVdg+y2NUYk1WbcNAdPeDeFQxX1/MY0RikPez4l3oHAyNGAQ==
+length: 119100
 -->
