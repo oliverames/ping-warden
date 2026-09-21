@@ -35,3 +35,19 @@ These are view-content checks on macOS 27.2, not signed-app interaction checks. 
 [#64](https://github.com/oliverames/ping-warden/issues/64) remains a field-validation gap. The read-only readiness check found a validly signed installed 4.1.8 build, qualifying game clients, active Wi-Fi, and no connected Ethernet path. A license or active transition was not available in the checked app state. No foreground game session was running. Oliver confirmed that only Wi-Fi is available for now.
 
 The system permission database showed no Screen Recording grant, but the user permission database could not be read. Therefore runtime operation without that permission still requires observation. No real-game engagement, focus-loss restoration, or Ethernet-skip result is claimed from the unit tests or fixtures. Completing the issue requires a licensed signed-app session and connected wired hardware.
+
+## Publication and dependency merges
+
+The website fixes were published in `f5f47f6`. Its [Website workflow](https://github.com/oliverames/ping-warden/actions/runs/35633824419) passed, and fresh browser inspection confirmed the removed rating, retained testimonials, and corrected overview, setup, and technical pages. #87 was closed with this evidence. A direct Python HTTP request received 403; browser verification succeeded.
+
+[PR #75](https://github.com/oliverames/ping-warden/pull/75) and [PR #86](https://github.com/oliverames/ping-warden/pull/86) were reviewed and merged as `31d6a26` and `cdb99e8`. Integration retained markdown-it 15.0.2 and Wrangler 4.135.0 in both the manifest and lockfile. The only merge conflicts were the shared dependency declarations. Checks confirmed no duplicate JSON keys, matching resolved versions, zero reported npm vulnerabilities, passing website tests, unchanged generated pages, and successful Wrangler packaging.
+
+The [exact-commit deployment](https://github.com/oliverames/ping-warden/actions/runs/35634307226) used Wrangler 4.135.0 and published Cloudflare version `297ccb0d-fae7-481a-a1ff-2420a707ec7f`. A fresh browser check after deployment confirmed the correct homepage. GitHub reports both PRs merged and no remaining open PRs. Linux tests, shell lint, and website/tooling CodeQL passed. The macOS build and Swift/Objective-C analysis were still running at this checkpoint. GitHub accepted the maintainer push while reporting pending-check and merge-history rule bypasses; no history rewrite was performed.
+
+## Remaining issues
+
+#78 retains the full signed-app interaction checks. Approval to replace the installed 4.1.8 copy with verified 4.2.0 and temporarily exercise/restore the release-notes preference was requested. Isolated results do not establish those acceptance criteria.
+
+#64 remains open for the licensed real-game and Ethernet observations described above. Oliver confirmed Wi-Fi only is available now.
+
+The UI review exposed a separate semantic defect, tracked in [#88](https://github.com/oliverames/ping-warden/issues/88): several app labels and shared recaps describe intervention attempts as successful blocks. An existing fault-injection helper test confirms that a failed write still increments the counter. The fresh helper run passed all 162 checks. Per the incidental-bug workflow, the issue records affected surfaces and verification steps without starting that separate app change.

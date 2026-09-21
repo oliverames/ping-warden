@@ -6,7 +6,9 @@ Removed the unmaintained homepage aggregate rating for #87, preserving the attri
 
 Website checks pass. The 21 existing What's New and Game Mode policy tests pass, and an isolated native menu fixture passes 24 checks against unchanged production methods. Fourteen isolated Settings/About captures confirm donation buttons are absent from those views. The temporary test-window title is not the production title. See [the verification record](docs/2026-09-21-open-issue-verification.md) for methods and limits.
 
-Full signed-app interaction remains separate from isolated verification. #64 still requires an eligible real-game session and wired hardware; Oliver confirmed Wi-Fi only is available now. The open dependency pull requests are being reviewed separately.
+The website fixes are deployed and verified live, and #87 is closed. Dependency PRs #75 and #86 were reviewed and merged as `31d6a26` and `cdb99e8`. Both updated versions passed integration checks, unchanged-page comparison, npm audit, and a Wrangler packaging check. The exact-commit Website workflow then deployed successfully with Wrangler 4.135.0. GitHub reports no open PRs.
+
+Full signed-app interaction remains separate from isolated verification and awaits approval to update the installed copy for #78. #64 still requires an eligible real-game session and wired hardware; Oliver confirmed Wi-Fi only is available now. The separate in-app intervention-counter wording defect was recorded in #88 with the reproduced failure case and affected surfaces. The verification record notes the remaining CI and interaction limits.
 
 ---
 
