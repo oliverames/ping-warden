@@ -12,7 +12,7 @@ If Wi-Fi is consistently slow or several devices struggle at once, also investig
 
 ## What's actually going on
 
-Apple devices find each other without a router using something called AWDL, short for Apple Wireless Direct Link. It's what AirDrop, AirPlay, Handoff, and Sidecar are built on, and it appears on your Mac as an interface named `awdl0`. For those features to work the moment you ask for them, macOS keeps the interface available and brings it back up on its own whenever something takes it down.
+Apple devices find each other without a router using something called AWDL, short for Apple Wireless Direct Link. It's what AirDrop, AirPlay, Handoff, and Sidecar are built on, and it appears on your Mac as an interface named `awdl0`. These features use the interface, and macOS can bring it back up after it has been disabled.
 
 AWDL shares your Mac's Wi-Fi radio. Channel switching between AWDL and your router can briefly interrupt communication with the access point. That can affect calls and remote sessions even when a speed test shows sufficient bandwidth.
 
@@ -38,7 +38,7 @@ If the command line isn't your thing, Ping Warden's dashboard shows the same inf
 
 ## What you give up
 
-While `awdl0` is down, AirDrop, AirPlay, Handoff, and Sidecar stop working. You can't send a photo to your phone, you can't mirror to the Apple TV, you can't pick up a text message on the Mac that started on the iPhone, and you can't use an iPad as a second display. Everything comes back the moment the interface does.
+While `awdl0` is down, AirDrop, AirPlay, Handoff, and Sidecar stop working. You can't send a photo to your phone, you can't mirror to the Apple TV, you can't pick up a text message on the Mac that started on the iPhone, and you can't use an iPad as a second display. Restoring the interface allows these features to reconnect. The time they take to become available can vary.
 
 For most people that's a real tradeoff rather than an easy call. AirDrop is genuinely useful. If you use it a few times a week and your calls freeze every day, the math is probably clear. If it's the other way around, leave the interface alone.
 

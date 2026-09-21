@@ -33,7 +33,9 @@
 
 ---
 
-Ping Warden (formerly AWDL Control) is an open source (MIT) macOS menu bar app built for cloud gaming on a Mac. AWDL can contribute to Wi-Fi stutters in GeForce NOW, Xbox Cloud Gaming, self-hosted streaming through Moonlight or Parsec, and other latency-sensitive games or calls. Ping Warden keeps it paused while you play. The source stays MIT and everything except enabling Ping Protection is free. Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection. Eligible existing users receive the [90-day transition described below](#pricing). Visit [pingwarden.app](https://pingwarden.app/) for the product website and [complete documentation](https://pingwarden.app/docs/).
+Ping Warden (formerly AWDL Control) is an open source (MIT) macOS menu bar app built for cloud gaming on a Mac. AWDL can contribute to Wi-Fi stutters in GeForce NOW, Xbox Cloud Gaming, self-hosted streaming through Moonlight or Parsec, and other latency-sensitive games or calls. Ping Warden keeps it paused while you play. The source stays MIT. The dashboard, latency history, diagnostics, and updates are free.
+
+Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection, including starting a protected Latency Session. Eligible existing users receive the [90-day transition described below](#pricing). Visit [pingwarden.app](https://pingwarden.app/) for the product website and [complete documentation](https://pingwarden.app/docs/).
 
 <p align="center">
   <img src="docs/images/ping-warden-4-dashboard.png" width="920" alt="Ping Warden 4 dashboard showing the latest Latency Session recap, network quality, ping history, and the Ping Protection intervention counter">
@@ -47,11 +49,11 @@ That tradeoff is the point of the app. You choose when a latency-sensitive game 
 
 ## Why this exists
 
-Running `sudo ifconfig awdl0 down` once is not enough because macOS can bring AWDL back up within seconds. A timer-based script reacts after the interface is already active, which still leaves time for channel switching to affect the connection.
+Running `sudo ifconfig awdl0 down` once is not enough because macOS can bring AWDL back up automatically. A timer-based script reacts after the interface is already active, which still leaves time for channel switching to affect the connection.
 
 ## How it works
 
-Ping Warden uses a privileged helper that waits for kernel route and interface events. When macOS tries to raise `awdl0` while Ping Protection is on, the helper takes it back down and increments an intervention counter. The dashboard puts that counter next to live latency, jitter, probe failures, and history so you can see what happened on your own network.
+Ping Warden uses a privileged helper that waits for kernel route and interface events. When macOS tries to raise `awdl0` while Ping Protection is on, the helper attempts to lower it and increments an intervention counter. That count records attempts, not confirmed blocks or measured spikes prevented. The dashboard puts the counter next to live latency, jitter, probe failures, and history so you can compare the readings on your own network.
 
 ## Install, approve, and verify
 
@@ -59,7 +61,7 @@ Ping Warden uses a privileged helper that waits for kernel route and interface e
 
 Buy the [Ping Warden License on Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). The signed, notarized DMG is attached to the purchase, so it is in your receipt and your Gumroad library, and the license key arrives in the same email. Open the DMG, drag Ping Warden to `/Applications`, and launch the copy in Applications.
 
-Want to try the free features first? The same build is on [Releases](https://github.com/oliverames/ping-warden/releases/latest). Everything except enabling Ping Protection works without a key, and any official build accepts the key from a later purchase.
+Want to try the free features first? The same build is on [Releases](https://github.com/oliverames/ping-warden/releases/latest). The dashboard, latency history, diagnostics, and updates work without a key. Enabling Ping Protection, including starting a Latency Session, requires a license or an active transition. Any official build accepts the key from a later purchase.
 
 **On version 2.0.5 or earlier? Download the current version once.** Early builds either lack an updater or have incomplete updater configuration. Quit Ping Warden, [download the latest DMG](https://github.com/oliverames/ping-warden/releases/latest), and replace the copy in Applications. Launch it from Applications afterward.
 
@@ -77,7 +79,7 @@ In the welcome window, click **Turn On Ping Protection** after activation. If yo
 
 ### 4. Turn on Ping Protection and verify it
 
-Enable **Ping Protection** from the menu bar. Without a key (and outside the transition window) the app points you back to **Settings → License** instead of turning protection on. Open the dashboard and confirm that protection is active. The dashboard shows live latency and counts each time the helper blocks macOS from reactivating AWDL.
+Enable **Ping Protection** from the menu bar. Without a key (and outside the transition window) the app points you back to **Settings → License** instead of turning protection on. Open the dashboard and confirm that protection is active. The dashboard shows live latency and counts the helper's intervention attempts when macOS reactivates AWDL.
 
 The [Quick Start guide](PingWarden/QUICKSTART.md) covers first-run setup and the optional automation features.
 
@@ -99,11 +101,11 @@ Ping targets include common public services, discovered GeForce NOW regions, you
 
 ## Pricing
 
-Ping Warden stays open source under MIT. You can build from source, inspect it, and modify it under MIT whether you pay or not. The prebuilt, signed, and notarized app is free to download and everything except enabling Ping Protection is free to use.
+Ping Warden stays open source under MIT. You can build from source, inspect it, and modify it under MIT whether you pay or not. The prebuilt, signed, and notarized app is free to download. The dashboard, latency history, diagnostics, and updates are free to use.
 
 **Why a license:** After two years of free builds, donations cover only a fraction of the ongoing work — Developer ID signing, Apple notarization, testing across macOS releases, and release engineering. A one-time $15 license for the Ping Protection feature makes that work sustainable without subscriptions, ads, or analytics. The tradeoff that defines this app stays exactly the same, and the source stays auditable under MIT.
 
-Enabling Ping Protection in the prebuilt app requires that license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch; verification is offline-friendly for up to 14 days.
+Enabling Ping Protection in the prebuilt app, including starting a Latency Session, requires a license or an active transition. Buy the license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch; verification is offline-friendly for up to 14 days.
 
 **Transition for existing users:** If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in **Settings → License**. When the transition ends, enter a license key to keep protection available. The app introduces the transition once and reminds eligible users twice more, when 30 days and 7 days remain, showing the days left. Reminders are held while a detected game or latency session is active, appear the next time you use Ping Warden, and stop after license activation. A reminder missed while the app was closed does not stack with the next one.
 
@@ -156,7 +158,7 @@ The app requires macOS 13 or newer. Configure signing for the app, helper, and w
 
 The source code is MIT, Copyright (c) 2025-2026 Oliver Ames — build it, inspect it, and modify it under MIT whether you buy a license or not. See [LICENSE](LICENSE) for the full terms.
 
-The prebuilt, signed, and notarized app is free to download, and everything except enabling Ping Protection is free to use. Enabling Ping Protection in that build requires a purchased key. [Pricing](#pricing) covers what it costs, how verification works, and how the existing-user transition and donor path apply.
+The prebuilt, signed, and notarized app is free to download. The dashboard, latency history, diagnostics, and updates are free to use. Enabling Ping Protection, including starting a Latency Session, requires a purchased key or an active transition. [Pricing](#pricing) covers what it costs, how verification works, and how the existing-user transition and donor path apply.
 
 ---
 

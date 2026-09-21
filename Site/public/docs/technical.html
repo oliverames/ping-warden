@@ -11,7 +11,7 @@
 <p>For quick setup, see <a href="/docs/setup">Quick Start</a>. For issue recovery, see <a href="/docs/troubleshooting">Troubleshooting</a>.</p>
 <h2 id="1-overview">1. Overview</h2>
 <p>Ping Warden is a macOS utility that keeps AWDL from reactivating during latency-sensitive work.</p>
-<p>AWDL (Apple Wireless Direct Link) is used by Apple ecosystem features such as AirDrop, AirPlay, and Handoff. On some networks and workflows, AWDL interface transitions can correlate with sudden latency jumps. Ping Warden provides a controlled, user-friendly way to keep AWDL suppressed when desired, while retaining the ability to restore normal behavior instantly.</p>
+<p>AWDL (Apple Wireless Direct Link) is used by Apple ecosystem features such as AirDrop, AirPlay, and Handoff. On some networks and workflows, AWDL interface transitions can correlate with sudden latency jumps. Ping Warden provides a controlled, user-friendly way to keep AWDL suppressed when desired, while retaining the ability to restore the interface when protection stops.</p>
 <p>Primary goals:</p>
 <ul>
 <li>Keep AWDL suppressed during latency-sensitive games, cloud streaming, and calls.</li>
@@ -22,7 +22,7 @@
 <h2 id="2-why-not-just-run-sudo-ifconfig-awdl0-down">2. Why Not Just Run <code>sudo ifconfig awdl0 down</code>?</h2>
 <p>A one-time shell command might seem like a simple fix, but it doesn't actually solve the problem.</p>
 <p><strong>The core issue:</strong> macOS can bring AWDL back up automatically. A polling script reacts only after the interface is active, so it cannot prevent the transition itself.</p>
-<p><strong>Why Ping Warden is different:</strong> Instead of polling, the helper daemon waits for kernel route and interface events through an <code>AF_ROUTE</code> socket. When macOS raises AWDL while protection is active, the helper takes the interface back down and records an intervention. Ping Warden does not claim that a specific intervention proves a particular latency spike was avoided.</p>
+<p><strong>Why Ping Warden is different:</strong> Instead of polling, the helper daemon waits for kernel route and interface events through an <code>AF_ROUTE</code> socket. When macOS raises AWDL while protection is active, the helper requests that the interface return down and records an intervention attempt. The count does not establish that the request succeeded or that a particular latency spike was avoided.</p>
 <p>Additional benefits:</p>
 <ul>
 <li><strong>No repeated sudo prompts:</strong> One-time approval during setup, then background operation.</li>
@@ -104,8 +104,8 @@
 <ol>
 <li>Kernel route event arrives.</li>
 <li>Helper identifies <code>awdl0</code> state change (<code>RTM_IFINFO</code>).</li>
-<li>Helper clears <code>IFF_UP</code> on <code>awdl0</code> via <code>SIOCSIFFLAGS</code>.</li>
-<li>Intervention counter increments.</li>
+<li>The intervention-attempt counter increments.</li>
+<li>The helper attempts to clear <code>IFF_UP</code> on <code>awdl0</code> via <code>SIOCSIFFLAGS</code> and reads back the resulting flag state.</li>
 </ol>
 <p>This is event-driven, not a delayed periodic shell loop.</p>
 <h2 id="6-state-model">6. State Model</h2>
@@ -152,7 +152,7 @@
 <li>
 <p>Latency Session:</p>
 <ul>
-<li>Start and end a measured game or call.</li>
+<li>Start and end a measured game or call. Starting a session enables Ping Protection and requires a license or an active transition. Reading past session recaps remains free.</li>
 <li>Review duration, median, p95, jitter, Probe Failures, and interventions.</li>
 <li>Share a privacy-scrubbed text recap.</li>
 </ul>

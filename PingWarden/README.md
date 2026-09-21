@@ -10,7 +10,7 @@ For quick setup, see [Quick Start](QUICKSTART.md). For issue recovery, see [Trou
 
 Ping Warden is a macOS utility that keeps AWDL from reactivating during latency-sensitive work.
 
-AWDL (Apple Wireless Direct Link) is used by Apple ecosystem features such as AirDrop, AirPlay, and Handoff. On some networks and workflows, AWDL interface transitions can correlate with sudden latency jumps. Ping Warden provides a controlled, user-friendly way to keep AWDL suppressed when desired, while retaining the ability to restore normal behavior instantly.
+AWDL (Apple Wireless Direct Link) is used by Apple ecosystem features such as AirDrop, AirPlay, and Handoff. On some networks and workflows, AWDL interface transitions can correlate with sudden latency jumps. Ping Warden provides a controlled, user-friendly way to keep AWDL suppressed when desired, while retaining the ability to restore the interface when protection stops.
 
 Primary goals:
 
@@ -25,7 +25,7 @@ A one-time shell command might seem like a simple fix, but it doesn't actually s
 
 **The core issue:** macOS can bring AWDL back up automatically. A polling script reacts only after the interface is active, so it cannot prevent the transition itself.
 
-**Why Ping Warden is different:** Instead of polling, the helper daemon waits for kernel route and interface events through an `AF_ROUTE` socket. When macOS raises AWDL while protection is active, the helper takes the interface back down and records an intervention. Ping Warden does not claim that a specific intervention proves a particular latency spike was avoided.
+**Why Ping Warden is different:** Instead of polling, the helper daemon waits for kernel route and interface events through an `AF_ROUTE` socket. When macOS raises AWDL while protection is active, the helper requests that the interface return down and records an intervention attempt. The count does not establish that the request succeeded or that a particular latency spike was avoided.
 
 Additional benefits:
 
@@ -104,8 +104,8 @@ When monitoring is active and the system raises AWDL:
 
 1. Kernel route event arrives.
 2. Helper identifies `awdl0` state change (`RTM_IFINFO`).
-3. Helper clears `IFF_UP` on `awdl0` via `SIOCSIFFLAGS`.
-4. Intervention counter increments.
+3. The intervention-attempt counter increments.
+4. The helper attempts to clear `IFF_UP` on `awdl0` via `SIOCSIFFLAGS` and reads back the resulting flag state.
 
 This is event-driven, not a delayed periodic shell loop.
 
@@ -153,7 +153,7 @@ Provides real-time latency visibility and tuning controls.
 Cards include:
 
 - Latency Session:
-  - Start and end a measured game or call.
+  - Start and end a measured game or call. Starting a session enables Ping Protection and requires a license or an active transition. Reading past session recaps remains free.
   - Review duration, median, p95, jitter, Probe Failures, and interventions.
   - Share a privacy-scrubbed text recap.
 

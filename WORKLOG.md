@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-09-21 - Resolve review metadata and public-copy gaps
+
+Removed the unmaintained homepage aggregate rating for #87, preserving the attributed testimonials and purchase offers. Completed the remaining maintained-guide corrections for #78: Latency Session licensing, Game Mode's Ethernet scope, intervention-attempt counts, and unsupported timing claims. Rebuilt the site and its content security policy.
+
+Website checks pass. The 21 existing What's New and Game Mode policy tests pass, and an isolated native menu fixture passes 24 checks against unchanged production methods. Fourteen isolated Settings/About captures confirm donation buttons are absent from those views. The temporary test-window title is not the production title. See [the verification record](docs/2026-09-21-open-issue-verification.md) for methods and limits.
+
+Full signed-app interaction remains separate from isolated verification. #64 still requires an eligible real-game session and wired hardware; Oliver confirmed Wi-Fi only is available now. The open dependency pull requests are being reviewed separately.
+
+---
+
 ## 2026-09-21 - Add attributed user reviews to the landing page
 
 Added three public testimonials beneath the dashboard image, preserving the exact wording and public attribution. The anonymous verified buyer links to the [Gumroad product page](https://amesconsulting.gumroad.com/l/pingwarden), which exposes no individual review permalink. The Reddit comments link directly to [u/Rilot's daily-use report](https://www.reddit.com/r/GeForceNOW/comments/1w0a6x5/comment/p9txm7h/) and [u/SpirTBTX's lag-resolution report](https://www.reddit.com/r/macbookpro/comments/1qzlg19/comment/o4i3jgr/). All three sources were freshly verified on September 21. No private buyer details were used.

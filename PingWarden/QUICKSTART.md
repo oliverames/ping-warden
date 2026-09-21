@@ -32,7 +32,7 @@ Open the menu bar menu and choose **Turn On Ping Protection**. If you haven't ac
 
 ### 5. Verify the connection
 
-Open the dashboard and confirm that Ping Protection is active. Leave it open during a normal game or call to compare live latency, jitter, and probe failures. The intervention count increases whenever macOS tries to reactivate AWDL and Ping Warden blocks it.
+Open the dashboard and confirm that Ping Protection is active. Leave it open during a normal game or call to compare live latency, jitter, and probe failures. The intervention count records the helper's attempts to lower AWDL after macOS reactivates it. It does not measure confirmed blocks or spikes prevented.
 
 For a helper health check, open **Settings > Advanced** and click **Run Test**.
 
@@ -42,7 +42,7 @@ For a helper health check, open **Settings > Advanced** and click **Run Test**.
 2. Turn on **Game Mode Auto-Detect**. No permission is needed.
 3. Optional: click **Enable Fullscreen Detection…** and allow Screen Recording if you also want fullscreen games behind other windows caught.
 
-Ping Warden turns protection on when a recognized game is the frontmost app and restores your previous state when the game closes. It stays off while your Mac is on Ethernet, where AWDL cannot interfere. Some games do not declare the metadata that macOS uses for Game Mode; use the menu bar toggle for those titles.
+Game Mode turns protection on when a recognized game is the frontmost app. Once no game is detected through either the frontmost or optional fullscreen path, it restores your previous protection state. Game Mode skips automatic activation on Ethernet. This rule does not disable protection that you enabled manually. Some games do not declare the metadata that macOS uses for Game Mode; use the menu bar toggle for those titles.
 
 ## Control Center widget
 
@@ -55,7 +55,7 @@ The Control Center widget requires [macOS Tahoe 26](https://support.apple.com/en
 ## Everyday controls
 
 - Choose **Pause for 10 Minutes** when you need AirDrop, AirPlay, or Handoff briefly.
-- Start a **Latency Session** from the dashboard when you want a beginning-to-end recap for one game or call.
+- Start a **Latency Session** from the dashboard when you want a beginning-to-end recap for one game or call. Starting a session enables Ping Protection and requires a license or an active transition. Past recaps remain free to view.
 - Turn on **Launch at Login** under **Settings > General** if you want protection available after every restart.
 - Use **Settings > Advanced > Diagnostics Snapshot** to create a local troubleshooting file you can review before sharing.
 

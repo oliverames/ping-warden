@@ -12,7 +12,7 @@ Two more tells worth checking. The stutter shows up on Wi-Fi and disappears on E
 
 ## What AWDL is and why your game cares
 
-AWDL is Apple Wireless Direct Link, the interface macOS uses for AirDrop, AirPlay, Handoff, and Sidecar. Those features need to find nearby devices without going through your router, so macOS keeps the interface available, and it can bring `awdl0` back up on its own within seconds of anything taking it down.
+AWDL is Apple Wireless Direct Link, the interface macOS uses for AirDrop, AirPlay, Handoff, and Sidecar. Those features need to find nearby devices without going through your router, so macOS keeps the interface available, and it can bring `awdl0` back up on its own after it has been taken down.
 
 The catch is that AWDL shares your Mac's Wi-Fi radio. While it's active, the radio isn't giving your router's channel its full attention, and that channel switching can contribute to stutter. Cloud gaming notices it more than most things do, because every frame and every input is riding that link in real time.
 

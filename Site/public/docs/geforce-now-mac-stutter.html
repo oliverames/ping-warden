@@ -12,7 +12,7 @@
 <p>AWDL-related interruptions can appear as periodic stutter. The stream may look fine, briefly smear or respond slowly, and then recover. Other network problems can produce similar symptoms. Compare GeForce NOW's network overlay with your latency readings instead of diagnosing the cause from the pattern alone.</p>
 <p>Two more tells worth checking. The stutter shows up on Wi-Fi and disappears on Ethernet, and it bothers the Mac while a Windows PC or a console on the same network is fine. AWDL is an Apple feature, so it only affects Apple hardware.</p>
 <h2 id="what-awdl-is-and-why-your-game-cares">What AWDL is and why your game cares</h2>
-<p>AWDL is Apple Wireless Direct Link, the interface macOS uses for AirDrop, AirPlay, Handoff, and Sidecar. Those features need to find nearby devices without going through your router, so macOS keeps the interface available, and it can bring <code>awdl0</code> back up on its own within seconds of anything taking it down.</p>
+<p>AWDL is Apple Wireless Direct Link, the interface macOS uses for AirDrop, AirPlay, Handoff, and Sidecar. Those features need to find nearby devices without going through your router, so macOS keeps the interface available, and it can bring <code>awdl0</code> back up on its own after it has been taken down.</p>
 <p>The catch is that AWDL shares your Mac's Wi-Fi radio. While it's active, the radio isn't giving your router's channel its full attention, and that channel switching can contribute to stutter. Cloud gaming notices it more than most things do, because every frame and every input is riding that link in real time.</p>
 <h2 id="confirm-it-before-you-change-anything">Confirm it before you change anything</h2>
 <p>Open Terminal and run this while a session is going:</p>
