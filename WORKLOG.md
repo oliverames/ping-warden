@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-09-21 - Complete the macOS 27 UI review
+
+Reviewed all main screens in a full isolated app on macOS 27.2, plus native menus, transition/welcome states, helper and maintenance dialogs, and the diagnostics sheet. The [dated review](docs/2026-09-21-macos27-ui-review.md) contains a 21-group source inventory, runtime coverage, 12 representative captures, Apple guidance from Xcode's local archive, and explicit untested boundaries. The actual title bar correctly follows the selected pane. The earlier fixture title was not production UI.
+
+The main visual follow-up is content-layer glass on Dashboard and Targets. #90 tracks that change alongside reproduced pending-relaunch state/accessibility, license Return submission, target URL validation, and reminder-copy findings. #89 tracks chart accessibility misclassification. #91 tracks existing compiler actor-isolation warnings without claiming a runtime race. #88 is closed after its verified fix, and #78 now includes the repaired Help command but retains signed-app acceptance. #64 still requires eligible real-game and Ethernet observations. Both dependency PRs remain merged, with no open PRs.
+
+The review preserved the installed app and production state. The two app fixes are committed on main and locally verified; they are not a new published release. Signed Control Center hosting, updater windows, production persistence, system accessibility settings, and spoken VoiceOver navigation remain outside this isolated review. No claim is made that every permutation in the source inventory was exercised.
+
+---
+
 ## 2026-09-21 - Repair the Help menu's release-notes observation
 
 The full isolated UI review reproduced a defect within #78 that the earlier policy/native-menu tests missed. The app published a 4.2.0 offer and created its AppKit status-menu entry, but SwiftUI Help still showed only static documentation links. Logging-only snapshots confirmed the mismatch one and five seconds after launch.

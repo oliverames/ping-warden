@@ -51,3 +51,10 @@ The [exact-commit deployment](https://github.com/oliverames/ping-warden/actions/
 #64 remains open for the licensed real-game and Ethernet observations described above. Oliver confirmed Wi-Fi only is available now.
 
 The UI review exposed a separate semantic defect, tracked in [#88](https://github.com/oliverames/ping-warden/issues/88): several app labels and shared recaps describe intervention attempts as successful blocks. An existing fault-injection helper test confirms that a failed write still increments the counter. The fresh helper run passed all 162 checks. Per the incidental-bug workflow, the issue records affected surfaces and verification steps without starting that separate app change.
+
+
+## Later full-app UI review
+
+The subsequent [macOS 27 UI review](2026-09-21-macos27-ui-review.md) preserves the evidence and limits above while adding a full isolated application host. It confirmed the native title/sidebar composition and reproduced a missing SwiftUI Help-menu release-notes item that the earlier method fixture did not cover. [e315918](https://github.com/oliverames/ping-warden/commit/e315918) fixes that observation boundary. The item now appears and disappears after acknowledgement in the full isolated app. Original signed-app acceptance remains open in #78.
+
+The separate counter wording issue #88 is now fixed in [8bad3e7](https://github.com/oliverames/ping-warden/commit/8bad3e7) and closed. Its focused tests, helper tests, universal build, and minimum-width renders pass. New review findings are tracked in #89, #90, and #91. #64 still requires the real-game and wired observations described above. No installed app was replaced and no new release was published during this later review.
