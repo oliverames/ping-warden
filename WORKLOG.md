@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-09-21 - Repair the Help menu's release-notes observation
+
+The full isolated UI review reproduced a defect within #78 that the earlier policy/native-menu tests missed. The app published a 4.2.0 offer and created its AppKit status-menu entry, but SwiftUI Help still showed only static documentation links. Logging-only snapshots confirmed the mismatch one and five seconds after launch.
+
+Moved the unchanged Help contents into a Commands type that directly observes AppDelegate. In the rebuilt full app, the release-notes item appears after launch and disappears after selecting it. The universal native Release build succeeds with no new warnings. Signing settings, entitlements, and dependencies are unchanged. This is an unsigned full-app interaction check with inert URL handling, not proof of signed preference persistence or external navigation. #78 remains open for its original signed-app acceptance and linked #64 field testing.
+
+---
+
 ## 2026-09-21 - Describe intervention counters accurately
 
 Resolved #88 across General settings, menu metrics, dashboard counters and timeline labels, accessibility text, and shared Latency Session recaps. Counts now describe intervention attempts. Recaps explain that attempts do not confirm successful interventions or latency spikes prevented. Zero no longer implies that no wireless interruptions occurred. Removed the counter's ambiguous “Since Launch” heading and success-checkmark symbols on attempt events. Counter storage, encoded keys, XPC methods, reset behavior, and helper operations are unchanged.

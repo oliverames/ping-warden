@@ -65,22 +65,33 @@ struct PingWardenApp: App {
                     appDelegate.openAbout()
                 }
             }
-            CommandGroup(replacing: .help) {
-                Link("Ping Warden Help", destination: LicenseManager.documentationURL)
-                Link("Troubleshooting", destination: LicenseManager.troubleshootingURL)
-                Link("Ping Warden Website", destination: LicenseManager.websiteURL)
-                if let whatsNewVersion = appDelegate.whatsNewVersion {
-                    Divider()
-                    Button("What's New in \(whatsNewVersion)...") {
-                        appDelegate.openWhatsNew()
-                    }
-                }
-            }
+            PingWardenHelpCommands(appDelegate: appDelegate)
             CommandGroup(replacing: .appSettings) {
                 Button("Settings...") {
                     appDelegate.openSettings()
                 }
                 .keyboardShortcut(",", modifiers: .command)
+            }
+        }
+    }
+}
+
+/// Observe the offer at the command boundary so changes after app launch
+/// update the Help menu even though the Settings scene hosts no window.
+@MainActor
+struct PingWardenHelpCommands: Commands {
+    @ObservedObject var appDelegate: AppDelegate
+
+    var body: some Commands {
+        CommandGroup(replacing: .help) {
+            Link("Ping Warden Help", destination: LicenseManager.documentationURL)
+            Link("Troubleshooting", destination: LicenseManager.troubleshootingURL)
+            Link("Ping Warden Website", destination: LicenseManager.websiteURL)
+            if let whatsNewVersion = appDelegate.whatsNewVersion {
+                Divider()
+                Button("What's New in \(whatsNewVersion)...") {
+                    appDelegate.openWhatsNew()
+                }
             }
         }
     }
