@@ -8,6 +8,12 @@ The main visual follow-up is content-layer glass on Dashboard and Targets. #90 t
 
 The review preserved the installed app and production state. The two app fixes are committed on main and locally verified; they are not a new published release. Signed Control Center hosting, updater windows, production persistence, system accessibility settings, and spoken VoiceOver navigation remain outside this isolated review. No claim is made that every permutation in the source inventory was exercised.
 
+**Wrap-up verification**: The repository was clean and matched remote `main` at `33a0818` before this documentation reconciliation. GitHub Build Verification passed for app commit `e315918` and review commit `33a0818`; their CodeQL analyses remained in progress. Earlier local verification passed all nine affected recap tests, 162 helper checks, and universal app/helper/widget builds. Latest published release remains 4.2.0. No new build, installation, or release occurred during wrap-up.
+
+**Resolved this session**: [#88](https://github.com/oliverames/ping-warden/issues/88) is closed, both dependency PRs are merged, and the reproduced Help-menu defect is fixed on main. **Still open**: [#78](https://github.com/oliverames/ping-warden/issues/78) now explicitly carries publication of `8bad3e7` and `e315918`, final CI review, and signed-app acceptance. [#64](https://github.com/oliverames/ping-warden/issues/64) retains real-game and wired-hardware checks. **New review follow-ups**: [#89](https://github.com/oliverames/ping-warden/issues/89) for chart accessibility, [#90](https://github.com/oliverames/ping-warden/issues/90) for UI corrections and remaining design/host verification, and [#91](https://github.com/oliverames/ping-warden/issues/91) for compiler warnings. GitHub reports five open issues and no open PRs.
+
+**Continuation**: Resolve and verify the bounded UI findings, inspect pending analysis results, then deliver the committed fixes through the maintained release process. Preserve the installed app and production preferences until the outstanding local-installation decision is answered. Only Wi-Fi is currently available. Settings, plugin configuration, skills, and Apple Notes were not changed, so configuration backups and Notes reconciliation did not apply. Memory was not modified.
+
 ---
 
 ## 2026-09-21 - Repair the Help menu's release-notes observation

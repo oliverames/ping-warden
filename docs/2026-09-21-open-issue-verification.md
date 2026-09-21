@@ -28,7 +28,7 @@ Fourteen captures render the actual unchanged General Settings and About views w
 
 No donation buttons appear in these views. About shows the appropriate Licensed or Buy a License text, resource links, and credits. General's footer remains reachable at the minimum size. Root independently inspected representative captures. The fixture exited normally after rendering.
 
-These are view-content checks on macOS 27.2, not signed-app interaction checks. The Settings sidebar, saved frame, toolbar, and window decorations were not reproduced. The temporary title beginning “Isolated view fixture” belongs only to the test host. The production window title is “Settings.” Real licensing, helper operations, updates, and network changes were disabled in the fixture.
+These are view-content checks on macOS 27.2, not signed-app interaction checks. The Settings sidebar, saved frame, toolbar, and window decorations were not reproduced. The temporary title beginning “Isolated view fixture” belongs only to the test host. AppKit initializes the window title as “Settings,” but the later full-app review confirmed that the visible title follows the selected pane, such as General or Dashboard. Real licensing, helper operations, updates, and network changes were disabled in the fixture.
 
 ## Real-game validation
 
