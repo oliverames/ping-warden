@@ -331,10 +331,19 @@ struct ProtectedSessionCard: View {
             }
 
             if let error = coordinator.lastError ?? protectionExperience.lastError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .accessibilityLabel("Latency session error: \(error)")
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .accessibilityLabel("Latency session error: \(error)")
+                    if error.localizedCaseInsensitiveContains("license") {
+                        Button("Buy a License... · $15") {
+                            NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                    }
+                }
             }
 
             if coordinator.isActive {
@@ -1280,9 +1289,18 @@ struct InterventionsCard: View {
             }
 
             if let error = protectionExperience.lastError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    if error.localizedCaseInsensitiveContains("license") {
+                        Button("Buy a License... · $15") {
+                            NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                    }
+                }
             }
 
             ViewThatFits(in: .horizontal) {

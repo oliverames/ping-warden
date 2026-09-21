@@ -156,7 +156,7 @@ enum AWDLError: Error, CustomLocalizedStringResourceConvertible {
         case .appLaunchFailed:
             return "Ping Warden could not be opened."
         case .licenseRequired:
-            return "Ping Protection requires a license. Open Ping Warden to enter your license key."
+            return "Ping Protection requires a $15 one-time license. Open Ping Warden Settings → License to buy or enter your key."
         }
     }
 }

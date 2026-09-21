@@ -1356,8 +1356,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             || (!PingWardenMonitor.shared.isMonitoringRequested
                 && !PingWardenMonitor.shared.isMonitoringActive)
         Task {
-            await protectionExperience.setPersistentProtection(shouldEnable)
+            let succeeded = await protectionExperience.setPersistentProtection(shouldEnable)
             updateMenuItem()
+            if shouldEnable, !succeeded,
+               protectionExperience.lastError?.localizedCaseInsensitiveContains("license") == true {
+                presentLicenseDeniedAlert()
+            }
+        }
+    }
+
+    private func presentLicenseDeniedAlert() {
+        let message = protectionExperience.lastError
+            ?? "Ping Protection requires a $15 one-time license."
+        let alert = NSAlert()
+        alert.messageText = "Ping Protection Requires a License"
+        alert.informativeText = "\(message)\n\nBuy a $15 one-time license on Gumroad, then enter the key in Settings → License."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Buy a License... · $15")
+        alert.addButton(withTitle: "Open License Settings")
+        alert.addButton(withTitle: "Cancel")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            NSWorkspace.shared.open(LicenseManager.purchaseURL)
+        case .alertSecondButtonReturn:
+            openLicenseSettings()
+        default:
+            break
         }
     }
 
@@ -1901,9 +1925,18 @@ struct GeneralSettingsContent: View {
                 }
 
                 if let error = protectionExperience.lastError {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                        if error.localizedCaseInsensitiveContains("license") {
+                            Button("Buy a License... · $15") {
+                                NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                        }
+                    }
                 }
 
                 LabeledContent("Status") {
@@ -2230,9 +2263,16 @@ struct LicenseSettingsContent: View {
 
             if let error = protectionExperience.lastError,
                error.contains("license") {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    Button("Buy a License... · $15") {
+                        NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                    }
+                    .buttonStyle(.link)
                     .font(.caption)
-                    .foregroundStyle(.red)
+                }
             }
         }
         .formStyle(.grouped)
