@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-09-21 - Describe intervention counters accurately
+
+Resolved #88 across General settings, menu metrics, dashboard counters and timeline labels, accessibility text, and shared Latency Session recaps. Counts now describe intervention attempts. Recaps explain that attempts do not confirm successful interventions or latency spikes prevented. Zero no longer implies that no wireless interruptions occurred. Removed the counter's ambiguous “Since Launch” heading and success-checkmark symbols on attempt events. Counter storage, encoded keys, XPC methods, reset behavior, and helper operations are unchanged.
+
+Verification: all nine affected session-summary tests pass, including zero, one, and multiple attempts. All 162 helper checks pass, retaining the injected failed-write case. A native universal Release build succeeds for the app, helper, and widget without changing signing settings or entitlements. The full isolated app renders the revised General and Dashboard labels, 128-attempt recap, and zero-count state at minimum width on macOS 27.2. Accessibility text reflects attempts. The build's existing settings-observer concurrency warnings are tracked separately in #91.
+
+This fixes the source on main. Release 4.2.0 and the installed 4.1.8 copy remain unchanged. The ongoing macOS UI review is tracked in #89 and #90; signed discoverability checks and real-game/Ethernet validation remain in #78 and #64.
+
+---
+
 ## 2026-09-21 - Resolve review metadata and public-copy gaps
 
 Removed the unmaintained homepage aggregate rating for #87, preserving the attributed testimonials and purchase offers. Completed the remaining maintained-guide corrections for #78: Latency Session licensing, Game Mode's Ethernet scope, intervention-attempt counts, and unsupported timing claims. Rebuilt the site and its content security policy.

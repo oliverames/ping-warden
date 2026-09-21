@@ -58,7 +58,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     NSLock *_interfaceLock;
     BOOL _invalidating;
     
-    // Counter for AWDL interventions (how many times we brought it down)
+    // Counter for attempts to turn off AWDL, including failed writes.
     atomic_int _interventionCount;
 }
 

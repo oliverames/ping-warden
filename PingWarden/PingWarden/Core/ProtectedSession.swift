@@ -70,7 +70,7 @@ struct ProtectedSessionSummary: Codable, Equatable, Identifiable, Sendable {
 
     var privacySafeShareText: String {
         let durationText = Self.formatDuration(duration)
-        let interruptionNoun = interventionCount == 1 ? "interruption" : "interruptions"
+        let attemptNoun = interventionCount == 1 ? "attempt" : "attempts"
         var lines = [
             "Ping Warden Latency Session",
             "Duration: \(durationText)",
@@ -94,10 +94,11 @@ struct ProtectedSessionSummary: Codable, Equatable, Identifiable, Sendable {
         }
 
         if interventionCount > 0 {
-            lines.append("\(interventionCount) wireless \(interruptionNoun) blocked")
+            lines.append("\(interventionCount) intervention \(attemptNoun) recorded")
         } else {
-            lines.append("No wireless interruptions were recorded")
+            lines.append("No intervention attempts recorded")
         }
+        lines.append("Attempts do not confirm successful interventions or latency spikes prevented.")
 
         if protectionWasInterrupted {
             lines.append("Protection: Interrupted before the session ended")

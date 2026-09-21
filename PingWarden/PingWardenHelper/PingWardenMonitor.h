@@ -38,7 +38,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// control pipe is gone. Call only after `invalidate`.
 - (void)restoreInterfaceUpDirectly;
 
-/// Get the total number of AWDL interventions (how many times we blocked AWDL from coming up)
+/// Get the total number of attempts to turn off AWDL, including failed writes.
 /// This counter persists for the lifetime of the helper process
 - (NSInteger)getInterventionCount;
 

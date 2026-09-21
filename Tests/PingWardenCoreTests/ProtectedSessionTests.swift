@@ -72,7 +72,8 @@ final class ProtectedSessionAccumulatorTests: XCTestCase {
         let text = summary.privacySafeShareText
         XCTAssertTrue(text.contains("Ping Warden Latency Session"))
         XCTAssertTrue(text.contains("Probe Failures: 1 of 10 (10.0%)"))
-        XCTAssertTrue(text.contains("3 wireless interruptions blocked"))
+        XCTAssertTrue(text.contains("3 intervention attempts recorded"))
+        XCTAssertTrue(text.contains("Attempts do not confirm successful interventions or latency spikes prevented."))
         XCTAssertFalse(text.contains("Packet loss"))
         XCTAssertFalse(text.contains("hostname"))
         XCTAssertFalse(text.contains("127.0.0.1"))
@@ -95,6 +96,21 @@ final class ProtectedSessionAccumulatorTests: XCTestCase {
         )
 
         XCTAssertTrue(summary.privacySafeShareText.contains("1 hour, 1 minute"))
+        XCTAssertTrue(summary.privacySafeShareText.contains("No intervention attempts recorded"))
+    }
+
+    func testShareTextDescribesOneInterventionAsAnAttempt() {
+        let start = Date(timeIntervalSince1970: 100)
+        let accumulator = ProtectedSessionAccumulator(
+            startedAt: start,
+            trigger: .manual,
+            startingInterventionCount: 4
+        )
+        let summary = accumulator.finish(endedAt: start.addingTimeInterval(60), endingInterventionCount: 5)
+
+        XCTAssertTrue(summary.privacySafeShareText.contains("1 intervention attempt recorded"))
+        XCTAssertFalse(summary.privacySafeShareText.contains("intervention attempts recorded"))
+        XCTAssertTrue(summary.privacySafeShareText.contains("Attempts do not confirm successful interventions or latency spikes prevented."))
     }
 
     func testShareTextDoesNotPresentZeroesAsMeasurementsWhenNoProbesComplete() {

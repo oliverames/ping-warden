@@ -734,7 +734,7 @@ class PingWardenMonitor: @unchecked Sendable {
     }
     
     /// Get the AWDL intervention count from the helper
-    /// Returns the number of times AWDL was blocked from coming up
+    /// Returns attempts to turn off AWDL, including failed writes.
     func getInterventionCount(completion: @escaping @Sendable (Int?) -> Void) {
         guard let proxy = getHelperProxy() else {
             log.warning("Cannot get intervention count: No helper proxy")

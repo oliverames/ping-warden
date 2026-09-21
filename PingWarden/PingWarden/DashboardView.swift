@@ -55,9 +55,9 @@ struct LatencyTimelineEvent: Identifiable {
             return String(format: "Latency spike: %.0f ms", latency)
         case .awdlIntervention(let delta):
             if delta == 1 {
-                return "Protection event"
+                return "Intervention attempt"
             }
-            return "Protection events (+\(delta))"
+            return "Intervention attempts (+\(delta))"
         }
     }
 
@@ -66,7 +66,7 @@ struct LatencyTimelineEvent: Identifiable {
         case .latencySpike:
             return "exclamationmark.triangle.fill"
         case .awdlIntervention:
-            return "shield.lefthalf.filled.badge.checkmark"
+            return "arrow.counterclockwise"
         }
     }
 
@@ -479,7 +479,7 @@ private struct SessionRecapView: View {
                     VStack(alignment: .leading, spacing: 8) { metrics }
                 }
 
-                Text("Interventions count AWDL activity that Ping Warden blocked. They do not prove that a specific latency spike was avoided.")
+                Text("Intervention attempts count attempts to turn off AWDL. They do not confirm successful interventions or latency spikes prevented.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             } else {
@@ -524,7 +524,7 @@ private struct SessionRecapView: View {
             value: String(format: "%.1f%%", summary.packetLossPercent),
             tint: LatencyPalette.forPacketLoss(summary.packetLossPercent)
         )
-        SessionMetric(label: "Interventions", value: "\(summary.interventionCount)")
+        SessionMetric(label: "Intervention Attempts", value: "\(summary.interventionCount)")
     }
 }
 
@@ -533,7 +533,7 @@ private struct SessionMetric: View {
     let value: String
     var helpText: String? = nil
     /// Same palette the Network Quality card uses, so a bad session reads
-    /// as bad at a glance. Nil keeps the neutral weight (Duration, Interventions).
+    /// as bad at a glance. Nil keeps the neutral weight (Duration, Intervention Attempts).
     var tint: Color? = nil
 
     var body: some View {
@@ -563,7 +563,7 @@ private struct RecentSessionRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text("\(summary.interventionCount) interventions")
+            Text("\(summary.interventionCount) intervention attempt\(summary.interventionCount == 1 ? "" : "s")")
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
@@ -1089,7 +1089,7 @@ struct PingGraphCard: View {
         LegendItem(color: LatencyPalette.poor, label: "Poor", range: ">100ms")
         ChartEventLegendItem(color: LatencyPalette.poor, systemImage: "xmark.circle.fill", label: "Failed probe")
         ChartEventLegendItem(color: .orange, systemImage: "exclamationmark.triangle.fill", label: "Latency spike")
-        ChartEventLegendItem(color: .green, systemImage: "shield.lefthalf.filled.badge.checkmark", label: "Protection event")
+        ChartEventLegendItem(color: .green, systemImage: "arrow.counterclockwise", label: "Intervention attempt")
     }
 
     private var timeframePicker: some View {
@@ -1228,7 +1228,7 @@ struct LatencyTimelineCard: View {
                 Text("Latency Timeline")
                     .font(.headline)
                 Spacer()
-                Text("Spikes + protection events")
+            Text("Spikes + intervention attempts")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1352,11 +1352,11 @@ struct InterventionsCard: View {
 
     private var interventionCountBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Interventions Since Launch")
+            Text("Intervention Attempts")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            // ViewThatFits drops the interruption caption below
+            // ViewThatFits drops the attempt caption below
             // the hero count when the @ScaledMetric font + caption width
             // would overflow the card (AX5 + narrow windows).
             ViewThatFits(in: .horizontal) {
@@ -1371,7 +1371,7 @@ struct InterventionsCard: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Interventions since launch: \(viewModel.interventionCount) AWDL activation attempts blocked")
+        .accessibilityLabel("Intervention attempts recorded: \(viewModel.interventionCount)")
     }
 
     private var interventionCountText: some View {
@@ -1382,7 +1382,7 @@ struct InterventionsCard: View {
     }
 
     private var interventionUnitText: some View {
-        Text("AWDL activation attempts blocked")
+        Text("attempts to turn off AWDL")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1391,17 +1391,17 @@ struct InterventionsCard: View {
     private var interventionStatusBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
             if viewModel.interventionCount > 0 {
-                Label("AWDL activity blocked", systemImage: "shield.lefthalf.filled.badge.checkmark")
+                Label("Intervention attempts recorded", systemImage: "arrow.counterclockwise")
                     .font(.subheadline)
                     .foregroundStyle(.orange)
 
-                Text("Ping Warden stopped \(viewModel.interventionCount) AWDL activation attempt\(viewModel.interventionCount == 1 ? "" : "s") while protection was active.")
+                Text("Ping Warden made \(viewModel.interventionCount) attempt\(viewModel.interventionCount == 1 ? "" : "s") to turn off AWDL. Attempts do not confirm successful interventions or latency spikes prevented.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Label(
-                    isProtectionActive ? "No activation attempts recorded" : "Protection is off",
+                    isProtectionActive ? "No intervention attempts recorded" : "Protection is off",
                     systemImage: isProtectionActive ? "checkmark.shield" : "pause.circle"
                 )
                 .font(.subheadline)

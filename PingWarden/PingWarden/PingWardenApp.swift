@@ -730,7 +730,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         pingMenuItem.isEnabled = false
         statusMenu?.addItem(pingMenuItem)
 
-        let interventionsMenuItem = NSMenuItem(title: "Wireless Interruptions: --", action: nil, keyEquivalent: "")
+        let interventionsMenuItem = NSMenuItem(title: "Intervention Attempts: --", action: nil, keyEquivalent: "")
         interventionsMenuItem.tag = 102
         interventionsMenuItem.isEnabled = false
         statusMenu?.addItem(interventionsMenuItem)
@@ -1281,9 +1281,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if let interventionsItem = menu.items.first(where: { $0.tag == 102 }) {
             interventionsItem.isHidden = !showMetrics
             if let count = menuInterventionCount {
-                interventionsItem.title = "Wireless Interruptions: \(count)"
+                interventionsItem.title = "Intervention Attempts: \(count)"
             } else {
-                interventionsItem.title = "Wireless Interruptions: --"
+                interventionsItem.title = "Intervention Attempts: --"
             }
         }
     }
@@ -1954,12 +1954,12 @@ struct GeneralSettingsContent: View {
                 .accessibilityValue(statusText)
 
                 if monitorState.isMonitoring && monitorState.interventionCount > 0 {
-                    LabeledContent("Wireless Interruptions") {
+                    LabeledContent("Intervention Attempts") {
                         HStack(spacing: 8) {
                             Text("\(monitorState.interventionCount)")
                                 .font(.headline)
                                 .foregroundStyle(.green)
-                            Text("blocked")
+                            Text("recorded")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
@@ -1979,7 +1979,7 @@ struct GeneralSettingsContent: View {
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(.secondary)
-                            .accessibilityLabel("Reset intervention counter")
+                            .accessibilityLabel("Reset intervention attempt counter")
                             .help("Reset counter")
                         }
                     }
@@ -2027,7 +2027,7 @@ struct GeneralSettingsContent: View {
                 Toggle(isOn: $showMenuDropdownMetrics) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Show Live Metrics in Menu")
-                        Text("Show current ping and protection events in the menu")
+                            Text("Show current ping and intervention attempts in the menu")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
