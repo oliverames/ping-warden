@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-09-21 - Add attributed user reviews to the landing page
+
+Added three public testimonials beneath the dashboard image, preserving the exact wording and public attribution. The anonymous verified buyer links to the [Gumroad product page](https://amesconsulting.gumroad.com/l/pingwarden), which exposes no individual review permalink. The Reddit comments link directly to [u/Rilot's daily-use report](https://www.reddit.com/r/GeForceNOW/comments/1w0a6x5/comment/p9txm7h/) and [u/SpirTBTX's lag-resolution report](https://www.reddit.com/r/macbookpro/comments/1qzlg19/comment/o4i3jgr/). All three sources were freshly verified on September 21. No private buyer details were used.
+
+The responsive section displays three cards on desktop and stacks them on mobile. Verification covered exact quote and link matching, accessible link names, visible keyboard focus, hover state, and rendered layouts at 1440, 390, and 320 pixels wide without horizontal overflow. The website build and all existing page, link, sitemap, structured-data, and worker checks pass.
+
+The pre-existing structured-data review count remains tracked separately in [#87](https://github.com/oliverames/ping-warden/issues/87). This change adds no rating claim.
+
+---
+
 ## 2026-09-21 - Ping Warden 4.2.0 released and verified
 
 Published [4.2.0](https://github.com/oliverames/ping-warden/releases/tag/v4.2.0), build 42000, from `2de6c9c`. It includes confirmed helper results, bounded interruption recovery, protection against stale callback ordering, opt-out crash reporting with saved choices preserved, and matching Sentry release identifiers. The README, app disclosures, website, and live Gumroad copy now agree on the reporting default and qualify the AWDL claims.
