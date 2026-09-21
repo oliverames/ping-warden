@@ -30,7 +30,7 @@ final class PingWardenPreferences: @unchecked Sendable {
     private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
     private let completedSessionCountKey = "CompletedProtectedSessionCount"
     private let lifetimeInterventionCountKey = "LifetimeInterventionCount"
-    private let crashReportingEnabledKey = "CrashReportingEnabled"
+    private let crashReportingEnabledKey = CrashReportingPolicy.preferenceKey
     private let betaChannelEnabledKey = "BetaChannelEnabled"
     private let lastSeenWhatsNewVersionKey = "LastSeenWhatsNewVersion"
 
@@ -51,10 +51,8 @@ final class PingWardenPreferences: @unchecked Sendable {
         migrateLegacyPreferencesIfAvailable()
 
         // `register` only applies when the key has never been written. Existing
-        // choices persist, while new installations start with reporting off.
-        defaults.register(defaults: [
-            crashReportingEnabledKey: false,
-        ])
+        // choices persist, including explicit opt-outs and migrated choices.
+        CrashReportingPolicy.registerDefault(in: defaults)
     }
 
     /// macOS 15 began enforcing App Group authorization for non-sandboxed
@@ -200,7 +198,7 @@ final class PingWardenPreferences: @unchecked Sendable {
         set { defaults.set(max(0, newValue), forKey: lifetimeInterventionCountKey) }
     }
 
-    /// Crash reporting via Sentry. Default `false`; users can opt in from
+    /// Crash reporting via Sentry. Default `true`; users can opt out from
     /// Settings → Advanced → Privacy. Reports contain no IP, network target,
     /// usage telemetry, or session event data. Turning it off applies
     /// immediately; turning it on starts reporting on the next launch.
@@ -231,6 +229,7 @@ final class PingWardenPreferences: @unchecked Sendable {
     /// only after Ping Protection is confirmed off and the helper has been
     /// unregistered, so a partial removal cannot strand privileged state.
     func resetForRemoval() {
+        CrashReportingPolicy.prepareForRemoval(in: defaults)
         defaults.removePersistentDomain(forName: appGroupID)
 
         // Before macOS 15, Ping Warden 2.x could persist values in the legacy

@@ -118,7 +118,7 @@ The app makes a few narrow outbound requests:
 - Sparkle checks the public appcast for updates.
 - License activation and refresh send your license key and the product ID to Gumroad over HTTPS. Your key stays in the macOS Keychain between checks.
 - The dashboard checks `status.geforcenow.com` to discover GeForce NOW target hostnames.
-- Anonymous crash reporting is off by default. If you opt in under **Settings > Advanced > Privacy**, reports exclude IP addresses, ping targets, network breadcrumbs, performance traces, and app-lifecycle tracking.
+- Starting with version 4.2.0, anonymous crash reporting is on by default when no choice has been saved. Updates preserve your saved choice, including an opt-out. Turn it off under **Settings > Advanced > Privacy** to stop new reports immediately. Turning it back on requires a relaunch. Reports exclude ping targets, network breadcrumbs, performance traces, and app-lifecycle tracking. IP-address storage is disabled in the reporting service.
 - TCP latency probes connect only to the target you select or ask Ping Warden to choose.
 
 Diagnostics exports are written locally. Ping Warden never uploads them for you.

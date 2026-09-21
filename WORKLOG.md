@@ -1,5 +1,19 @@
 # Ping Warden Worklog
 
+## 2026-09-21 - Prepare 4.2.0 reliability and crash-reporting release
+
+Prepared 4.2.0, build 42000, for the authorized release. The helper confirms interface writes before reporting success (#82). The app recovers from interruption-only helper restarts, rejects stale replies and reconnects, and requires helper confirmation for newly adopted widget state (#83). Rechecking an already-confirmed state preserves active sessions and pending stop intent. App and widget continue using the existing XPC contract.
+
+Crash reporting now defaults on when no preference is stored, preserves saved choices, and stops new reports when disabled (#85). Removal closes the SDK without re-enabling it when preferences are cleared. The welcome window, Settings, README, website, release notes, and storefront source disclose the change. Sentry publication now derives its release identifier from the app's version and build (#84). Current Sentry project settings confirm IP-address scrubbing remains enabled.
+
+Qualified current product claims and clarified that a protected Latency Session requires a license or an active transition (#78). CodeQL action references now advance together, and Dependabot groups future CodeQL updates to prevent mismatched initialization and analysis versions.
+
+Verification before publication: 149 core tests, 162 helper assertions across 12 scenarios, 31 crash-reporter assertions, 13 release-tool tests, native monitor callback and recovery tests, website validation, shell checks, and the native Xcode app build. The monitor fixture compiles production methods against inert transport dependencies and includes a negative-control check from the review. The actual welcome view renders without clipped actions or privacy text at 540 by 640 and 480 by 560. At the smaller size, the license row remains reachable by scrolling.
+
+Publication, signed-artifact checks, and live delivery results will be recorded after the release completes. Existing live-game and Ethernet checks remain in #64. Full installed-app What's New and donation-removal checks remain in #78. These isolated tests do not establish physical game-session coverage or install the release on this Mac.
+
+---
+
 ## 2026-09-21 - The license refusal says what it costs and offers to buy
 
 Uncommitted work sitting in the tree was reviewed, verified, and shipped as `51284df`. Every message that turned protection down said a license was required and left the reader to discover the price and where to get one. The price is now in the message, and a Buy a License link sits under the error on the protected session card, the interventions card, General settings, and the License pane. Turning on persistent protection from the menu reads the result rather than discarding it, so a license refusal raises an alert offering Buy a License, Open License Settings, or Cancel instead of the menu item quietly snapping back. The widget's `licenseRequired` string points at Settings and License too.

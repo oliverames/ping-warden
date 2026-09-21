@@ -133,8 +133,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             self?.updateQuickActionMenuItems()
         }
 
-        // Optional anonymous crash reporting (Sentry). New installations start
-        // with it off; the Settings privacy toggle is checked before startup.
+        // Anonymous crash reporting defaults on only when no choice is saved.
+        // The Settings privacy toggle is checked before SDK startup.
         CrashReporter.startIfEnabled()
 
         // Clear any cached Settings window state from prior builds that may have
@@ -2472,7 +2472,7 @@ struct AdvancedSettingsContent: View {
                                 StatusBadge(text: "Relaunch Required", tint: .unavailable)
                             }
                         }
-                        Text("Anonymous crash reports help fix bugs. No IP address, usage data, or ping targets. Turning off is immediate; turning on requires a relaunch.")
+                        Text("On by default unless you have saved a different choice. Anonymous crash reports help fix bugs, without usage data or ping targets. Turning off is immediate; turning on requires a relaunch.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -2481,6 +2481,7 @@ struct AdvancedSettingsContent: View {
                 .accessibilityHint("Sends anonymous crash details without IP addresses, usage data, or ping targets")
                 .onChangeCompat(of: crashReportingEnabled) { newValue in
                     PingWardenPreferences.shared.isCrashReportingEnabled = newValue
+                    if !newValue { CrashReporter.stop() }
                     crashReportingRelaunchRequired = newValue
                 }
             }
@@ -2831,6 +2832,8 @@ struct AdvancedSettingsContent: View {
         // the helper has been turned off and unregistered successfully.
         try ProtectedSessionStore().removeAll()
         LicenseManager.shared.resetForRemoval()
+        PingWardenPreferences.shared.isCrashReportingEnabled = false
+        CrashReporter.stop()
         PingWardenPreferences.shared.resetForRemoval()
         GeForceNOWDiscovery.clearCache()
         if let bundleID = Bundle.main.bundleIdentifier {

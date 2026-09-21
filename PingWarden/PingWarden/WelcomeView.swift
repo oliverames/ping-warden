@@ -80,7 +80,7 @@ struct WelcomeView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Stop the stutter when you cloud game on a Mac.")
+                Text("Reduce AWDL-related stutter when you cloud game on a Mac.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -92,8 +92,8 @@ struct WelcomeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 WelcomeBenefitRow(
                     icon: "shield.lefthalf.filled",
-                    title: "Stop Wi‑Fi lag spikes",
-                    description: "Ping Protection stops AirDrop from grabbing the Wi‑Fi radio while you play GeForce NOW or any cloud game."
+                    title: "Reduce AWDL-related Wi‑Fi stutter",
+                    description: "Ping Protection pauses the wireless sharing interface used by AirDrop while you play. Other sources of lag can still affect your connection."
                 )
                 WelcomeBenefitRow(
                     icon: "waveform.path.ecg",
@@ -131,6 +131,12 @@ struct WelcomeView: View {
             setupCallout
                 .frame(maxWidth: 400)
             setupButtons
+            Text("Anonymous crash reporting is on by default unless you have saved a different choice. You can turn it off in Settings → Advanced → Privacy.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 400)
         }
         .padding(.horizontal, 40)
         .padding(.top, 8)
@@ -295,4 +301,3 @@ private struct WelcomeBenefitRow: View {
         .accessibilityElement(children: .combine)
     }
 }
-

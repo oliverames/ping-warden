@@ -73,6 +73,7 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Lock for thread-safe access to state
     private let stateLock = NSLock()
     private var _isMonitoring = false
+    private var _confirmedMonitoring = false
 
     /// Flag to prevent recursive registration
     private var _isRegisteringHelper = false
@@ -143,6 +144,7 @@ class PingWardenMonitor: @unchecked Sendable {
             stateLock.lock()
             defer { stateLock.unlock() }
             _isMonitoring = newValue
+            _confirmedMonitoring = newValue
         }
     }
 
@@ -214,7 +216,7 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Check if monitoring is currently active (thread-safe)
     var isMonitoringActive: Bool {
         stateLock.lock()
-        let active = _isMonitoring && _xpcConnection != nil
+        let active = _isMonitoring && _confirmedMonitoring && _xpcConnection != nil
         stateLock.unlock()
         return active
     }
@@ -244,16 +246,21 @@ class PingWardenMonitor: @unchecked Sendable {
         stateLock.lock()
         _protectionOperationGeneration &+= 1
         let operationID = _protectionOperationGeneration
+        // Rechecking an already-confirmed state must not interrupt a session.
+        // A new positive hint remains unconfirmed and cannot authorize a
+        // command before the helper's state query completes.
+        let remainsConfirmed = active && _isMonitoring && _confirmedMonitoring && _xpcConnection != nil
         _isMonitoring = active
-        _desiredProtectionEnabled = active
+        _confirmedMonitoring = remainsConfirmed
+        _desiredProtectionEnabled = remainsConfirmed && _desiredProtectionEnabled
         stateLock.unlock()
         notifyStateChange()
         confirmAdoptedStateWithHelper(expectedActive: active, operationID: operationID)
     }
 
     /// Reconcile a provisionally adopted state against the helper. A
-    /// missing connection or a dropped reply leaves the adopted state in
-    /// place; the reconnect path reasserts on the next successful connect.
+    /// missing connection or a dropped reply leaves the adopted state
+    /// unconfirmed and cannot authorize a protection command.
     private func confirmAdoptedStateWithHelper(expectedActive: Bool, operationID: UInt64) {
         guard isHelperRegistered else { return }
         if xpcConnection == nil {
@@ -266,11 +273,13 @@ class PingWardenMonitor: @unchecked Sendable {
             DispatchQueue.main.async {
                 // The helper allows AWDL up when protection is off.
                 let helperSaysActive = !awdlEnabled
-                guard monitor.isCurrentProtectionOperation(operationID),
-                      helperSaysActive != expectedActive else { return }
-                log.warning("Externally reported protection state (\(expectedActive)) disagrees with the helper (\(helperSaysActive)); adopting the helper's state")
+                guard monitor.isCurrentProtectionOperation(operationID) else { return }
+                if helperSaysActive != expectedActive {
+                    log.warning("Externally reported protection state (\(expectedActive)) disagrees with the helper (\(helperSaysActive)); adopting the helper's state")
+                }
                 monitor.stateLock.lock()
                 monitor._isMonitoring = helperSaysActive
+                monitor._confirmedMonitoring = helperSaysActive
                 monitor._desiredProtectionEnabled = helperSaysActive
                 monitor.stateLock.unlock()
                 PingWardenPreferences.shared.effectiveMonitoringEnabled = helperSaysActive
@@ -799,16 +808,16 @@ class PingWardenMonitor: @unchecked Sendable {
         // This is required because the daemon runs as root
         let connection = NSXPCConnection(machServiceName: xpcServiceName, options: .privileged)
         connection.remoteObjectInterface = NSXPCInterface(with: PingWardenHelperProtocol.self)
+        let connectionID = ObjectIdentifier(connection)
 
         connection.interruptionHandler = { [weak self] in
             log.warning("XPC connection interrupted")
             let monitor = self
             DispatchQueue.main.async {
-                monitor?.handleXPCInterruption()
+                monitor?.handleXPCInterruption(for: connectionID)
             }
         }
 
-        let connectionID = ObjectIdentifier(connection)
         connection.invalidationHandler = { [weak self] in
             log.warning("XPC connection invalidated")
             let monitor = self
@@ -822,6 +831,7 @@ class PingWardenMonitor: @unchecked Sendable {
         stateLock.lock()
         let previousConnection = _xpcConnection
         _xpcConnection = connection
+        _confirmedMonitoring = false
         stateLock.unlock()
 
         previousConnection?.invalidate()
@@ -907,11 +917,20 @@ class PingWardenMonitor: @unchecked Sendable {
                     return
                 }
                 if success {
+                    monitor.stateLock.lock()
+                    monitor._confirmedMonitoring = true
+                    monitor.stateLock.unlock()
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = true
                     PingWardenPreferences.shared.lastKnownState = "down"
                     monitor.notifyStateChange()
                 } else {
                     log.error("Failed to reassert AWDL blocking state after reconnect")
+                    monitor.stateLock.lock()
+                    monitor._confirmedMonitoring = false
+                    monitor.stateLock.unlock()
+                    PingWardenPreferences.shared.effectiveMonitoringEnabled = false
+                    PingWardenPreferences.shared.lastKnownState = "unknown"
+                    monitor.notifyStateChange()
                 }
             }
         })
@@ -924,9 +943,11 @@ class PingWardenMonitor: @unchecked Sendable {
     }
 
     /// Handle XPC interruption (temporary disconnect)
-    private func handleXPCInterruption() {
-        // Interruption is recoverable - the connection can be resumed
-        log.info("XPC interruption - connection may recover automatically")
+    private func handleXPCInterruption(for connectionID: ObjectIdentifier) {
+        // A restarted helper has lost its protection intent. Rebuild and
+        // validate the connection so the normal bounded recovery path reapplies
+        // the current request, even when there was no failed in-flight call.
+        handleXPCInvalidation(for: connectionID)
     }
 
     /// Handle XPC invalidation (permanent disconnect)
@@ -961,6 +982,10 @@ class PingWardenMonitor: @unchecked Sendable {
         _isHandlingInvalidation = true
         let abandonedConnection = _xpcConnection
         _xpcConnection = nil
+        _confirmedMonitoring = false
+        // Replies from the interrupted connection cannot confirm new state.
+        _protectionOperationGeneration &+= 1
+        let reconnectOperationID = _protectionOperationGeneration
         let wasMonitoring = _isMonitoring
         stateLock.unlock()
 
@@ -992,7 +1017,11 @@ class PingWardenMonitor: @unchecked Sendable {
                 let delay = XPCReconnectPolicy.delayForAttempt(currentRetry)
                 log.info("Attempting XPC reconnect in \(delay)s (attempt \(currentRetry)/\(self.maxXPCRetries))")
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                    self?.connectXPC()
+                    guard let self,
+                          self.isCurrentProtectionOperation(reconnectOperationID),
+                          self.isMonitoringRequested,
+                          self.xpcConnection == nil else { return }
+                    self.connectXPC()
                 }
             } else {
                 log.error("Max XPC retry attempts exceeded")

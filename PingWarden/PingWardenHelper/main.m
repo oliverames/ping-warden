@@ -21,7 +21,7 @@
 #define LOG OS_LOG_DEFAULT
 // Fallback only — the live version is read from the embedded Info.plist by
 // helperVersionString(). Kept current so the fallback is never stale.
-#define HELPER_VERSION @"4.1.9"
+#define HELPER_VERSION @"4.2.0"
 
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"
@@ -141,13 +141,11 @@ static BOOL isProperlyCodeSigned(void) {
 - (void)setAWDLEnabled:(BOOL)enable withReply:(void (^)(BOOL))reply {
     os_log(LOG, "setAWDLEnabled: %d", enable);
 
-    // Apply the state change - this sends a message to the monitoring thread
-    // which will then bring the interface UP or DOWN as needed.
-    // setAwdlEnabled: returns YES if the pipe write succeeded (command queued),
-    // NO if the pipe write failed. The ivar is only updated on success.
+    // Apply and confirm the interface state on this XPC worker. The monitor
+    // serializes this with route enforcement and only reports actual success.
     BOOL success = [self.monitor setAwdlEnabled:enable];
     if (!success) {
-        os_log_error(LOG, "setAWDLEnabled failed: pipe write error for requested state %d", enable);
+        os_log_error(LOG, "setAWDLEnabled failed: could not confirm requested state %d", enable);
     }
 
     reply(success);

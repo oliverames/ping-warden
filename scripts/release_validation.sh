@@ -43,6 +43,23 @@ validate_numeric_bundle_version() {
     fi
 }
 
+# Sentry's SDK uses the app's metadata, not the release filename (which may
+# carry a beta suffix). Keep publication attached to those exact event IDs.
+sentry_release_for_app() {
+    local info_plist="$1/Contents/Info.plist"
+    local bundle_id marketing_version build_version
+    bundle_id="$(plist_value "$info_plist" CFBundleIdentifier || true)"
+    marketing_version="$(plist_value "$info_plist" CFBundleShortVersionString || true)"
+    build_version="$(plist_value "$info_plist" CFBundleVersion || true)"
+    if [ "$bundle_id" != "$PING_WARDEN_BUNDLE_ID" ]; then
+        release_validation_error "Sentry release requires the Ping Warden app bundle"
+        return 1
+    fi
+    validate_release_version "$marketing_version" || return 1
+    validate_numeric_bundle_version "$build_version" || return 1
+    printf '%s@%s+%s\n' "$bundle_id" "$marketing_version" "$build_version"
+}
+
 validate_minimum_system_version() {
     local minimum_version="$1"
 

@@ -515,7 +515,7 @@ echo ""
 # Auth token comes from 1Password at runtime via `op read`; never written
 # to disk and never committed. Fail-soft: if sentry-cli or `op` are
 # missing, or SKIP_SENTRY=1 is set, we warn and continue with the release.
-SENTRY_RELEASE="com.amesvt.pingwarden@${VERSION}"
+SENTRY_RELEASE="$(sentry_release_for_app "$ARCHIVED_APP_PATH")"
 SENTRY_ORG="ames-consulting-llc"
 SENTRY_PROJECT="ping-warden"
 XCARCHIVE_DSYMS="$ARCHIVE_PATH/dSYMs"

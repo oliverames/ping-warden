@@ -2,6 +2,9 @@
 """Regression tests using isolated feeds and buyer-content fixtures."""
 import copy
 import io
+import plistlib
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,6 +13,38 @@ import xml.etree.ElementTree as ET
 
 import publish_gumroad as gumroad
 import update_appcast as appcast
+
+
+@unittest.skipUnless(sys.platform == "darwin", "release metadata uses macOS PlistBuddy")
+class SentryReleaseTests(unittest.TestCase):
+    def release_id(self, version="4.1.10", build="411000", bundle_id="com.amesvt.pingwarden", name="Ping Warden.app"):
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory) / name
+            (app / "Contents").mkdir(parents=True)
+            with (app / "Contents/Info.plist").open("wb") as stream:
+                plistlib.dump({"CFBundleIdentifier": bundle_id,
+                              "CFBundleShortVersionString": version,
+                              "CFBundleVersion": build}, stream)
+            script = Path(__file__).resolve().parent / "release_validation.sh"
+            return subprocess.run(["bash", "-c", 'source "$1"; sentry_release_for_app "$2"',
+                                   "sentry-test", str(script), str(app)], capture_output=True, text=True)
+
+    def test_matches_runtime_version_and_build(self):
+        result = self.release_id()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "com.amesvt.pingwarden@4.1.10+411000")
+
+    def test_prerelease_filename_does_not_replace_runtime_version(self):
+        result = self.release_id(version="4.2.0", build="42000", name="PingWarden-4.2.0-beta.1.app")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "com.amesvt.pingwarden@4.2.0+42000")
+        self.assertNotEqual(result.stdout, self.release_id(version="4.2.0", build="42001").stdout)
+
+    def test_rejects_incomplete_or_invalid_metadata(self):
+        for arguments in [{"bundle_id": "wrong"}, {"version": ""}, {"build": ""}, {"build": "beta"}]:
+            result = self.release_id(**arguments)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, "")
 
 
 class AppcastTests(unittest.TestCase):

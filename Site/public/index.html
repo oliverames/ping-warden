@@ -37,7 +37,7 @@
   <main id="main" class="wrap">
     <section class="hero" aria-labelledby="headline">
       <h1 id="headline">Less stutter in GeForce NOW on your Mac.</h1>
-      <p class="intro">macOS keeps waking AWDL, the interface behind AirDrop, AirPlay, and Handoff. Those transitions line up with the latency jumps you feel as stutter. Ping Warden holds AWDL down while you play, and graphs your latency so you can see whether it was ever your problem.</p>
+      <p class="intro">macOS uses AWDL for AirDrop, AirPlay, and Handoff. Its activity can contribute to Wi-Fi stutter. Ping Warden pauses AWDL while you play and graphs your latency so you can compare the results.</p>
       <div class="actions">
         <a class="button" href="https://amesconsulting.gumroad.com/l/pingwarden?wanted=true">Get Ping Protection · $15</a>
         <a class="download" href="https://github.com/oliverames/ping-warden/releases/latest">Download free <span aria-hidden="true">↓</span></a>
@@ -62,8 +62,8 @@
         <p>AirDrop, AirPlay, Handoff, and other AWDL-dependent features are unavailable while protection is on. Turn it off or pause for 10 minutes when you need them.</p>
       </article>
       <article>
-        <h2>Earlier than a script.</h2>
-        <p>Running <code>sudo ifconfig awdl0 down</code> once does not stick: macOS can raise the interface again within seconds. A script on a timer only notices after it is already back up, which still leaves time for the channel switching that causes the stutter. Ping Protection watches the system for the moment macOS tries to raise it and puts it back down immediately. The dashboard counts each intervention, next to your live latency.</p>
+        <h2>Responds to interface changes.</h2>
+        <p>macOS can reactivate AWDL after a single <code>sudo ifconfig awdl0 down</code> command. Ping Protection responds to interface-change events and requests that AWDL return down. The dashboard counts intervention attempts beside your live latency. That count does not measure spikes prevented.</p>
       </article>
     </section>
 
@@ -88,7 +88,7 @@
     <section class="questions" aria-label="Common questions">
       <details>
         <summary>What can I use for free?</summary>
-        <div class="answer"><p>The dashboard, latency history, diagnostics, and updates work without a license. Enabling Ping Protection requires the one-time $15 license. You can download the app now and add a key later.</p><p>The source is available under the MIT license. You can inspect, modify, and build it yourself.</p></div>
+        <div class="answer"><p>The dashboard, latency history, diagnostics, and updates work without a license. Enabling Ping Protection, including starting a Latency Session, requires the one-time $15 license or an active transition. You can download the app now and add a key later.</p><p>The source is available under the MIT license. You can inspect, modify, and build it yourself.</p></div>
       </details>
       <details>
         <summary>Does this fix every kind of lag?</summary>
@@ -104,7 +104,7 @@
       </details>
       <details>
         <summary>What stays on my Mac?</summary>
-        <div class="answer"><p>Latency history, settings, and protection activity stay on your Mac. Ping Warden does not send usage analytics. Crash reporting is optional and off by default.</p><p>The app contacts Gumroad for license verification, checks for updates, and connects to your selected latency target. It also checks GeForce NOW’s status service to discover targets. License verification supports up to 14 days offline after a successful check.</p><p><a href="/docs/overview#privacy">Read the privacy details</a>.</p></div>
+        <div class="answer"><p>Latency history, settings, and protection activity stay on your Mac. Ping Warden does not send usage analytics. Starting with 4.2.0, anonymous crash reporting is on by default when no choice is saved. Updates preserve your choice. Turn it off under Settings &gt; Advanced &gt; Privacy.</p><p>The app contacts Gumroad for license verification, checks for updates, and connects to your selected latency target. It also checks GeForce NOW’s status service to discover targets. License verification supports up to 14 days offline after a successful check.</p><p><a href="/docs/overview#privacy">Read the privacy details</a>.</p></div>
       </details>
     </section>
     <section class="guide-links" aria-labelledby="guide-heading">

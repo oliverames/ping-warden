@@ -7,10 +7,9 @@
 //  thanks to the `#if canImport(Sentry)` guards.
 //
 //  Privacy posture (matches the app's stated promise):
-//    • Default OFF — users opt in via
-//      Settings → Advanced → Privacy. The choice persists; only fresh
-//      installations start with reporting disabled.
-//    • No IP address (sendDefaultPii = false).
+//    • Default ON when no choice is stored; users can opt out via
+//      Settings → Advanced → Privacy. Existing saved choices persist.
+//    • No stored IP address (server-side scrubbing; sendDefaultPii = false).
 //    • No network breadcrumbs, spans, or failed-request events — those
 //      would otherwise leak updater and TCP-probe URLs into crash payloads.
 //    • No performance tracing or profiling — crashes only.
@@ -36,8 +35,8 @@ enum CrashReporter {
     /// distributed client binaries; Sentry enforces project-side scrubbing.
     private static let dsn = "https://3492628142810aa2deb988baaec35d0c@o4511410883985408.ingest.us.sentry.io/4511410888704000"
 
-    /// Initialize Sentry if (a) the SDK is linked and (b) the user has
-    /// opted in. Call once at app launch, before the first opportunity for a
+    /// Initialize Sentry if the SDK is linked and reporting is enabled.
+    /// Call once at app launch, before the first opportunity for a
     /// crash. Turning reporting off is enforced immediately by `beforeSend`;
     /// turning it on requires a relaunch so the SDK can initialize cleanly.
     static func startIfEnabled() {
@@ -90,6 +89,14 @@ enum CrashReporter {
         log.info("Sentry initialized for crash reporting (release: \(version, privacy: .public))")
         #else
         log.notice("Sentry SDK not linked; add via SPM: https://github.com/getsentry/sentry-cocoa")
+        #endif
+    }
+
+    /// Stop SDK activity after the preference has been switched off. Keep
+    /// beforeSend as a second check for events racing the preference change.
+    static func stop() {
+        #if canImport(Sentry)
+        SentrySDK.close()
         #endif
     }
 }

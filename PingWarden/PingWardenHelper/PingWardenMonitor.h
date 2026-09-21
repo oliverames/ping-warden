@@ -14,18 +14,19 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /// Monitors and controls the AWDL (awdl0) network interface.
-/// Uses AF_ROUTE socket for kernel-level monitoring with <1ms response time.
+/// Uses an AF_ROUTE socket for event-driven interface monitoring.
 /// When awdlEnabled is NO, any attempt by the system to bring awdl0 UP
-/// is immediately countered by bringing it back DOWN.
+/// is countered by requesting that it return DOWN.
 @interface PingWardenMonitor : NSObject
 
 /// When YES, AWDL is allowed to be up (normal operation).
 /// When NO, AWDL is kept down (blocking mode).
-/// Reading returns the current desired state.
+/// Reading reports blocking only while the monitor is running and the
+/// interface can be confirmed DOWN. Unknown/unavailable state returns YES.
 @property (nonatomic, readonly) BOOL awdlEnabled;
 
-/// Set the AWDL enabled state. Returns YES if the command was successfully
-/// queued to the background thread, NO if the pipe write failed.
+/// Set the AWDL enabled state. Returns YES only after the interface flags
+/// confirm the change, NO if the operation fails or the monitor has stopped.
 - (BOOL)setAwdlEnabled:(BOOL)enabled;
 
 /// Stop the monitoring thread and cleanup all resources.

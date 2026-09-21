@@ -55,6 +55,15 @@ jobs:
     - name: Run core logic tests
       run: swift test
 
+    - name: Test helper interface failures and recovery
+      run: bash scripts/test_helper.sh
+
+    - name: Test helper connection recovery and callback ordering
+      run: python3 scripts/test_monitor.py
+
+    - name: Test crash reporting privacy and lifecycle
+      run: bash scripts/test_crash_reporter.sh
+
     - name: Test release metadata and buyer content
       run: python3 scripts/test_release_tools.py
 
@@ -139,6 +148,8 @@ jobs:
           scripts/render_release_notes.sh
           scripts/release_validation.sh
           scripts/run-smoke-tests.sh
+          scripts/test_helper.sh
+          scripts/test_crash_reporter.sh
         )
         for f in "${scripts[@]}"; do
           echo "=== bash -n $f ==="

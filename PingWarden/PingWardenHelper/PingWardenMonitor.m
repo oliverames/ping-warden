@@ -54,6 +54,9 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     atomic_bool _awdlEnabledAtomic;
 
     dispatch_semaphore_t _ioctlThreadExitSemaphore;
+    // Serialize interface operations with route enforcement and shutdown.
+    NSLock *_interfaceLock;
+    BOOL _invalidating;
     
     // Counter for AWDL interventions (how many times we brought it down)
     atomic_int _interventionCount;
@@ -74,6 +77,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
 
 - (instancetype)init {
     if (self = [super init]) {
+        _interfaceLock = [NSLock new];
         // Initialize file descriptors to invalid state for proper cleanup
         _rtfd = INVALID_FD;
         _iocfd = INVALID_FD;
@@ -141,6 +145,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
 
 /// Clean up file descriptors on error or dealloc
 - (void)cleanupFileDescriptors {
+    [_interfaceLock lock];
     if (_iocfd != INVALID_FD) {
         close(_iocfd);
         _iocfd = INVALID_FD;
@@ -157,18 +162,17 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         close(_msgfds[1]);
         _msgfds[1] = INVALID_FD;
     }
+    [_interfaceLock unlock];
 }
 
-/// Bring the interface up or down. Must be run only on ioctlThread.
-- (void)ifconfig:(BOOL)up {
-    NSAssert([NSThread currentThread] == _ioctlThread, @"ifconfig: must run on ioctlThread");
-
+/// Apply and confirm interface flags while holding _interfaceLock.
+- (BOOL)ifconfig:(BOOL)up {
     struct ifreq ifr = {0};
     strlcpy(ifr.ifr_name, TARGETIFNAM, IFNAMSIZ);
 
     if (ioctl(_iocfd, SIOCGIFFLAGS, &ifr) < 0) {
         os_log_error(LOG, "Error getting current interface flags: %d (%s)", errno, strerror(errno));
-        return;
+        return NO;
     }
 
     if ((ifr.ifr_flags & IFF_UP) && !up) {
@@ -176,6 +180,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         ifr.ifr_flags &= ~IFF_UP;
         if (ioctl(_iocfd, SIOCSIFFLAGS, &ifr) < 0) {
             os_log_error(LOG, "Error bringing interface down: %d (%s)", errno, strerror(errno));
+            return NO;
         } else {
             os_log_debug(LOG, "Brought awdl0 DOWN");
         }
@@ -184,11 +189,31 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         ifr.ifr_flags |= IFF_UP;
         if (ioctl(_iocfd, SIOCSIFFLAGS, &ifr) < 0) {
             os_log_error(LOG, "Error bringing interface up: %d (%s)", errno, strerror(errno));
+            return NO;
         } else {
             os_log_debug(LOG, "Brought awdl0 UP");
         }
     }
-    // else: interface is already in desired state, do nothing
+    // Read back even when no write was needed. Never turn command acceptance
+    // into a claim that the interface reached the requested state.
+    if (ioctl(_iocfd, SIOCGIFFLAGS, &ifr) < 0) {
+        os_log_error(LOG, "Error confirming interface flags: %d (%s)", errno, strerror(errno));
+        return NO;
+    }
+    return !!(ifr.ifr_flags & IFF_UP) == up;
+}
+
+- (void)handleInterfaceFlags:(int)flags {
+    [_interfaceLock lock];
+    // Reload intent under the same lock as commands. A queued route event
+    // must not undo a newer successful stop or an exit-path restoration.
+    if (!_invalidating && atomic_load(&_threadRunning) &&
+        (flags & IFF_UP) && !atomic_load(&_awdlEnabledAtomic)) {
+        int count = atomic_fetch_add(&_interventionCount, 1) + 1;
+        os_log(LOG, "AWDL intervention attempt #%d", count);
+        [self ifconfig:NO];
+    }
+    [_interfaceLock unlock];
 }
 
 /// Main method for the background ioctlThread.
@@ -197,7 +222,6 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     os_log(LOG, "pollIoctl thread started");
 
     BOOL quit = NO;
-    BOOL enable = atomic_load(&_awdlEnabledAtomic);
 
     while (!quit) {
         struct pollfd fds[] = {
@@ -293,17 +317,11 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
                 ifflag = ifmsg->ifm_flags;
             }
 
-            // If AWDL was brought UP by the system but we want it DOWN
-            // Use the ifconfig method to ensure proper thread-safety checks
-            if ((ifflag & IFF_UP) && !enable) {
-                // Increment intervention counter (thread-safe atomic operation)
-                int count = atomic_fetch_add(&_interventionCount, 1) + 1;
-                os_log(LOG, "AWDL intervention #%d - System tried to bring interface UP, blocking it", count);
-                [self ifconfig:NO];
-            }
+            [self handleInterfaceFlags:ifflag];
         }
 
-        // Check for internal messages (enable/disable/quit)
+        // The pipe wakes the poller for shutdown. Interface commands execute
+        // synchronously on the XPC worker under _interfaceLock.
         if (fds[1].revents) {
             char msg = 0;
             for (ssize_t len = 0; !quit;) {
@@ -325,16 +343,6 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
                     case 'Q':
                         os_log(LOG, "Received quit message");
                         quit = YES;
-                        break;
-                    case 'U':
-                        os_log(LOG, "Bringing AWDL interface UP (enabling)");
-                        enable = YES;
-                        [self ifconfig:YES];
-                        break;
-                    case 'D':
-                        os_log(LOG, "Bringing AWDL interface DOWN (disabling)");
-                        enable = NO;
-                        [self ifconfig:NO];
                         break;
                     default:
                         os_log_debug(LOG, "Unknown message: %c", msg);
@@ -378,25 +386,32 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
 }
 
 - (BOOL)awdlEnabled {
-    return atomic_load(&_awdlEnabledAtomic);
+    [_interfaceLock lock];
+    BOOL enabled = YES;
+    if (!_invalidating && atomic_load(&_threadRunning) &&
+        !atomic_load(&_awdlEnabledAtomic)) {
+        struct ifreq ifr = {0};
+        strlcpy(ifr.ifr_name, TARGETIFNAM, IFNAMSIZ);
+        // An unreadable interface cannot be presented as protected.
+        enabled = ioctl(_iocfd, SIOCGIFFLAGS, &ifr) < 0 || (ifr.ifr_flags & IFF_UP);
+    }
+    [_interfaceLock unlock];
+    return enabled;
 }
 
 - (BOOL)setAwdlEnabled:(BOOL)enabled {
-    // If the poll thread has died (poll() error, quit), a pipe write would
-    // still "succeed" into a readerless buffer while nothing enforces the
-    // state — the app would believe AWDL is blocked when it isn't. Fail
-    // loudly instead so the client can surface the problem.
-    if (!atomic_load(&_threadRunning)) {
+    [_interfaceLock lock];
+    if (_invalidating || !atomic_load(&_threadRunning)) {
         os_log_error(LOG, "Cannot set AWDL state to %d: monitor thread is not running", enabled);
+        [_interfaceLock unlock];
         return NO;
     }
-    const char *msg = enabled ? "U" : "D";
-    if (![self writeMessageToPipe:msg]) {
-        os_log_error(LOG, "Failed to send %s message to pipe", enabled ? "enable" : "disable");
-        return NO;
+    BOOL success = [self ifconfig:enabled];
+    if (success) {
+        atomic_store(&_awdlEnabledAtomic, enabled);
     }
-    atomic_store(&_awdlEnabledAtomic, enabled);
-    return YES;
+    [_interfaceLock unlock];
+    return success;
 }
 
 - (void)restoreInterfaceUpDirectly {
@@ -404,11 +419,13 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     // the calling thread with a transient socket, so it works even when the
     // poll thread is dead or the control pipe is gone. Must only run after
     // `invalidate` (the poll thread no longer touches interface flags).
+    [_interfaceLock lock];
     atomic_store(&_awdlEnabledAtomic, true);
 
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0) {
         os_log_error(LOG, "restoreInterfaceUpDirectly: socket failed: %d (%s)", errno, strerror(errno));
+        [_interfaceLock unlock];
         return;
     }
 
@@ -417,6 +434,7 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
         os_log_error(LOG, "restoreInterfaceUpDirectly: SIOCGIFFLAGS failed: %d (%s)", errno, strerror(errno));
         close(fd);
+        [_interfaceLock unlock];
         return;
     }
 
@@ -429,10 +447,15 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         }
     }
     close(fd);
+    [_interfaceLock unlock];
 }
 
 - (void)invalidate {
     os_log(LOG, "PingWardenMonitor invalidating...");
+    [_interfaceLock lock];
+    _invalidating = YES;
+    atomic_store(&_awdlEnabledAtomic, true);
+    [_interfaceLock unlock];
 
     // Only send quit if thread is running (atomic read)
     if (atomic_load(&_threadRunning) && _msgfds[1] != INVALID_FD) {

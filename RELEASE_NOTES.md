@@ -1,3 +1,37 @@
+# Ping Warden 4.2.0
+
+This update improves protection-state accuracy and recovery. Anonymous crash reporting is now on by default when you have no saved preference. Your existing choice is preserved.
+
+## Privacy
+
+- Turn off crash reporting under **Settings → Advanced → Privacy** to stop new reports. Turning it back on takes effect after relaunch.
+- Existing saved opt-outs stay off. New installations and upgrades with no saved choice use the enabled default.
+- Reporting remains crash-only. It does not add usage analytics, automatic session statistics, ping targets, network breadcrumbs, or performance tracing. IP-address storage remains disabled in the reporting service.
+
+## Fixes
+
+- The helper now confirms interface changes before reporting success. A failed change can no longer be accepted merely because it was queued.
+- Protection recovers after a helper interruption even when no request was in flight. The app waits for a confirmed response before showing protection as active. Stopping or pausing protection cancels stale recovery attempts.
+- State notifications from Control Center remain provisional until the helper confirms them. Connection recovery cannot act on an unconfirmed notification.
+- Sentry release publishing now uses the same version and build identifier as crash reports.
+
+## Improvements
+
+- License refusal messages show the one-time $15 price and offer a purchase link. The menu bar explains why protection did not start.
+- Privacy details are visible in the welcome window, Settings, documentation, and storefront.
+- Product explanations distinguish AWDL-related interruptions from other lag and describe the intervention counter as attempts, not measured spikes prevented.
+
+## New since 4.0
+
+- Game Mode can detect a recognized frontmost game without Screen Recording permission. Optional Screen Recording access also enables fullscreen-window detection. Automatic activation skips Ethernet and rechecks when the network changes.
+- Latency Sessions record a protected game or call and produce a local recap. Starting a session requires a license or an active transition. The dashboard, diagnostics, and past recaps remain free.
+
+## Updating
+
+Use **Check for Updates**, or download the current DMG and replace the app in Applications. Version 2.0.5 and earlier require a manual download.
+
+Ping Protection, including starting a Latency Session, requires a one-time $15 license or an active transition. Updates preserve eligible existing users' original 90-day transition deadline. The dashboard, diagnostics, and past session recaps remain free. The source remains MIT-licensed.
+
 # Ping Warden 4.1.9
 
 This update removes the old donation buttons and adds a way to revisit release notes after future updates.

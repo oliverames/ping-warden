@@ -1,5 +1,5 @@
-<p><strong>Ping Warden</strong> helps reduce AWDL-related Wi-Fi interruptions during cloud gaming on your Mac. It keeps the wireless sharing interface used by AirDrop and Handoff paused while you play. The dashboard is free. This one-time license unlocks Ping Protection.</p>
-<p>Visit <a href="https://pingwarden.app/">pingwarden.app</a> for the app overview, screenshots, and <a href="https://pingwarden.app/docs/">complete documentation</a>.</p>
+<p><strong>Ping Warden</strong> helps reduce AWDL-related Wi-Fi interruptions during cloud gaming on your Mac. It keeps the wireless sharing interface used by AirDrop and Handoff paused while you play. The dashboard is free. This one-time license unlocks Ping Protection, including starting a protected Latency Session.</p>
+<p>Visit <a href="https://pingwarden.app/" target="_blank" rel="noopener noreferrer nofollow">pingwarden.app</a> for the app overview, screenshots, and <a href="https://pingwarden.app/docs/" target="_blank" rel="noopener noreferrer nofollow">complete documentation</a>.</p>
 <p>This purchase includes the <strong>signed, notarized app download</strong> plus a license that unlocks <strong>Ping Protection</strong>, the AWDL-blocking feature.</p>
 <p><strong>The tradeoff:</strong> AirDrop, AirPlay, Handoff, and other AWDL-dependent features are unavailable while protection is on. Turn protection off or pause it for 10 minutes when you need them. Ping Warden does not fix every source of lag.</p>
 <p><strong>What you get</strong></p>
@@ -18,10 +18,14 @@
 <li>Turn on Ping Protection from the menu bar or Control Center</li>
 </ol>
 <p>Prefer GitHub? The app is free and open source, and any official build accepts the key from this purchase. Buying here bundles the download, the key, and updates in one place.</p>
-<p><strong>Already using Ping Warden?</strong> Installs that had protection enabled with an approved helper keep it for a 90-day transition starting on first launch of version 4. Updating again keeps the original deadline. Check <strong>Settings → License</strong> for the time remaining. If you donated through Buy Me a Coffee before version 4, email <a href="mailto:oliver@ames.consulting">oliver@ames.consulting</a> with your receipt and it will be honored as a full license after receipt verification.</p>
+<p><strong>Already using Ping Warden?</strong> Installs that had protection enabled with an approved helper keep it for a 90-day transition starting on first launch of version 4. Updating again keeps the original deadline. Check <strong>Settings → License</strong> for the time remaining. If you donated through Buy Me a Coffee before version 4, email <a href="mailto:oliver@ames.consulting" target="_blank" rel="noopener noreferrer nofollow">oliver@ames.consulting</a> with your receipt and it will be honored as a full license after receipt verification.</p>
 <p><strong>System requirements</strong></p>
 <ul>
 <li>macOS 13+ (Control Center widget needs macOS 26+)</li>
 <li>Intel and Apple silicon, Developer ID signed and notarized</li>
 </ul>
-<p><a href="https://github.com/oliverames/ping-warden">View the source on GitHub</a> · <a href="https://pingwarden.app/docs/overview#pricing">Pricing details</a> · <a href="https://pingwarden.app/docs/setup">Setup guide</a></p>
+<p><a href="https://github.com/oliverames/ping-warden" target="_blank" rel="noopener noreferrer nofollow">View the source on GitHub</a> · <a href="https://pingwarden.app/docs/overview#pricing" target="_blank" rel="noopener noreferrer nofollow">Pricing details</a> · <a href="https://pingwarden.app/docs/setup" target="_blank" rel="noopener noreferrer nofollow">Setup guide</a></p>
+<p>Ping Warden was previously known as AWDL Control. Ping Warden is a proper native Mac app: signed, notarized, and built on real macOS APIs, not shell scripts.</p>
+<p><strong>Responds to network events.</strong></p>
+<p>Running <code>sudo ifconfig awdl0 down</code> once does not keep it down: macOS can raise the interface again. A polling script checks for this on a timer. Ping Protection responds to interface-change events and attempts to lower AWDL again while protection is on. The dashboard counts these intervention attempts alongside your live latency. Each attempt is not proof that a particular lag spike was prevented.</p>
+<p><strong>Crash reporting:</strong> From version 4.2.0, crash reporting through Sentry is on by default when you have no saved preference. Updates preserve your saved choice. Turn it off under <strong>Settings → Advanced → Privacy</strong>. Reports contain crash diagnostics, not usage analytics or automatic session statistics. <a href="https://pingwarden.app/docs/overview#privacy">Read the privacy details</a>.</p>
