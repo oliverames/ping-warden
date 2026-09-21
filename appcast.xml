@@ -6,6 +6,86 @@
     <description>Updates for Ping Warden - AWDL blocking for cloud gaming</description>
     <language>en</language>
     <item>
+      <title>Version 4.2.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.2.0</link>
+      <sparkle:version>42000</sparkle:version>
+      <sparkle:shortVersionString>4.2.0</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;This update improves protection-state accuracy and recovery. Anonymous crash reporting is now on by default when you have no saved preference. Your existing choice is preserved.&lt;/p&gt;
+&lt;h2&gt;Privacy&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Turn off crash reporting under &lt;strong&gt;Settings → Advanced → Privacy&lt;/strong&gt; to stop new reports. Turning it back on takes effect after relaunch.&lt;/li&gt;
+&lt;li&gt;Existing saved opt-outs stay off. New installations and upgrades with no saved choice use the enabled default.&lt;/li&gt;
+&lt;li&gt;Reporting remains crash-only. It does not add usage analytics, automatic session statistics, ping targets, network breadcrumbs, or performance tracing. IP-address storage remains disabled in the reporting service.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Fixes&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The helper now confirms interface changes before reporting success. A failed change can no longer be accepted merely because it was queued.&lt;/li&gt;
+&lt;li&gt;Protection recovers after a helper interruption even when no request was in flight. The app waits for a confirmed response before showing protection as active. Stopping or pausing protection cancels stale recovery attempts.&lt;/li&gt;
+&lt;li&gt;State notifications from Control Center remain provisional until the helper confirms them. Connection recovery cannot act on an unconfirmed notification.&lt;/li&gt;
+&lt;li&gt;Sentry release publishing now uses the same version and build identifier as crash reports.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Improvements&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;License refusal messages show the one-time $15 price and offer a purchase link. The menu bar explains why protection did not start.&lt;/li&gt;
+&lt;li&gt;Privacy details are visible in the welcome window, Settings, documentation, and storefront.&lt;/li&gt;
+&lt;li&gt;Product explanations distinguish AWDL-related interruptions from other lag and describe the intervention counter as attempts, not measured spikes prevented.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;New since 4.0&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Game Mode can detect a recognized frontmost game without Screen Recording permission. Optional Screen Recording access also enables fullscreen-window detection. Automatic activation skips Ethernet and rechecks when the network changes.&lt;/li&gt;
+&lt;li&gt;Latency Sessions record a protected game or call and produce a local recap. Starting a session requires a license or an active transition. The dashboard, diagnostics, and past recaps remain free.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Updating&lt;/h2&gt;
+&lt;p&gt;Use &lt;strong&gt;Check for Updates&lt;/strong&gt;, or download the current DMG and replace the app in Applications. Version 2.0.5 and earlier require a manual download.&lt;/p&gt;
+&lt;p&gt;Ping Protection, including starting a Latency Session, requires a one-time $15 license or an active transition. Updates preserve eligible existing users' original 90-day transition deadline. The dashboard, diagnostics, and past session recaps remain free. The source remains MIT-licensed.&lt;/p&gt;
+      </description>
+      <pubDate>Mon, 21 Sep 2026 16:57:53 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.2.0/PingWarden-4.2.0.dmg" sparkle:version="42000" sparkle:shortVersionString="4.2.0" length="5845407" type="application/octet-stream" sparkle:edSignature="N3vTh2cAGu2Hvo2AUf71jLrMjOZi/fLI8COkcPwuet4jzVS0EYc293zLRq524zCe+LHD6ZhAHAwYvTFoN3WVCQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.1.9</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.9</link>
       <sparkle:version>41900</sparkle:version>
@@ -1796,6 +1876,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 98K0IIaxgB63VSSw0eMHyPYRG5vap1OHCpnEUJMVdg+y2NUYk1WbcNAdPeDeFQxX1/MY0RikPez4l3oHAyNGAQ==
-length: 119100
+edSignature: EeJlzdgTYDJyZgNNCoD2NJcKkNhZSIex/37L9ZQLhN06ls8+METhE+1jGXNqo5ao5PhPJqiIXBRjPUn1oBZ9AA==
+length: 125114
 -->
