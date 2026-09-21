@@ -1,5 +1,19 @@
 # Ping Warden Worklog
 
+## 2026-09-21 - Ping Warden 4.2.0 released and verified
+
+Published [4.2.0](https://github.com/oliverames/ping-warden/releases/tag/v4.2.0), build 42000, from `2de6c9c`. It includes confirmed helper results, bounded interruption recovery, protection against stale callback ordering, opt-out crash reporting with saved choices preserved, and matching Sentry release identifiers. The README, app disclosures, website, and live Gumroad copy now agree on the reporting default and qualify the AWDL claims.
+
+The release source passed [Build Verification](https://github.com/oliverames/ping-warden/actions/runs/35627812286), [CodeQL](https://github.com/oliverames/ping-warden/actions/runs/35627812283), and [Website deployment](https://github.com/oliverames/ping-warden/actions/runs/35627812352). Fresh post-analysis checks found zero open CodeQL or Dependabot security alerts. The full release workflow completed without skipping any publication step. Signing and notarization ran while a temporary publication gate waited for all three exact-source CI runs to pass.
+
+Apple accepted the app and DMG for notarization, and both tickets are stapled. Verification of a freshly downloaded GitHub installer passed Developer ID identity, hardened runtime, app/helper/widget identifiers, App Group entitlements, universal architectures, and Gatekeeper acceptance. The downloaded installer matches both GitHub's recorded digest and the local artifact: 5,845,407 bytes, SHA-256 `568feed0f1052994a4292a5750f81b0b41a4001efe14f8a1e2c9ef03f01605eb`. Both public update feeds are byte-identical to the prepared signed feeds, verify against the app's public key, and offer 4.2.0/build 42000 with the correct enclosure size and URL.
+
+Sentry uploaded six new debug-information files and finalized `com.amesvt.pingwarden@4.2.0+42000`, matching the runtime identifier. Its release API confirms finalization and IP scrubbing remains enabled. Gumroad delivery completed unattended. A fresh buyer-download check matches the exact installer bytes and confirms the license-key block and all non-download buyer content are preserved. The only other buyer-page change is its expected publication timestamp. Price, currency, publication, tags, refund policy, and updated public description remain correct.
+
+Issues #82, #83, #84, and #85 are resolved. [#78](https://github.com/oliverames/ping-warden/issues/78) retains the installed-app What's New and donation-removal checks, and [#64](https://github.com/oliverames/ping-warden/issues/64) retains real-game and Ethernet verification. Routine dependency updates remain tracked in PRs #75 and #86. The installed copy on this Mac remains 4.1.8/build 41800. No app installation, production crash injection, or community outreach occurred during this release.
+
+---
+
 ## 2026-09-21 - Prepare 4.2.0 reliability and crash-reporting release
 
 Prepared 4.2.0, build 42000, for the authorized release. The helper confirms interface writes before reporting success (#82). The app recovers from interruption-only helper restarts, rejects stale replies and reconnects, and requires helper confirmation for newly adopted widget state (#83). Rechecking an already-confirmed state preserves active sessions and pending stop intent. App and widget continue using the existing XPC contract.
