@@ -1,5 +1,17 @@
 # Ping Warden Worklog
 
+## 2026-09-21 - The license refusal says what it costs and offers to buy
+
+Uncommitted work sitting in the tree was reviewed, verified, and shipped as `51284df`. Every message that turned protection down said a license was required and left the reader to discover the price and where to get one. The price is now in the message, and a Buy a License link sits under the error on the protected session card, the interventions card, General settings, and the License pane. Turning on persistent protection from the menu reads the result rather than discarding it, so a license refusal raises an alert offering Buy a License, Open License Settings, or Cancel instead of the menu item quietly snapping back. The widget's `licenseRequired` string points at Settings and License too.
+
+Verification: the app builds with signing disabled, and all 145 core tests pass through `swift test`. The three references the new code depends on were confirmed to exist first, since the change starts reading a return value from `setPersistentProtection` that was previously discarded. The app scheme has no test action, so the core suite runs from the package rather than through `xcodebuild`.
+
+No documentation drift followed. The README and the landing page already describe a one-time $15 license, and README line 80 already documents the behaviour this change improves, so the app now matches the docs rather than the other way round.
+
+Still open: [#78](https://github.com/oliverames/ping-warden/issues/78) and [#64](https://github.com/oliverames/ping-warden/issues/64) are unchanged by this. #78's item about reviewing public wording that implies everything except the protection toggle is free is worth reading alongside this change, since the in-app copy is now more specific than it was while the public copy is not.
+
+---
+
 ## 2026-09-14 - Ping Warden 4.1.9 released and session closed
 
 Published [4.1.9](https://github.com/oliverames/ping-warden/releases/tag/v4.1.9), build 41900, from a301e5a. It ships What's New and removal of the in-app donation buttons. First launch records the What's New baseline; prompts begin with subsequent version changes. The donor-license instructions remain.
