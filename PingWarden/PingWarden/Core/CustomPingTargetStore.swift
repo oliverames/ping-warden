@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import Darwin
 
 /// Plain Codable record. Distinct from the view-layer `PingTarget` so this
 /// file stays pure Foundation and the test suite can exercise it via
@@ -29,6 +30,7 @@ struct CustomPingTarget: Codable, Hashable, Identifiable {
 enum CustomPingTargetValidationError: Error, Equatable {
     case nameEmpty
     case hostEmpty
+    case hostInvalid
     case hostTooLong
     case portOutOfRange
 
@@ -38,6 +40,8 @@ enum CustomPingTargetValidationError: Error, Equatable {
             return "Give the server a name."
         case .hostEmpty:
             return "Enter a hostname or IP address."
+        case .hostInvalid:
+            return "Enter only a hostname or IP address, without a URL, path, or port. Use the Port field below."
         case .hostTooLong:
             return "Hostname is too long (255 characters max)."
         case .portOutOfRange:
@@ -73,10 +77,34 @@ final class CustomPingTargetStore {
         if trimmedHost.count > maxHostnameLength {
             return .hostTooLong
         }
+        if !isHost(trimmedHost) { return .hostInvalid }
         if port < 1 || port > 65535 {
             return .portOutOfRange
         }
         return nil
+    }
+
+    private static func isHost(_ host: String) -> Bool {
+        if host.contains(":") {
+            // A bare IPv6 address may include a local interface scope, as
+            // accepted by getaddrinfo. URL brackets and host:port are rejected.
+            let pieces = host.split(separator: "%", omittingEmptySubsequences: false)
+            guard pieces.count <= 2, let address = pieces.first else { return false }
+            if pieces.count == 2 {
+                let scope = pieces[1]
+                guard !scope.isEmpty, scope.unicodeScalars.allSatisfy({
+                    CharacterSet.alphanumerics.contains($0) || $0 == "_" || $0 == "-"
+                }) else { return false }
+            }
+            var parsed = in6_addr()
+            return String(address).withCString { inet_pton(AF_INET6, $0, &parsed) == 1 }
+        }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        guard host.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return false }
+        let name = host.hasSuffix(".") ? String(host.dropLast()) : host
+        return !name.isEmpty && name.split(separator: ".", omittingEmptySubsequences: false).allSatisfy {
+            !$0.isEmpty && !$0.hasPrefix("-") && !$0.hasSuffix("-")
+        }
     }
 
     func load() -> [CustomPingTarget] {

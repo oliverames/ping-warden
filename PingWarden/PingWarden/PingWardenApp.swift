@@ -1599,9 +1599,7 @@ struct LicenseTransitionNoticeView: View {
                                 .fontWeight(.semibold)
                             Text("Buy and activate a one-time $15 license before the transition ends to keep Ping Protection available. Until then, protection continues to work on this Mac.")
                         }
-                        if isReminder {
-                            Text("We’ll remind you again when 30 days and 7 days remain. Buying and activating your license stops these reminders.")
-                        }
+                        Text(LicenseReminderPolicy.followUpMessage(daysRemaining: daysRemaining))
                         Text("Everything else in Ping Warden stays free, and the source code remains open under the MIT License.")
                     }
                     .font(.body)
@@ -1635,7 +1633,7 @@ struct LicenseTransitionNoticeView: View {
                     } label: {
                         Text("Buy Ping Protection · $15").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .controlSize(.large)
                     Button {
                         onOpenLicenseSettings()
@@ -1643,7 +1641,7 @@ struct LicenseTransitionNoticeView: View {
                         Text("Enter a License Key")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .keyboardShortcut(.defaultAction)
 
@@ -2181,16 +2179,11 @@ struct LicenseSettingsContent: View {
                 Section("Enter License Key") {
                     SecureField("License key", text: $keyField)
                         .accessibilityLabel("License key")
+                        .onSubmit { submitLicenseKey() }
 
                     HStack {
                         Button {
-                            Task {
-                                let entitled = await license.verify(key: keyField)
-                                licenseMessage = entitled
-                                    ? "License verified. Ping Protection is available."
-                                    : licenseMessageForLastResult
-                                if entitled { keyField = "" }
-                            }
+                            submitLicenseKey()
                         } label: {
                             if license.isVerifying {
                                 ProgressView()
@@ -2200,7 +2193,7 @@ struct LicenseSettingsContent: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                         Button("Buy a License...") {
                             NSWorkspace.shared.open(LicenseManager.purchaseURL)
@@ -2221,16 +2214,11 @@ struct LicenseSettingsContent: View {
                 Section("Enter License Key") {
                     SecureField("License key", text: $keyField)
                         .accessibilityLabel("License key")
+                        .onSubmit { submitLicenseKey() }
 
                     HStack {
                         Button {
-                            Task {
-                                let entitled = await license.verify(key: keyField)
-                                licenseMessage = entitled
-                                    ? "License verified. Ping Protection is available."
-                                    : licenseMessageForLastResult
-                                if entitled { keyField = "" }
-                            }
+                            submitLicenseKey()
                         } label: {
                             if license.isVerifying {
                                 ProgressView()
@@ -2240,7 +2228,7 @@ struct LicenseSettingsContent: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                         Button("Buy a License...") {
                             NSWorkspace.shared.open(LicenseManager.purchaseURL)
@@ -2312,6 +2300,21 @@ struct LicenseSettingsContent: View {
             return "Gumroad could not be reached. Connect to the internet and try again."
         case .valid, .none:
             return "The license could not be verified."
+        }
+    }
+
+    private func submitLicenseKey() {
+        guard !license.isVerifying,
+              !keyField.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let submittedKey = keyField
+        Task {
+            // Two Return events may enqueue before the first task starts.
+            guard !license.isVerifying else { return }
+            let entitled = await license.verify(key: submittedKey)
+            licenseMessage = entitled
+                ? "License verified. Ping Protection is available."
+                : licenseMessageForLastResult
+            if entitled, keyField == submittedKey { keyField = "" }
         }
     }
 
@@ -2470,7 +2473,7 @@ struct AdvancedSettingsContent: View {
     @State private var isRunningHelperTest = false
     @State private var isExportingDiagnostics = false
     @State private var maintenanceErrorMessage: String?
-    @State private var crashReportingRelaunchRequired = false
+    @State private var crashReportingRelaunchRequired = CrashReporter.relaunchRequired
     @State private var crashReportingEnabled = PingWardenPreferences.shared.isCrashReportingEnabled
     @State private var betaChannelEnabled = PingWardenPreferences.shared.betaChannelEnabled
 
@@ -2491,11 +2494,13 @@ struct AdvancedSettingsContent: View {
                     }
                 }
                 .accessibilityLabel("Send Crash Reports")
-                .accessibilityHint("Sends anonymous crash details without IP addresses, usage data, or ping targets")
+                .accessibilityHint(crashReportingRelaunchRequired
+                    ? "Relaunch required to start sending anonymous crash reports. Sends no IP addresses, usage data, or ping targets."
+                    : "Sends anonymous crash details without IP addresses, usage data, or ping targets")
                 .onChangeCompat(of: crashReportingEnabled) { newValue in
                     PingWardenPreferences.shared.isCrashReportingEnabled = newValue
                     if !newValue { CrashReporter.stop() }
-                    crashReportingRelaunchRequired = newValue
+                    crashReportingRelaunchRequired = CrashReporter.relaunchRequired
                 }
             }
 

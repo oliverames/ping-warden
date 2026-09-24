@@ -56,6 +56,38 @@ struct ChartHost {
     // INSERT_TIMEFRAME
 }
 
+// An inert verifier holds requests until the test explicitly settles them.
+@MainActor final class SubmissionVerifier {
+    var isVerifying = false
+    var keys: [String] = []
+    var continuation: CheckedContinuation<Bool, Never>?
+    func verify(key: String) async -> Bool {
+        isVerifying = true
+        keys.append(key)
+        let result = await withCheckedContinuation { continuation = $0 }
+        isVerifying = false
+        return result
+    }
+    func finish(_ result: Bool) { continuation?.resume(returning: result); continuation = nil }
+}
+@MainActor final class SubmissionHost {
+    let license = SubmissionVerifier()
+    var keyField = ""
+    var licenseMessage: String?
+    let licenseMessageForLastResult = "Offline fixture"
+    func submit() { submitLicenseKey() }
+    // INSERT_SUBMIT
+}
+
+final class CustomTargetHost {
+    let customTargetStore: CustomPingTargetStore
+    var customTargets: [CustomPingTarget] = []
+    var rebuildCount = 0
+    init(defaults: UserDefaults) { customTargetStore = CustomPingTargetStore(userDefaults: defaults) }
+    func rebuildTargets() { rebuildCount += 1 }
+    // INSERT_ADD_TARGET
+}
+
 @main struct PresentationTests {
     @MainActor static var checks = 0
     @MainActor static func check(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -67,6 +99,46 @@ struct ChartHost {
         try! await Task.sleep(nanoseconds: 25_000_000)
     }
     @MainActor static func main() async {
+        let suite = "PingWarden.PresentationTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let targets = CustomTargetHost(defaults: defaults)
+        check(targets.addCustomTarget(displayName: "Kept", host: "localhost", port: 53) == nil,
+              "valid custom target persists through production submission")
+        let stored = defaults.data(forKey: "DashboardCustomPingTargets")
+        check(targets.addCustomTarget(displayName: "Rejected", host: "https://example.com/path", port: 53) == .hostInvalid,
+              "production submission rejects URL before saving")
+        check(defaults.data(forKey: "DashboardCustomPingTargets") == stored && targets.rebuildCount == 1,
+              "rejected target leaves persisted and displayed targets unchanged")
+        let submission = SubmissionHost()
+        submission.keyField = " \n "
+        submission.submit()
+        await settle()
+        check(submission.license.keys.isEmpty, "empty Return submission never reaches verifier")
+        submission.keyField = "synthetic-key"
+        submission.submit()
+        submission.submit()
+        await settle()
+        check(submission.license.keys == ["synthetic-key"], "queued Return/click submissions start only one verification")
+        submission.submit()
+        await settle()
+        check(submission.license.keys.count == 1, "in-flight submission stays disabled")
+        submission.license.finish(false)
+        await settle()
+        check(submission.licenseMessage == "Offline fixture", "failed verification presents its result")
+        check(submission.keyField == "synthetic-key", "failed verification preserves entered key")
+        submission.submit()
+        await settle()
+        submission.keyField = "edited-during-request"
+        submission.license.finish(true)
+        await settle()
+        check(submission.keyField == "edited-during-request", "successful earlier request preserves newer editing")
+        submission.submit()
+        await settle()
+        submission.license.finish(true)
+        await settle()
+        check(submission.keyField.isEmpty, "successful verification clears its own submitted key")
+
         let host = ObserverHost()
         host.start()
         NotificationCenter.default.post(name: .pingWardenOpenSettingsSection, object: nil,

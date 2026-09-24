@@ -8,6 +8,18 @@ enum LicenseReminderPolicy {
     /// The introductory notice at first launch is presented separately.
     static let remainingDayThresholds: [Double] = [30, 7]
 
+    /// The current notice consumes every threshold already reached.
+    static func followUpMessage(daysRemaining: Int?) -> String {
+        let activation = "Buying and activating your license stops these reminders."
+        guard let daysRemaining, daysRemaining > 7 else {
+            return "This is your final transition reminder."
+        }
+        if daysRemaining > 30 {
+            return "We’ll remind you when 30 days and 7 days remain. " + activation
+        }
+        return "We’ll remind you again when 7 days remain. " + activation
+    }
+
     static func isDue(
         now: Date,
         deadline: Date?,

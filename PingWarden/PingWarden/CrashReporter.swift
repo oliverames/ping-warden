@@ -30,7 +30,14 @@ import Sentry
 
 private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "CrashReporter")
 
+@MainActor
 enum CrashReporter {
+    // Process lifetime state survives settings-pane recreation. It is never saved.
+    private static var startedThisProcess = false
+    static var relaunchRequired: Bool {
+        PingWardenPreferences.shared.isCrashReportingEnabled && !startedThisProcess
+    }
+
     /// Sentry DSN. Not a secret — DSNs are designed to be embedded in
     /// distributed client binaries; Sentry enforces project-side scrubbing.
     private static let dsn = "https://3492628142810aa2deb988baaec35d0c@o4511410883985408.ingest.us.sentry.io/4511410888704000"
@@ -86,6 +93,7 @@ enum CrashReporter {
                 return event
             }
         }
+        startedThisProcess = true
         log.info("Sentry initialized for crash reporting (release: \(version, privacy: .public))")
         #else
         log.notice("Sentry SDK not linked; add via SPM: https://github.com/getsentry/sentry-cocoa")
@@ -95,6 +103,7 @@ enum CrashReporter {
     /// Stop SDK activity after the preference has been switched off. Keep
     /// beforeSend as a second check for events racing the preference change.
     static func stop() {
+        startedThisProcess = false
         #if canImport(Sentry)
         SentrySDK.close()
         #endif

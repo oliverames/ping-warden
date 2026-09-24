@@ -31,6 +31,8 @@ def main():
     sources = {name: (app / name).read_text() for name in (
         "PingWardenApp.swift", "DashboardView.swift", "DashboardViewModel.swift")}
     seams = {
+        "ADD_TARGET": ("DashboardViewModel.swift", "func addCustomTarget(displayName:"),
+        "SUBMIT": ("PingWardenApp.swift", "private func submitLicenseKey()"),
         "OBSERVER": ("PingWardenApp.swift", "private func installSettingsSectionObserver()"),
         "SECTION": ("PingWardenApp.swift", "enum SettingsSection: String, CaseIterable, Identifiable"),
         "SUMMARY": ("DashboardView.swift", "private var chartAccessibilityValue: String"),
@@ -53,7 +55,7 @@ def main():
         subprocess.run(["xcrun", "swiftc", "-parse-as-library", "-swift-version", "5",
                         "-strict-concurrency=complete", "-warnings-as-errors",
                         "-module-cache-path", str(scratch / "ModuleCache"),
-                        str(source), "-o", str(binary)], check=True, timeout=120)
+                        str(app / "Core/CustomPingTargetStore.swift"), str(source), "-o", str(binary)], check=True, timeout=120)
         subprocess.run([str(binary)], check=True, timeout=30)
 
 

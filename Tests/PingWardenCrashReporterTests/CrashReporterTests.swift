@@ -37,6 +37,7 @@ final class PingWardenPreferences {
 }
 
 @main
+@MainActor
 struct CrashReporterTests {
     static var checks = 0
     static var failures = 0
@@ -57,6 +58,7 @@ struct CrashReporterTests {
         CrashReporter.startIfEnabled()
         check(SentrySDK.startCount == 1, "default-on startup initializes SDK")
         check(SentrySDK.isActive, "SDK is active after enabled startup")
+        check(!CrashReporter.relaunchRequired, "enabled launch has no pending relaunch")
 
         if let options = SentrySDK.lastOptions {
             check(options.releaseName == "com.amesvt.pingwarden@9.8.7+98765", "release includes bundle version and build")
@@ -82,6 +84,13 @@ struct CrashReporterTests {
             CrashReporter.stop()
             check(SentrySDK.closeCount == 1, "stop closes the SDK")
             check(!SentrySDK.isActive, "SDK stops after opt-out")
+            check(!CrashReporter.relaunchRequired, "opt-out clears pending relaunch")
+            preferences.isCrashReportingEnabled = true
+            check(CrashReporter.relaunchRequired, "opt-in after SDK close needs relaunch")
+            let recreatedPaneStatus = { CrashReporter.relaunchRequired }
+            check(recreatedPaneStatus(), "a recreated pane still observes pending relaunch")
+            check(!SentrySDK.isActive, "pending opt-in never starts the SDK")
+            preferences.isCrashReportingEnabled = false
             check(options.beforeSend?(event) == nil, "captured gate still rejects after SDK close")
 
             preferences.prepareForRemoval()
@@ -103,9 +112,11 @@ struct CrashReporterTests {
         // Changing the preference alone does not initialize the SDK mid-session.
         preferences.isCrashReportingEnabled = true
         check(SentrySDK.startCount == 0, "opting back in waits for the next startup call")
+        check(CrashReporter.relaunchRequired, "opt-in from disabled launch stays pending")
         CrashReporter.startIfEnabled()
         check(SentrySDK.startCount == 1, "next startup honors saved opt-in")
         check(SentrySDK.isActive, "SDK starts on subsequent enabled launch")
+        check(!CrashReporter.relaunchRequired, "subsequent startup clears pending status")
         CrashReporter.stop()
         preferences.removeFixturePreferences()
 

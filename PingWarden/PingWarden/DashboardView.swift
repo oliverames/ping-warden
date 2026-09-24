@@ -143,13 +143,7 @@ private enum LatencyPalette {
 }
 
 private extension View {
-    /// Card chrome used by every dashboard card. On macOS 26+ we use
-    /// `glassEffect` so the cards participate in the dashboard's
-    /// `GlassEffectContainer` and visually morph between each other.
-    /// On macOS 13-25 we fall back to `.regularMaterial`, the closest
-    /// pre-Liquid-Glass equivalent. One source of truth → applies to
-    /// StatusCard, PingGraphCard, LatencyTimelineCard, InterventionsCard,
-    /// ServerSelectionCard, and CustomServersCard simultaneously.
+    /// Native content chrome shared by Dashboard and Targets cards.
     func dashboardCardStyle() -> some View {
         self
             .padding(DashboardLayout.cardPadding)
@@ -161,11 +155,8 @@ private extension View {
 private struct DashboardCardBackground: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: DashboardLayout.cardCornerRadius, style: .continuous)
-        if #available(macOS 26, *) {
-            content.glassEffect(.regular, in: shape)
-        } else {
-            content.background(.regularMaterial, in: shape)
-        }
+        content.background(Color(nsColor: .controlBackgroundColor), in: shape)
+            .overlay(shape.stroke(Color(nsColor: .separatorColor), lineWidth: 1))
     }
 }
 
@@ -176,19 +167,7 @@ struct DashboardSettingsContent: View {
     @ObservedObject private var sessionCoordinator = ProtectedSessionCoordinator.shared
 
     var body: some View {
-        Group {
-            if #available(macOS 26, *) {
-                // Wrap all glass cards in one container so they sample each
-                // other's refraction and morph cleanly when scrolled or laid out.
-                // Per Liquid Glass guidance, scattering glass across multiple
-                // containers produces inconsistent visual results.
-                GlassEffectContainer {
-                    cardStack
-                }
-            } else {
-                cardStack
-            }
-        }
+        cardStack
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
@@ -1422,12 +1401,7 @@ struct InterventionsCard: View {
     }
 }
 
-/// Subtle inner-callout chrome for recessed panels *inside* dashboard cards
-/// (the interventions status block, the Welcome info banner). These sit on top
-/// of a surface that is itself glass on macOS 26 (see `DashboardCardBackground`),
-/// so they use a plain quaternary fill on every OS version rather than a second
-/// glass layer. Glass-over-glass reads as muddy frost-on-frost and isn't what
-/// the material is for — Liquid Glass floats over *content*, not over more glass.
+/// Recessed callout styling within native dashboard content cards.
 struct InnerCalloutBackground: ViewModifier {
     let cornerRadius: CGFloat
     let fallbackOpacity: Double
@@ -1729,6 +1703,11 @@ struct CustomServersCard: View {
         }
 
         if let failure = viewModel.addCustomTarget(displayName: newName, host: newHost, port: port) {
+            switch failure {
+            case .nameEmpty: focusedField = .name
+            case .portOutOfRange: focusedField = .port
+            case .hostEmpty, .hostTooLong, .hostInvalid: focusedField = .host
+            }
             showValidationError(failure.userMessage)
             return
         }
