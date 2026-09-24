@@ -1611,7 +1611,7 @@ struct LicenseTransitionNoticeView: View {
                 .padding(.top, 16)
                 .padding(.horizontal, 24)
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(spacing: 8) {
                     Text("Already supported Ping Warden?")
                         .font(.headline)
                     Text("If you donated through the Buy Me a Coffee link before version 4, email \(LicenseManager.donationConversionEmail) and that support will be honored as a full license.")
@@ -1623,8 +1623,10 @@ struct LicenseTransitionNoticeView: View {
                     }
                     .controlSize(.small)
                 }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
                 .padding(.top, 20)
-                .padding(.horizontal, 32)
+                .padding(.horizontal, 24)
 
                 VStack(spacing: 10) {
                     Button {
