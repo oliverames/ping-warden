@@ -6,6 +6,83 @@
     <description>Pre-release updates for Ping Warden</description>
     <language>en</language>
     <item>
+      <title>Version 4.2.1</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.2.1</link>
+      <sparkle:version>42100</sparkle:version>
+      <sparkle:shortVersionString>4.2.1</sparkle:shortVersionString>
+      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;This update brings Targets into line with the other settings pages and fixes several settings, keyboard, and accessibility details.&lt;/p&gt;
+&lt;h2&gt;Improvements&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Targets now uses native grouped settings, with consistent section headings, row spacing, and controls. The Targets tab and custom-server controls remain available.&lt;/li&gt;
+&lt;li&gt;Dashboard cards use native content backgrounds that match the app's settings.&lt;/li&gt;
+&lt;li&gt;Intervention counters and shared session recaps describe attempts to pause AWDL more clearly.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Fixes&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The crash-reporting “Relaunch Required” state remains visible when you leave Advanced settings and return. Accessibility tools can also read that state.&lt;/li&gt;
+&lt;li&gt;Custom servers reject complete URLs and show an error in the form. Enter a hostname or IP address, with its port in the separate Port field.&lt;/li&gt;
+&lt;li&gt;Pressing Return in a license-key field starts verification, with the same empty-field and busy checks as the Verify button.&lt;/li&gt;
+&lt;li&gt;Transition reminders describe only the reminders that remain. The final reminder no longer promises another one.&lt;/li&gt;
+&lt;li&gt;The transition notice has one primary action, while retaining both purchase and existing-key options. Its text now follows one centered layout.&lt;/li&gt;
+&lt;li&gt;The Help menu observes changes to the What's New offer, so the item appears and clears with its current state.&lt;/li&gt;
+&lt;li&gt;The chart's accessibility summary identifies latency spikes without describing them as protection events.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;New since 4.0&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Game Mode can detect a recognized frontmost game without Screen Recording permission. Optional Screen Recording access also enables fullscreen-window detection. Automatic activation skips Ethernet and rechecks when the network changes.&lt;/li&gt;
+&lt;li&gt;Latency Sessions record a protected game or call and produce a local recap. Starting a session requires a license or an active transition. The dashboard, diagnostics, and past recaps remain free.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Updating&lt;/h2&gt;
+&lt;p&gt;Use &lt;strong&gt;Check for Updates&lt;/strong&gt;, or download the current DMG and replace the app in Applications. Version 2.0.5 and earlier require a manual download.&lt;/p&gt;
+&lt;p&gt;Ping Protection, including starting a Latency Session, requires a one-time $15 license or an active transition. Updates preserve eligible existing users' original 90-day transition deadline. The dashboard, diagnostics, and past session recaps remain free. The source remains MIT-licensed.&lt;/p&gt;
+      </description>
+      <pubDate>Thu, 24 Sep 2026 19:44:48 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.2.1/PingWarden-4.2.1.dmg" sparkle:version="42100" sparkle:shortVersionString="4.2.1" length="5841614" type="application/octet-stream" sparkle:edSignature="vfjDGvd0RGvOCxJFj7C5EoWz35Nn3WTFc4PsjkYtF8DyySxE46mjZAAtXOuCchofmb8zsmLTdkeTA8+dHrUQBQ==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.2.0</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.2.0</link>
       <sparkle:version>42000</sparkle:version>
@@ -1876,6 +1953,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: hCh2VzqrzlhHDfuwIlaRTdA6HRYvN7Ib3rNUZZ4KXt7omWDYJU0Q8AFsuBy5AYNPzroEYPyWSXTSKUqvIfA2DQ==
-length: 125103
+edSignature: oyKgRGCgXMUKwI6BfO0gtmG9wavuLOMu8CQFe5IlQQANQXlU2SfqBZBYkKnVN87gG0/b4GLit4a5Cf3pdAWfBQ==
+length: 130773
 -->
