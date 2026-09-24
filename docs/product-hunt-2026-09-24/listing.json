@@ -26,14 +26,15 @@
     "docs/product-hunt-2026-09-24/03-sharing-tradeoff.png",
     "docs/images/ping-warden-4-automation.png"
   ],
-  "status": "prepared_locally_not_submitted",
+  "status": "prepared_held_for_claude_review",
   "product_hunt_draft_url": null,
   "product_hunt_launch_url": null,
   "launch_date": null,
-  "proposed_launch_date": "2026-09-25",
+  "proposed_launch_date": null,
   "proposed_launch_time_zone": "America/Los_Angeles",
   "proposed_launch_time": "00:00",
   "pending": [
+    "Claude release-readiness review and Oliver resuming publication",
     "Personal Product Hunt sign-in and maker verification",
     "Existing listing/draft check",
     "Launch date choice",

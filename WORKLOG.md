@@ -2,9 +2,9 @@
 
 ## Open items
 
-- Submit the prepared Product Hunt launch after personal-account sign-in and launch-date selection. Copy, two generated gallery cards, two existing screenshots, and the thumbnail are ready. No Product Hunt draft or submission exists yet. See the [launch record](docs/2026-09-24-product-hunt-launch.md) (since 2026-09-24).
+- Publication hold: finish the Claude release-readiness review before a new app release or Product Hunt submission. Candidate 4.2.1 notes and the [handoff](docs/2026-09-24-claude-release-handoff.md) are prepared. App release acceptance remains in [#78](https://github.com/oliverames/ping-warden/issues/78) and [#90](https://github.com/oliverames/ping-warden/issues/90); Product Hunt is [#93](https://github.com/oliverames/ping-warden/issues/93). No Product Hunt draft or launch date exists (since 2026-09-24).
 - Ship the committed app fixes `8bad3e7` (#88 attempt wording) and `e315918` (Help release-notes command) in the next release, with the maintained signing, notarization, helper/widget, Sparkle feed, and Gumroad delivery verification (since 2026-09-21; [#78](https://github.com/oliverames/ping-warden/issues/78))
-- Signed-app acceptance: What's New with a prior-version preference, donation-button removal in a signed build, production preference persistence, and the actual browser release link. Awaiting Oliver's approval to update the installed copy, which remains 4.1.8 (since 2026-09-14; [#78](https://github.com/oliverames/ping-warden/issues/78))
+- Signed-app acceptance: What's New with a prior-version preference, donation-button removal in a signed build, production preference persistence, and the actual browser release link. Installed-app metadata was rechecked September 24 and reports 4.2.0/42000. The original hands-on acceptance remains open (since 2026-09-14; [#78](https://github.com/oliverames/ping-warden/issues/78))
 - Live-game validation of the frontmost-app engage and disengage handoff and the Ethernet skip. Needs an eligible real-game session and wired hardware; only Wi-Fi was available on 2026-09-21 (since 2026-09-06; [#64](https://github.com/oliverames/ping-warden/issues/64))
 - Chart accessibility summary misclassifies latency spikes as protection events (since 2026-09-21; [#89](https://github.com/oliverames/ping-warden/issues/89))
 - Pending-relaunch settings state and accessibility, license Return submission, target URL validation, reminder copy, and content-layer glass on Dashboard and Targets (since 2026-09-21; [#90](https://github.com/oliverames/ping-warden/issues/90))
@@ -21,6 +21,16 @@
 - README mention of the beta channel, deferred until a 2.4.0 build shipped; the README currently does not mention it (since 2026-05-27) (unverified)
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
+
+## 2026-09-24 - Wrap-up and Claude release handoff
+
+**What changed**: Prepared [4.2.1 release notes](docs/release-4.2.1-draft.md) and a [self-contained Claude handoff](docs/2026-09-24-claude-release-handoff.md). The candidate build is 42100. Current source carriers and published feeds remain 4.2.0/42000. The notes extract correctly with the maintained release renderer.
+
+**Decisions made**: Oliver requested wrap-up and a Claude review before publication to existing users or Product Hunt. The release notes remain outside RELEASE_NOTES.md because the Website workflow deploys that file's changes. No app, website, appcast, Gumroad, or Product Hunt release was performed.
+
+**Left off at**: Build Verification for 8d13d34 passed, including macOS, Linux, and app bundle checks. CodeQL was still running at draft time. Source fixes and launch assets are pushed. The independent review found no actionable layout regressions. No configuration, marketplace, Notes, or memory was changed, so those reconciliation and backup phases did not apply.
+
+**Open questions**: Claude must review remaining live interaction and signed-host acceptance in #90 and #78 before release readiness is declared. #93 tracks Product Hunt's account access, duplicate check, preview, date, and submission. Existing sales are supplied by Oliver; no customer count or product-success retest was added.
 
 ## 2026-09-24 - Restore Linux compilation of target validation
 
@@ -44,7 +54,7 @@ Verified the public landing page and Gumroad offer, and GitHub's current 4.2.0 r
 
 Oliver subsequently chose the real landing-page dashboard screenshot to lead the gallery. Targets is omitted from the gallery, and its tab is retained in the app with a native grouped settings layout. Confirmed the live page uses `/dashboard-v4.png`, with a complete 2978 × 2648 image. The gallery caption clarifies that intervention counts record attempts. Oliver confirmed existing sales, and the maker comment presents this as an established paid app arriving on Product Hunt. The existing native-design review task received the Targets observation.
 
-Product Hunt's sign-in dialog is open in the in-app browser. Chrome navigation timed out, and its recovery returned `Browser is not available: chrome`. Oliver was asked to sign in and select a launch date. No submission, Product Hunt draft, scheduled launch, outreach, discount, app release, or installed-app change occurred. The remaining steps are authenticated duplicate/draft checking, profile and tag verification, gallery preview, scheduling, submission, and confirmation of the resulting status.
+Product Hunt's sign-in dialog is open in the in-app browser. Chrome navigation timed out, and its recovery returned `Browser is not available: chrome`. Oliver was asked to sign in and select a launch date. No submission, Product Hunt draft, scheduled launch, outreach, discount, app release, or installed-app change occurred. These submission steps are now deferred by Oliver's later publication hold until the Claude handoff and review. #93 tracks authenticated duplicate/draft checking, profile and tag verification, gallery preview, date selection, submission, and resulting status.
 
 ---
 

@@ -13,17 +13,21 @@ Prepared for Oliver Ames on September 24, 2026.
 - [ ] Verify the submission preview and launch timing.
 - [ ] Submit and verify the resulting Product Hunt state.
 
-## Work scope and resume point
+## Publication hold and resume point
+
+Oliver subsequently requested wrap-up and a Claude handoff before releasing to existing users or Product Hunt. Publication is now on hold and tracked in [#93](https://github.com/oliverames/ping-warden/issues/93). Do not create or schedule the Product Hunt submission during this closeout. Resume only after Claude reviews release readiness and Oliver resumes publication.
+
+## Work scope
 
 This task owns this launch document, launch assets, and its WORKLOG entry. Oliver subsequently requested a native Targets layout correction. The separate issue-review task explicitly released Targets layout ownership to this task after committing its functional changes in a344c0c. Keep those changes intact. The app's Targets tab remains available, with its appearance brought into line with the other settings forms. No storefront behavior changes are part of this task.
 
 The in-app browser loaded Product Hunt but showed Sign in. Chrome's navigation timed out. A recovery attempt returned `Browser is not available: chrome`. The working in-app browser is open at Product Hunt's sign-in dialog. Oliver was asked to sign in to his personal account and choose launch timing. No Product Hunt draft or submission has been created.
 
-Recommended timing is September 25, 2026 at the scheduler's midnight Pacific start, provided Oliver can respond to comments that day. This recommendation gives the product a full launch day. It does not assume Friday is universally better. The date remains pending Oliver's answer. If he chooses a later day, preserve the listing and schedule that day instead.
+The launch date is unset. Choose a future day after release readiness is established when Oliver can respond to comments. Use the scheduler's midnight Pacific start for a full day. The earlier September 25 suggestion was never selected and must not be treated as scheduled.
 
 Public web search found no indexed result for `Ping Warden`, `Ping-Warden`, `AWDL Control`, or `pingwarden.app` on producthunt.com. This does not establish that no listing or draft exists. Check the authenticated submission flow before creating anything.
 
-After sign-in: verify the personal profile and maker identity, inspect existing products/drafts, enter the fields below, upload the ordered gallery, review the preview, select the agreed date, submit, and record the resulting URL and status here. The submission request is authorized. No additional publication permission is needed unless the site introduces new legal terms or another separately controlled action.
+After the publication hold is resolved and sign-in is available: verify the personal profile and maker identity, inspect existing products/drafts, enter the fields below, upload the ordered gallery, review the preview, select the agreed date, submit, and record the resulting URL and status here. Oliver's later instruction defers publication until after the Claude handoff and review. Preserve that hold.
 
 ## Verified product facts
 
