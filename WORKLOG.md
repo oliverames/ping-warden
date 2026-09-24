@@ -28,7 +28,7 @@
 
 **Not verified**: Picker menus, focus movement after an invalid host, and license-field Return. Foreground desktop control was not approved. `CrashReporter` is now `@MainActor`, so its Sentry `beforeSend` closure would pick up main-actor isolation under Swift 6 mode. Swift 5 mode inserts no runtime check, so this is harmless today but worth revisiting before any language-mode change.
 
-**Decisions for Oliver**: The transition notice now makes "Enter a License Key" the prominent action and "Buy" secondary. Publication remains on hold.
+**Decisions (Oliver, September 24)**: Keep "Enter a License Key" as the prominent transition action. Run the three unverified checks on the signed 4.2.1 after updating, not before release. Publish only after CodeQL and Build Verification pass on the exact release commit. After release, refresh the #93 Product Hunt copy and check for drafts or duplicates, then stop before submission. Publication remains on hold until Oliver resumes it.
 
 ## 2026-09-24 - Wrap-up and Claude release handoff
 
