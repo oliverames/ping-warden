@@ -2,6 +2,7 @@
 
 ## Open items
 
+- Submit the prepared Product Hunt launch after personal-account sign-in and launch-date selection. Copy, two generated gallery cards, two existing screenshots, and the thumbnail are ready. No Product Hunt draft or submission exists yet. See the [launch record](docs/2026-09-24-product-hunt-launch.md) (since 2026-09-24).
 - Ship the committed app fixes `8bad3e7` (#88 attempt wording) and `e315918` (Help release-notes command) in the next release, with the maintained signing, notarization, helper/widget, Sparkle feed, and Gumroad delivery verification (since 2026-09-21; [#78](https://github.com/oliverames/ping-warden/issues/78))
 - Signed-app acceptance: What's New with a prior-version preference, donation-button removal in a signed build, production preference persistence, and the actual browser release link. Awaiting Oliver's approval to update the installed copy, which remains 4.1.8 (since 2026-09-14; [#78](https://github.com/oliverames/ping-warden/issues/78))
 - Live-game validation of the frontmost-app engage and disengage handoff and the Ethernet skip. Needs an eligible real-game session and wired hardware; only Wi-Fi was available on 2026-09-21 (since 2026-09-06; [#64](https://github.com/oliverames/ping-warden/issues/64))
@@ -20,6 +21,16 @@
 - README mention of the beta channel, deferred until a 2.4.0 build shipped; the README currently does not mention it (since 2026-05-27) (unverified)
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
+
+## 2026-09-24 - Prepare Product Hunt launch
+
+Prepared the [launch record](docs/2026-09-24-product-hunt-launch.md), machine-readable listing fields, maker comment, two generated explanatory gallery cards, and an ordered selection of existing screenshots and thumbnail. The launch copy emphasizes AWDL-related Mac cloud-gaming interruptions, the free dashboard, the $15 one-time protection license, and the nearby-device-sharing tradeoff. The account-review task coordinated ownership and preserved these launch files while integrating its app changes.
+
+Verified the public landing page and Gumroad offer, and GitHub's current 4.2.0 release metadata. The tagline is 47 characters, description 419 characters, and maker comment 196 words. All five selected PNG files exist and are below 3 MB. The generated cards are 1621 × 970, the original screenshots 2978 × 2648, and the thumbnail 256 × 256. Copy and graphics were inspected. No performance benchmark, new-user protection trial, or newer app release is claimed.
+
+Product Hunt's sign-in dialog is open in the in-app browser. Chrome navigation timed out, and its recovery returned `Browser is not available: chrome`. Oliver was asked to sign in and select a launch date. No submission, Product Hunt draft, scheduled launch, outreach, discount, app release, or installed-app change occurred. The remaining steps are authenticated duplicate/draft checking, profile and tag verification, gallery preview, scheduling, submission, and confirmation of the resulting status.
+
+---
 
 ## 2026-09-21 - Complete the macOS 27 UI review
 

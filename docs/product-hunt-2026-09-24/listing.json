@@ -1,0 +1,44 @@
+{
+  "name": "Ping Warden",
+  "url": "https://pingwarden.app/",
+  "tagline": "Reduce Wi-Fi lag while cloud gaming on your Mac",
+  "description": "Ping Warden helps reduce AWDL-related Wi-Fi stutter in GeForce NOW, Xbox Cloud Gaming, Moonlight and Parsec. It pauses Apple's nearby-device networking while you play and graphs your latency. AirDrop, AirPlay and Handoff pause while protection is on. Free dashboard, latency history and diagnostics. Ping Protection is $15 once, with no subscription. Native macOS app for Intel and Apple silicon. Open source under MIT.",
+  "first_comment": "Hi Product Hunt, I'm Oliver, the maker of Ping Warden.\n\nMac cloud gaming can stutter even when your internet connection looks healthy. One possible cause is Apple Wireless Direct Link (AWDL), used by AirDrop, AirPlay and Handoff. Turning it off once does not keep it off because macOS can bring it back.\n\nPing Warden keeps AWDL paused while Ping Protection is on. The free dashboard shows latency, jitter and history so you can understand your connection. Protection is useful when AWDL contributes to Wi-Fi interruptions. It cannot fix an overloaded router or a distant game server.\n\nThe tradeoff is explicit: nearby-device features are unavailable while protection is on. Turn it off or use the 10-minute pause when you need them.\n\nThe dashboard, latency history, diagnostics and updates are free. Ping Protection is $15 once, with no subscription. One key covers the Macs you own and all future updates. The source remains MIT, and the signed, notarized app runs on Intel and Apple silicon with macOS 13 or later.\n\nIf you stream games on a Mac, which service do you use, and when do you notice Wi-Fi stutter? I'd like to hear what helps you diagnose it.",
+  "proposed_launch_tags": [
+    "Mac",
+    "Gaming",
+    "Open Source"
+  ],
+  "pricing": "Paid with a free plan",
+  "maker": {
+    "name": "Oliver Ames",
+    "username": null
+  },
+  "promo_code": null,
+  "optional_links": [
+    "https://github.com/oliverames/ping-warden",
+    "https://github.com/oliverames/ping-warden/releases/latest"
+  ],
+  "thumbnail": "Site/public/app-icon.png",
+  "gallery": [
+    "docs/product-hunt-2026-09-24/01-cloud-gaming.png",
+    "docs/images/ping-warden-4-targets.png",
+    "docs/product-hunt-2026-09-24/03-sharing-tradeoff.png",
+    "docs/images/ping-warden-4-automation.png"
+  ],
+  "status": "prepared_locally_not_submitted",
+  "product_hunt_draft_url": null,
+  "product_hunt_launch_url": null,
+  "launch_date": null,
+  "proposed_launch_date": "2026-09-25",
+  "proposed_launch_time_zone": "America/Los_Angeles",
+  "proposed_launch_time": "00:00",
+  "pending": [
+    "Personal Product Hunt sign-in and maker verification",
+    "Existing listing/draft check",
+    "Launch date choice",
+    "Live form values, gallery preview, submission and resulting status verification"
+  ],
+  "verified_release": "4.2.0",
+  "prepared_on": "2026-09-24"
+}
