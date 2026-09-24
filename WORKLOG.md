@@ -22,6 +22,14 @@
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
 
+## 2026-09-24 - Claude 4.2.1 release-readiness review
+
+**What changed**: Reviewed the full app delta from v4.2.0 to 4ccad28 (app code identical to 8d13d34). Found no release-blocking regression. Targets keeps every control and handler. The view model and store load path are unchanged, so existing saved targets load without revalidation. Ran the #90 interaction checks in a rebuilt isolated fixture with scratch-file preferences: add, cancel, Escape, Return submission, URL rejection with no storage write, IPv6 save, relaunch persistence, removal fallback, and the relaunch badge across navigation all pass. Results are in [#90](https://github.com/oliverames/ping-warden/issues/90). Signed-host dispositions are in [#78](https://github.com/oliverames/ping-warden/issues/78). Corrected one phrase in the draft notes: the host error appears in the form, not beside it.
+
+**Not verified**: Picker menus, focus movement after an invalid host, and license-field Return. Foreground desktop control was not approved. `CrashReporter` is now `@MainActor`, so its Sentry `beforeSend` closure would pick up main-actor isolation under Swift 6 mode. Swift 5 mode inserts no runtime check, so this is harmless today but worth revisiting before any language-mode change.
+
+**Decisions for Oliver**: The transition notice now makes "Enter a License Key" the prominent action and "Buy" secondary. Publication remains on hold.
+
 ## 2026-09-24 - Wrap-up and Claude release handoff
 
 **What changed**: Prepared [4.2.1 release notes](docs/release-4.2.1-draft.md) and a [self-contained Claude handoff](docs/2026-09-24-claude-release-handoff.md). The candidate build is 42100. Current source carriers and published feeds remain 4.2.0/42000. The notes extract correctly with the maintained release renderer.
