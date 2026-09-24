@@ -2,9 +2,9 @@
 
 ## Open items
 
-- Publication hold: finish the Claude release-readiness review before a new app release or Product Hunt submission. Candidate 4.2.1 notes and the [handoff](docs/2026-09-24-claude-release-handoff.md) are prepared. App release acceptance remains in [#78](https://github.com/oliverames/ping-warden/issues/78) and [#90](https://github.com/oliverames/ping-warden/issues/90); Product Hunt is [#93](https://github.com/oliverames/ping-warden/issues/93). No Product Hunt draft or launch date exists (since 2026-09-24).
-- Ship the committed app fixes `8bad3e7` (#88 attempt wording) and `e315918` (Help release-notes command) in the next release, with the maintained signing, notarization, helper/widget, Sparkle feed, and Gumroad delivery verification (since 2026-09-21; [#78](https://github.com/oliverames/ping-warden/issues/78))
-- Signed-app acceptance: What's New with a prior-version preference, donation-button removal in a signed build, production preference persistence, and the actual browser release link. Installed-app metadata was rechecked September 24 and reports 4.2.0/42000. The original hands-on acceptance remains open (since 2026-09-14; [#78](https://github.com/oliverames/ping-warden/issues/78))
+- Product Hunt waits for new gallery images and a website redesign, with several alternative designs for Oliver to choose from. Not scheduled. No draft or launch exists (since 2026-09-24; [#93](https://github.com/oliverames/ping-warden/issues/93))
+- Decide how to run CI locally instead of on GitHub-hosted runners, which have a usage limit (since 2026-09-24; [#94](https://github.com/oliverames/ping-warden/issues/94))
+- Signed-app acceptance on the installed app after it updates from 4.2.0 to 4.2.1: What's New, the Help release link, preference persistence, no donation buttons, Targets menu pickers, focus after an invalid host, and license-field Return (since 2026-09-14; [#78](https://github.com/oliverames/ping-warden/issues/78), [#90](https://github.com/oliverames/ping-warden/issues/90))
 - Live-game validation of the frontmost-app engage and disengage handoff and the Ethernet skip. Needs an eligible real-game session and wired hardware; only Wi-Fi was available on 2026-09-21 (since 2026-09-06; [#64](https://github.com/oliverames/ping-warden/issues/64))
 - Chart accessibility summary misclassifies latency spikes as protection events (since 2026-09-21; [#89](https://github.com/oliverames/ping-warden/issues/89))
 - Pending-relaunch settings state and accessibility, license Return submission, target URL validation, reminder copy, and content-layer glass on Dashboard and Targets (since 2026-09-21; [#90](https://github.com/oliverames/ping-warden/issues/90))
@@ -21,6 +21,20 @@
 - README mention of the beta channel, deferred until a 2.4.0 build shipped; the README currently does not mention it (since 2026-05-27) (unverified)
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
+
+## 2026-09-24 - Released 4.2.1
+
+**What changed**: Published v4.2.1 (42100) from 7e14da1 with `release.sh`, which exited 0. Xcode's build-setting tool bumped the project versions; the plists and `HELPER_VERSION` were bumped directly. The version bump (1248009) was pushed before the notes, then the notes and site pages (7e14da1), so the website published the notes only minutes before the download. Added bddec76, which centers the transition notice's donation section, after Oliver flagged the mixed alignment; checked in the isolated fixture. Appcast copies committed as 3f118b9.
+
+**Verification**: 153 core tests, 13 release-tool tests, 26 presentation checks, site build and check, and shellcheck passed locally. GitHub Build Verification passed on bd56178. CodeQL had not finished on the final commits, and no CodeQL CLI is installed locally. For the published release: the DMG SHA-256 matches the local artifact; Gatekeeper accepts it as Notarized Developer ID with the ticket stapled; the deep codesign check passes; app and widget report 4.2.1 (42100). Both live feeds offer 42100 and verify against the app key, and the enclosure EdDSA signature verifies. The releases page lists 4.2.1, and Sentry has the dSYMs. The script verified Gumroad delivery, and the license-key node is present. Evidence is in [#78](https://github.com/oliverames/ping-warden/issues/78).
+
+**Decisions made**: Keep "Enter a License Key" as the prominent transition action. Run the remaining hands-on checks after release. Product Hunt waits for a redesign ([#93](https://github.com/oliverames/ping-warden/issues/93)). Standing rule from Oliver: updates must never disturb existing licenses, registrations, or saved state. The v4.2.0 → v4.2.1 audit found no diff in LicenseManager, LicenseStateSeal, PingWardenPreferences, or entitlements.
+
+**Left off at**: Release complete. Post-update signed checks remain in #78 and #90. The local-CI decision is [#94](https://github.com/oliverames/ping-warden/issues/94).
+
+**Open questions**: Which local-CI option to adopt (#94).
+
+---
 
 ## 2026-09-24 - Claude 4.2.1 release-readiness review
 
