@@ -6,7 +6,7 @@
 - Decide how to run CI locally instead of on GitHub-hosted runners, which have a usage limit (since 2026-09-24; [#94](https://github.com/oliverames/ping-warden/issues/94))
 - Signed-app acceptance on the installed app after it updates from 4.2.0 to 4.2.1: What's New, the Help release link, preference persistence, no donation buttons, Targets menu pickers, focus after an invalid host, and license-field Return (since 2026-09-14; [#78](https://github.com/oliverames/ping-warden/issues/78), [#90](https://github.com/oliverames/ping-warden/issues/90))
 - Live-game validation of the frontmost-app engage and disengage handoff and the Ethernet skip. Needs an eligible real-game session and wired hardware; only Wi-Fi was available on 2026-09-21 (since 2026-09-06; [#64](https://github.com/oliverames/ping-warden/issues/64))
-- Chart accessibility summary misclassifies latency spikes as protection events (since 2026-09-21; [#89](https://github.com/oliverames/ping-warden/issues/89))
+- VoiceOver check of the corrected chart summary. The neutral "timeline events" wording and tests shipped in 4.2.1 (since 2026-09-21; [#89](https://github.com/oliverames/ping-warden/issues/89))
 - Pending-relaunch settings state and accessibility, license Return submission, target URL validation, reminder copy, and content-layer glass on Dashboard and Targets (since 2026-09-21; [#90](https://github.com/oliverames/ping-warden/issues/90))
 - Strict-concurrency warnings in the settings-section notification observer (since 2026-09-21; [#91](https://github.com/oliverames/ping-warden/issues/91))
 - Exercise the session recorder with the Dashboard open during a Game Mode session to confirm the recap stays on the session's target (since 2026-09-14) (unverified)
