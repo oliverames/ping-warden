@@ -22,6 +22,12 @@
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
 
+## 2026-09-24 - Restore Linux compilation of target validation
+
+The hosted Linux check for 5905784 failed because CustomPingTargetStore imported Darwin unconditionally. The import came from the earlier a344c0c target-validation change. Wrapped it with the same Darwin/Glibc platform selection already used by TCPProbe. Validation and persistence logic remain unchanged.
+
+The independent reviewer approved the narrow correction and ran 13 focused target-store and host-validation tests on macOS, all passing with no skips. The native production Xcode build also passed. The original failure is recorded in [Linux job 107772835079](https://github.com/oliverames/ping-warden/actions/runs/36040992165/job/107772835079). The corrected hosted result is recorded in [#90](https://github.com/oliverames/ping-warden/issues/90).
+
 ## 2026-09-24 - Match Targets to native settings
 
 Committed the Targets layout as fa2819e. Replaced its dashboard cards and manual columns with the same grouped Form and native sections used by General. Preserved the Targets tab, bindings, target refresh and selection, custom-target actions, validation, and keyboard shortcuts. The scroll-edge treatment stays at the existing settings call site.

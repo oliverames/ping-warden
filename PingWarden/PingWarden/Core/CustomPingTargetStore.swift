@@ -8,7 +8,11 @@
 //
 
 import Foundation
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 /// Plain Codable record. Distinct from the view-layer `PingTarget` so this
 /// file stays pure Foundation and the test suite can exercise it via
