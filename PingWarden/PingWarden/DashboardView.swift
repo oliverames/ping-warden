@@ -961,7 +961,7 @@ struct PingGraphCard: View {
     /// Summary read by VoiceOver instead of the chart's default mark-by-mark
     /// announcements. Designed to give a sighted-equivalent snapshot in one
     /// breath: how many samples, current value, average, peak, and whether
-    /// any protection events fired during the window.
+    /// any timeline events occurred during the window.
     private var chartAccessibilityValue: String {
         let probes = viewModel.filteredProbeHistory
         let history = probes.filter(\.success)
@@ -980,7 +980,7 @@ struct PingGraphCard: View {
         let events = viewModel.filteredTimelineEvents.count
         let eventPhrase = events == 0
             ? ""
-            : ", with \(events) protection event\(events == 1 ? "" : "s") in this window"
+            : ", with \(events) timeline event\(events == 1 ? "" : "s") in this window"
         let failurePhrase = failures == 0
             ? ""
             : ", and \(failures) failed probe\(failures == 1 ? "" : "s")"

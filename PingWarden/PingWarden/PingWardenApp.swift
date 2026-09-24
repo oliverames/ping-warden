@@ -934,11 +934,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self,
-                  let raw = notification.userInfo?["section"] as? String,
-                  let section = SettingsSection(rawValue: raw) else { return }
-            self.settingsNavigation.selectedSection = section
-            self.openSettings()
+            guard let raw = notification.userInfo?["section"] as? String else { return }
+            Task { @MainActor [weak self] in
+                guard let self,
+                      let section = SettingsSection(rawValue: raw) else { return }
+                self.settingsNavigation.selectedSection = section
+                self.openSettings()
+            }
         }
     }
 
