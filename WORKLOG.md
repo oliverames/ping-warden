@@ -32,6 +32,8 @@
 
 **Open questions**: Claude must review remaining live interaction and signed-host acceptance in #90 and #78 before release readiness is declared. #93 tracks Product Hunt's account access, duplicate check, preview, date, and submission. Existing sales are supplied by Oliver; no customer count or product-success retest was added.
 
+**Follow-up resolved**: Replaced the cloud-gaming graphic's landscape with a generated composite using the actual landing-page dashboard screenshot. Compared the result with the supplied dashboard and checked the marketing copy and laptop framing. The saved card is 1622 × 970 and 1,327,375 bytes. Updated the prompt record, launch description, and Claude handoff. The untouched screenshot still leads the gallery. No app source or release carrier changed in this follow-up. Build Verification for ba9e285 passed; CodeQL for 8d13d34 and ba9e285 remained in progress when rechecked. Publication remains held.
+
 ## 2026-09-24 - Restore Linux compilation of target validation
 
 The hosted Linux check for 5905784 failed because CustomPingTargetStore imported Darwin unconditionally. The import came from the earlier a344c0c target-validation change. Wrapped it with the same Darwin/Glibc platform selection already used by TCPProbe. Validation and persistence logic remain unchanged.

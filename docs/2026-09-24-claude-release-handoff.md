@@ -36,6 +36,7 @@ Launch preparation commits are 5839f30 and 5905784. Read current Git status, wor
 - The same reviewer approved the platform-import fix. Thirteen focused storage and host-validation tests passed on macOS with zero failures or skips.
 - [Build Verification for 8d13d34](https://github.com/oliverames/ping-warden/actions/runs/36041456305) passed, including the complete app build, bundle validation, macOS tests, Linux tests, and shell checks.
 - [CodeQL for 8d13d34](https://github.com/oliverames/ping-warden/actions/runs/36041456309) was still running when this document was prepared. Recheck its final status before publication.
+- At the subsequent image-correction wrap-up on September 24, [Build Verification for ba9e285](https://github.com/oliverames/ping-warden/actions/runs/36042729444) had passed. CodeQL remained in progress for both 8d13d34 and [ba9e285](https://github.com/oliverames/ping-warden/actions/runs/36042729454).
 - [Native preview record](2026-09-24-targets-native-layout.md) contains light/dark, minimum-size, and add-form captures. A duplicate port label caught in the preview was fixed and rendered again.
 
 Previews used isolated identifiers, in-memory preferences, a separate file root, and inert external services. They are not installed-app or live-interaction evidence. Computer Use failed initialization with error -10005. The other issue-review task also encountered stale accessibility references during its interaction attempt. Do not infer a product bug from those tool failures or claim keyboard acceptance was completed.
@@ -59,6 +60,6 @@ Verify the actual published DMG, embedded versions, signatures and notarization,
 
 ## Product Hunt after release readiness
 
-Use [the launch record](2026-09-24-product-hunt-launch.md) and [listing JSON](product-hunt-2026-09-24/listing.json). Lead with the real `Site/public/dashboard-v4.png` screenshot. The generated cards supplement real app screenshots. Never use the isolated review captures as released product imagery.
+Use [the launch record](2026-09-24-product-hunt-launch.md) and [listing JSON](product-hunt-2026-09-24/listing.json). Lead with the real `Site/public/dashboard-v4.png` screenshot. Oliver's final image correction is complete: `01-cloud-gaming.png` now shows the supplied dashboard inside the laptop display. This generated composite supplements the unchanged original screenshot. The final graphic is 1622 × 970 and below 3 MB. Never use the isolated review captures as released product imagery.
 
 [Issue #93](https://github.com/oliverames/ping-warden/issues/93) tracks the remaining submission. No draft, schedule, or published launch exists. Authenticated maker access, duplicate/draft checking, preview verification, and a launch date remain. September 25 was suggested earlier but never selected. Refresh the copy's verified release metadata after any new app release. Submit only after publication resumes and record the actual resulting URL and status. No outreach or vote solicitation was authorized.

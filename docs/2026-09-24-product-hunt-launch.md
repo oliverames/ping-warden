@@ -79,7 +79,7 @@ Editorial note for Oliver: the closing feedback question and the launch framing 
 ## Gallery and thumbnail
 
 1. [Real dashboard screenshot](../Site/public/dashboard-v4.png). The unmodified screenshot used on the live landing page, verified September 24. Lead with the actual app. Suggested caption: "The Ping Warden dashboard, as shown on the landing page. Intervention counts record attempts to pause AWDL."
-2. [Cloud gaming introduction](product-hunt-2026-09-24/01-cloud-gaming.png). Generated illustration and verified product copy. No simulated app interface or benchmark.
+2. [Cloud gaming introduction](product-hunt-2026-09-24/01-cloud-gaming.png). Generated laptop composite using the supplied landing-page dashboard screenshot and verified product copy. The app appears inside the laptop display. The untouched screenshot remains the first gallery image.
 3. [Sharing tradeoff](product-hunt-2026-09-24/03-sharing-tradeoff.png). Generated explanatory graphic with accurate protection and pause behavior.
 4. [Automation screenshot](images/ping-warden-4-automation.png). Existing, unmodified product screenshot showing the Game Mode option and optional fullscreen-detection permission.
 
@@ -89,7 +89,7 @@ Oliver selected the actual landing-page dashboard screenshot and asked to omit T
 
 The Targets design observation is part of the existing #90 native-design review. Oliver clarified that the app's tab must remain, and explicitly requested a consistent native layout. This task owns that follow-up. Its isolated verification and release status must be recorded separately from the Product Hunt submission.
 
-The [machine-readable fields](product-hunt-2026-09-24/listing.json) mirror this copy. The [image prompt record](product-hunt-2026-09-24/image-prompts.md) records the built-in image-generation prompts. Generated artwork supplements actual screenshots and is not presented as product UI.
+The [machine-readable fields](product-hunt-2026-09-24/listing.json) mirror this copy. The [image prompt record](product-hunt-2026-09-24/image-prompts.md) records the built-in image-generation prompts and subsequent laptop-screen correction. The edited card is a generated composite of the supplied dashboard screenshot, not a pixel-identical capture. It supplements the original app screenshots.
 
 ## Launch-day priorities
 
