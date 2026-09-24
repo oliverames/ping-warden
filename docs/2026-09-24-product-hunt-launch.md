@@ -9,12 +9,13 @@ Prepared for Oliver Ames on September 24, 2026.
 - [x] Read current Product Hunt submission and community guidance.
 - [ ] Verify Product Hunt account access and check for an existing listing or draft.
 - [x] Prepare accurate listing fields, maker comment, and gallery assets.
+- [x] Bring the app's Targets tab into line with the other grouped settings forms and verify native previews. Broader click and keyboard acceptance remains in #90.
 - [ ] Verify the submission preview and launch timing.
 - [ ] Submit and verify the resulting Product Hunt state.
 
 ## Work scope and resume point
 
-This task owns this launch document, launch assets, and its WORKLOG entry. The separate issue-review task owns app fixes and related tests. It has agreed to preserve launch files. No application or storefront behavior changes are part of this launch task.
+This task owns this launch document, launch assets, and its WORKLOG entry. Oliver subsequently requested a native Targets layout correction. The separate issue-review task explicitly released Targets layout ownership to this task after committing its functional changes in a344c0c. Keep those changes intact. The app's Targets tab remains available, with its appearance brought into line with the other settings forms. No storefront behavior changes are part of this task.
 
 The in-app browser loaded Product Hunt but showed Sign in. Chrome's navigation timed out. A recovery attempt returned `Browser is not available: chrome`. The working in-app browser is open at Product Hunt's sign-in dialog. Oliver was asked to sign in to his personal account and choose launch timing. No Product Hunt draft or submission has been created.
 
@@ -57,30 +58,32 @@ Ping Warden helps reduce AWDL-related Wi-Fi stutter in GeForce NOW, Xbox Cloud G
 
 ### First maker comment
 
-Hi Product Hunt, I'm Oliver, the maker of Ping Warden.
+Hi Product Hunt, I'm Oliver, the maker of Ping Warden. It already has paying customers, and I'm bringing it here to reach more Mac cloud gamers.
 
-Mac cloud gaming can stutter even when your internet connection looks healthy. One possible cause is Apple Wireless Direct Link (AWDL), used by AirDrop, AirPlay and Handoff. Turning it off once does not keep it off because macOS can bring it back.
+Apple Wireless Direct Link (AWDL) powers AirDrop, AirPlay and Handoff. Its background activity can interrupt latency-sensitive Wi-Fi traffic. Turning it off once does not keep it off because macOS can bring it back.
 
-Ping Warden keeps AWDL paused while Ping Protection is on. The free dashboard shows latency, jitter and history so you can understand your connection. Protection is useful when AWDL contributes to Wi-Fi interruptions. It cannot fix an overloaded router or a distant game server.
+Ping Warden keeps AWDL paused while Ping Protection is on, helping reduce Wi-Fi stutter in GeForce NOW, Xbox Cloud Gaming, Moonlight and Parsec. The dashboard shows latency, jitter and history, with automatic protection available for gaming sessions.
 
-The tradeoff is explicit: nearby-device features are unavailable while protection is on. Turn it off or use the 10-minute pause when you need them.
+AirDrop, AirPlay and Handoff pause while protection is on. Turn protection off or use the 10-minute pause when you need them.
 
-The dashboard, latency history, diagnostics and updates are free. Ping Protection is $15 once, with no subscription. One key covers the Macs you own and all future updates. The source remains MIT, and the signed, notarized app runs on Intel and Apple silicon with macOS 13 or later.
+The dashboard, latency history, diagnostics and updates are free. Ping Protection is $15 once, with no subscription. One key covers the Macs you own and all future updates. The signed, notarized app runs on Intel and Apple silicon with macOS 13 or later. The source remains MIT.
 
-If you stream games on a Mac, which service do you use, and when do you notice Wi-Fi stutter? I'd like to hear what helps you diagnose it.
+Which cloud gaming service do you use on your Mac, and what would make Ping Warden more useful for your setup?
 
-Editorial note for Oliver: the closing feedback question and the launch framing are proposed here. Product behavior and pricing come from the current public documentation. No personal origin story, performance benchmark, or customer count has been invented.
+Editorial note for Oliver: the closing feedback question and the launch framing are proposed here. Product behavior and pricing come from the current public documentation. Oliver confirmed on September 24 that the app already has substantial sales. The paying-customer statement comes from him. No sales count, personal origin story, or performance benchmark has been invented.
 
 ## Gallery and thumbnail
 
-1. [Cloud gaming introduction](product-hunt-2026-09-24/01-cloud-gaming.png). Generated illustration and verified product copy. No simulated app interface or benchmark.
-2. [Targets screenshot](images/ping-warden-4-targets.png). Existing, unmodified product screenshot with public GeForce NOW target and no custom personal targets.
+1. [Real dashboard screenshot](../Site/public/dashboard-v4.png). The unmodified screenshot used on the live landing page, verified September 24. Lead with the actual app. Suggested caption: "The Ping Warden dashboard, as shown on the landing page. Intervention counts record attempts to pause AWDL."
+2. [Cloud gaming introduction](product-hunt-2026-09-24/01-cloud-gaming.png). Generated illustration and verified product copy. No simulated app interface or benchmark.
 3. [Sharing tradeoff](product-hunt-2026-09-24/03-sharing-tradeoff.png). Generated explanatory graphic with accurate protection and pause behavior.
 4. [Automation screenshot](images/ping-warden-4-automation.png). Existing, unmodified product screenshot showing the Game Mode option and optional fullscreen-detection permission.
 
 Use the existing [app icon](../Site/public/app-icon.png) as the thumbnail. It is square at 256 × 256, close to Product Hunt's 240 × 240 recommendation. All selected images are PNG files below 3 MB. The generated cards preserve the recommended gallery proportions. Original app screenshots retain their native dimensions and need preview checks for legibility.
 
-The September 14 dashboard screenshot was deliberately excluded because it includes older intervention-counter wording and sample readings that could confuse the launch claim. The September 21 isolated review captures show unshipped source changes and are also excluded. No image establishes real-game improvement.
+Oliver selected the actual landing-page dashboard screenshot and asked to omit Targets because its design feels separate from the app. The dashboard contains older intervention-counter wording. Keep the image authentic and clarify the counter in its gallery caption. The September 21 isolated review captures show unshipped source changes and remain excluded. This launch introduces an established paid app to Product Hunt. Verifying the launch fields and changed layout does not require revalidating the product or its sales.
+
+The Targets design observation is part of the existing #90 native-design review. Oliver clarified that the app's tab must remain, and explicitly requested a consistent native layout. This task owns that follow-up. Its isolated verification and release status must be recorded separately from the Product Hunt submission.
 
 The [machine-readable fields](product-hunt-2026-09-24/listing.json) mirror this copy. The [image prompt record](product-hunt-2026-09-24/image-prompts.md) records the built-in image-generation prompts. Generated artwork supplements actual screenshots and is not presented as product UI.
 

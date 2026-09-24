@@ -14,7 +14,7 @@ Oliver requested that the Targets tab remain and match the app's other settings 
 - [x] Complete Oliver's requested independent regression review before committing. No actionable regression findings.
 - [ ] Record live click and keyboard acceptance in #90 when desktop automation is available.
 - [x] Record visual evidence and the independent review.
-- [ ] Commit, push, and record the result in existing #90 tracking.
+- [x] Commit the reviewed layout as fa2819e. Shared acceptance and release status remain in #90.
 
 The application changes are limited to Targets composition in DashboardView.swift and its existing scroll-edge modifier at the SettingsContentView call site. The tab, target selection, update intervals, automatic target selection, validation, add/cancel/save, and removal remain available. The older unused DashboardControlRow is removed.
 

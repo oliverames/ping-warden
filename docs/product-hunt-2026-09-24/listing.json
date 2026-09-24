@@ -3,7 +3,7 @@
   "url": "https://pingwarden.app/",
   "tagline": "Reduce Wi-Fi lag while cloud gaming on your Mac",
   "description": "Ping Warden helps reduce AWDL-related Wi-Fi stutter in GeForce NOW, Xbox Cloud Gaming, Moonlight and Parsec. It pauses Apple's nearby-device networking while you play and graphs your latency. AirDrop, AirPlay and Handoff pause while protection is on. Free dashboard, latency history and diagnostics. Ping Protection is $15 once, with no subscription. Native macOS app for Intel and Apple silicon. Open source under MIT.",
-  "first_comment": "Hi Product Hunt, I'm Oliver, the maker of Ping Warden.\n\nMac cloud gaming can stutter even when your internet connection looks healthy. One possible cause is Apple Wireless Direct Link (AWDL), used by AirDrop, AirPlay and Handoff. Turning it off once does not keep it off because macOS can bring it back.\n\nPing Warden keeps AWDL paused while Ping Protection is on. The free dashboard shows latency, jitter and history so you can understand your connection. Protection is useful when AWDL contributes to Wi-Fi interruptions. It cannot fix an overloaded router or a distant game server.\n\nThe tradeoff is explicit: nearby-device features are unavailable while protection is on. Turn it off or use the 10-minute pause when you need them.\n\nThe dashboard, latency history, diagnostics and updates are free. Ping Protection is $15 once, with no subscription. One key covers the Macs you own and all future updates. The source remains MIT, and the signed, notarized app runs on Intel and Apple silicon with macOS 13 or later.\n\nIf you stream games on a Mac, which service do you use, and when do you notice Wi-Fi stutter? I'd like to hear what helps you diagnose it.",
+  "first_comment": "Hi Product Hunt, I'm Oliver, the maker of Ping Warden. It already has paying customers, and I'm bringing it here to reach more Mac cloud gamers.\n\nApple Wireless Direct Link (AWDL) powers AirDrop, AirPlay and Handoff. Its background activity can interrupt latency-sensitive Wi-Fi traffic. Turning it off once does not keep it off because macOS can bring it back.\n\nPing Warden keeps AWDL paused while Ping Protection is on, helping reduce Wi-Fi stutter in GeForce NOW, Xbox Cloud Gaming, Moonlight and Parsec. The dashboard shows latency, jitter and history, with automatic protection available for gaming sessions.\n\nAirDrop, AirPlay and Handoff pause while protection is on. Turn protection off or use the 10-minute pause when you need them.\n\nThe dashboard, latency history, diagnostics and updates are free. Ping Protection is $15 once, with no subscription. One key covers the Macs you own and all future updates. The signed, notarized app runs on Intel and Apple silicon with macOS 13 or later. The source remains MIT.\n\nWhich cloud gaming service do you use on your Mac, and what would make Ping Warden more useful for your setup?",
   "proposed_launch_tags": [
     "Mac",
     "Gaming",
@@ -21,8 +21,8 @@
   ],
   "thumbnail": "Site/public/app-icon.png",
   "gallery": [
+    "Site/public/dashboard-v4.png",
     "docs/product-hunt-2026-09-24/01-cloud-gaming.png",
-    "docs/images/ping-warden-4-targets.png",
     "docs/product-hunt-2026-09-24/03-sharing-tradeoff.png",
     "docs/images/ping-warden-4-automation.png"
   ],
@@ -40,5 +40,8 @@
     "Live form values, gallery preview, submission and resulting status verification"
   ],
   "verified_release": "4.2.0",
-  "prepared_on": "2026-09-24"
+  "prepared_on": "2026-09-24",
+  "gallery_captions": {
+    "Site/public/dashboard-v4.png": "The Ping Warden dashboard, as shown on the landing page. Intervention counts record attempts to pause AWDL."
+  }
 }

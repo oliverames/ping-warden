@@ -22,11 +22,21 @@
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
 
+## 2026-09-24 - Match Targets to native settings
+
+Committed the Targets layout as fa2819e. Replaced its dashboard cards and manual columns with the same grouped Form and native sections used by General. Preserved the Targets tab, bindings, target refresh and selection, custom-target actions, validation, and keyboard shortcuts. The scroll-edge treatment stays at the existing settings call site.
+
+The production Xcode build succeeds, and all 26 existing actual-source presentation checks pass. Separate native previews verify light/dark appearance, the minimum 760 × 520 layout, and the add-server form. Fixed a duplicate port label identified in that preview. See the [verification record and captures](docs/2026-09-24-targets-native-layout.md).
+
+Oliver requested an independent regression reviewer before committing. The reviewer found no actionable regressions. All 18 focused existing tests passed with zero failures or skips, and root inspected the output. Target selection, persistence, validation, fallback, busy states, focus, and keyboard bindings were reviewed. Live keyboard and click checks remain in #90 after Computer Use initialization failed with -10005. No installed app, helper, licensing, or network configuration was changed.
+
 ## 2026-09-24 - Prepare Product Hunt launch
 
 Prepared the [launch record](docs/2026-09-24-product-hunt-launch.md), machine-readable listing fields, maker comment, two generated explanatory gallery cards, and an ordered selection of existing screenshots and thumbnail. The launch copy emphasizes AWDL-related Mac cloud-gaming interruptions, the free dashboard, the $15 one-time protection license, and the nearby-device-sharing tradeoff. The account-review task coordinated ownership and preserved these launch files while integrating its app changes.
 
-Verified the public landing page and Gumroad offer, and GitHub's current 4.2.0 release metadata. The tagline is 47 characters, description 419 characters, and maker comment 196 words. All five selected PNG files exist and are below 3 MB. The generated cards are 1621 × 970, the original screenshots 2978 × 2648, and the thumbnail 256 × 256. Copy and graphics were inspected. No performance benchmark, new-user protection trial, or newer app release is claimed.
+Verified the public landing page and Gumroad offer, and GitHub's current 4.2.0 release metadata. The tagline is 47 characters, description 419 characters, and maker comment 185 words. All five selected PNG files exist and are below 3 MB. The generated cards are 1621 × 970, the original screenshots 2978 × 2648, and the thumbnail 256 × 256. Copy and graphics were inspected. No performance benchmark, new-user protection trial, or newer app release is claimed.
+
+Oliver subsequently chose the real landing-page dashboard screenshot to lead the gallery. Targets is omitted from the gallery, and its tab is retained in the app with a native grouped settings layout. Confirmed the live page uses `/dashboard-v4.png`, with a complete 2978 × 2648 image. The gallery caption clarifies that intervention counts record attempts. Oliver confirmed existing sales, and the maker comment presents this as an established paid app arriving on Product Hunt. The existing native-design review task received the Targets observation.
 
 Product Hunt's sign-in dialog is open in the in-app browser. Chrome navigation timed out, and its recovery returned `Browser is not available: chrome`. Oliver was asked to sign in and select a launch date. No submission, Product Hunt draft, scheduled launch, outreach, discount, app release, or installed-app change occurred. The remaining steps are authenticated duplicate/draft checking, profile and tag verification, gallery preview, scheduling, submission, and confirmation of the resulting status.
 
