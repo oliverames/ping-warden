@@ -214,15 +214,11 @@ struct TargetsSettingsContent: View {
     @StateObject private var viewModel = DashboardViewModel()
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
-                ServerSelectionCard(viewModel: viewModel)
-                CustomServersCard(viewModel: viewModel)
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        Form {
+            ServerSelectionSettingsSection(viewModel: viewModel)
+            CustomServersSettingsSection(viewModel: viewModel)
         }
-        .scrollContentBackground(.hidden)
+        .formStyle(.grouped)
         .onAppear { viewModel.start() }
         .onDisappear { viewModel.stop() }
     }
@@ -1422,120 +1418,122 @@ struct InnerCalloutBackground: ViewModifier {
     }
 }
 
-// MARK: - Server Selection Card
+// MARK: - Server Selection Settings
 
-struct ServerSelectionCard: View {
+struct ServerSelectionSettingsSection: View {
     @ObservedObject var viewModel: DashboardViewModel
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Connection Settings")
-                .font(.headline)
-            
-            VStack(spacing: 0) {
-                DashboardControlRow("Ping Server", description: "Target used for latency measurements") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Picker("Server", selection: $viewModel.selectedTargetID) {
-                            ForEach(viewModel.targets) { target in
-                                Text(target.displayName).tag(target.id)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .accessibilityLabel("Ping server")
-                        .frame(maxWidth: 360, alignment: .leading)
-                        .disabled(viewModel.targets.isEmpty)
-
-                        if let selectedTarget = viewModel.selectedTarget {
-                            Text("\(selectedTarget.host):\(selectedTarget.port)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if viewModel.isRefreshingGFNServers {
-                            Text("Refreshing GeForce NOW zones...")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        } else if let gfnRefreshError = viewModel.gfnRefreshError {
-                            HStack(spacing: 6) {
-                                Text(gfnRefreshError)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Button("Retry") {
-                                    viewModel.refreshGeForceNOWTargetsOnDemand()
-                                }
-                                .buttonStyle(.borderless)
-                                .font(.caption2)
-                                .accessibilityLabel("Retry refreshing GeForce NOW zones")
-                            }
-                        }
-
-                        HStack(spacing: 8) {
-                            Button {
-                                viewModel.autoSelectNearestEndpoint()
-                            } label: {
-                                if viewModel.isAutoSelectingTarget {
-                                    HStack(spacing: 6) {
-                                        ProgressView()
-                                            .controlSize(.small)
-                                        Text("Finding Fastest Target...")
-                                    }
-                                } else {
-                                    Text("Find Fastest Target")
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(viewModel.isAutoSelectingTarget || viewModel.targets.isEmpty)
-                            .accessibilityLabel(
-                                viewModel.isAutoSelectingTarget
-                                    ? "Finding fastest latency target"
-                                    : "Find fastest latency target"
-                            )
-
-                            if let selectedTarget = viewModel.selectedTarget,
-                               let baseline = viewModel.baselineLatencyResults[selectedTarget.id] {
-                                Text(String(format: "Baseline %.0f ms", baseline))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-
-                        if let autoSelectionError = viewModel.autoSelectionError {
-                            Label(autoSelectionError, systemImage: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                                .accessibilityLabel("Target selection error: \(autoSelectionError)")
-                        }
-                    }
+        Section("Connection Settings") {
+            Picker(selection: $viewModel.selectedTargetID) {
+                ForEach(viewModel.targets) { target in
+                    Text(target.displayName).tag(target.id)
                 }
-                
-                Divider()
-                
-                DashboardControlRow("Update Interval", description: "How often ping samples are captured") {
-                    Picker("Interval", selection: $viewModel.updateInterval) {
-                        Text("1 second").tag(TimeInterval(1))
-                        Text("2 seconds").tag(TimeInterval(2))
-                        Text("5 seconds").tag(TimeInterval(5))
-                        Text("10 seconds").tag(TimeInterval(10))
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ping Server")
+                    if let selectedTarget = viewModel.selectedTarget {
+                        Text("\(selectedTarget.host):\(selectedTarget.port)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .accessibilityLabel("Update interval")
-                    .frame(maxWidth: 150, alignment: .leading)
                 }
             }
+            .pickerStyle(.menu)
+            .accessibilityLabel("Ping server")
+            .help("Target used for latency measurements")
+            .disabled(viewModel.targets.isEmpty)
+
+            if viewModel.isRefreshingGFNServers {
+                Text("Refreshing GeForce NOW zones...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let gfnRefreshError = viewModel.gfnRefreshError {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(gfnRefreshError)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    Button("Retry") {
+                        viewModel.refreshGeForceNOWTargetsOnDemand()
+                    }
+                    .controlSize(.small)
+                    .accessibilityLabel("Retry refreshing GeForce NOW zones")
+                }
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Compare available latency targets")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let selectedTarget = viewModel.selectedTarget,
+                       let baseline = viewModel.baselineLatencyResults[selectedTarget.id] {
+                        Text(String(format: "Baseline %.0f ms", baseline))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button {
+                    viewModel.autoSelectNearestEndpoint()
+                } label: {
+                    if viewModel.isAutoSelectingTarget {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Finding Fastest Target...")
+                        }
+                    } else {
+                        Text("Find Fastest Target")
+                    }
+                }
+                .controlSize(.small)
+                .disabled(viewModel.isAutoSelectingTarget || viewModel.targets.isEmpty)
+                .accessibilityLabel(
+                    viewModel.isAutoSelectingTarget
+                        ? "Finding fastest latency target"
+                        : "Find fastest latency target"
+                )
+            }
+
+            if let autoSelectionError = viewModel.autoSelectionError {
+                Label(autoSelectionError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Target selection error: \(autoSelectionError)")
+            }
+
+            Picker(selection: $viewModel.updateInterval) {
+                Text("1 second").tag(TimeInterval(1))
+                Text("2 seconds").tag(TimeInterval(2))
+                Text("5 seconds").tag(TimeInterval(5))
+                Text("10 seconds").tag(TimeInterval(10))
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Update Interval")
+                    Text("How often ping samples are captured")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityLabel("Update interval")
         }
-        .dashboardCardStyle()
     }
 }
 
-// MARK: - Custom Servers Card
+// MARK: - Custom Servers Settings
 
 /// Lets the user add their own ping targets (issue #29). Persists through
 /// `DashboardViewModel.addCustomTarget` / `removeCustomTarget` so the same
 /// validation path runs whether input comes from this UI or from a future
 /// import/config-file flow.
-struct CustomServersCard: View {
+struct CustomServersSettingsSection: View {
     private enum Field: Hashable {
         case name
         case host
@@ -1552,126 +1550,98 @@ struct CustomServersCard: View {
     @AccessibilityFocusState private var validationErrorFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Custom Servers")
-                    .font(.headline)
-                Spacer()
-                if !isAdding {
+        Section {
+            ForEach(viewModel.customTargets) { target in
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(target.displayName)
+                        Text("\(target.host):\(target.port)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    Spacer()
+                    Button {
+                        viewModel.removeCustomTarget(id: target.id)
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Remove \(target.displayName)")
+                    .help("Remove \(target.displayName)")
+                }
+            }
+
+            if isAdding {
+                TextField("Name", text: $newName, prompt: Text("For example, NextDNS"))
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focusedField, equals: .name)
+                    .accessibilityLabel("Server name")
+
+                TextField("Host", text: $newHost, prompt: Text("Hostname or IP address"))
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focusedField, equals: .host)
+                    .accessibilityLabel("Server host")
+
+                LabeledContent("Port") {
+                    TextField("53", text: $newPortText)
+                        .textFieldStyle(.roundedBorder)
+                        .labelsHidden()
+                        .frame(width: 80)
+                        .focused($focusedField, equals: .port)
+                        .accessibilityLabel("Port")
+                        .onChangeCompat(of: newPortText) { newValue in
+                            let filtered = newValue.filter(\.isNumber)
+                            if filtered != newValue {
+                                newPortText = filtered
+                            }
+                        }
+                }
+
+                if let validationMessage {
+                    Text(validationMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel("Validation error: \(validationMessage)")
+                        .accessibilityFocused($validationErrorFocused)
+                }
+
+                HStack {
+                    Spacer()
+                    Button("Cancel") {
+                        cancelAdd()
+                    }
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut(.cancelAction)
+                    Button("Save") {
+                        commitAdd()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || newHost.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            } else {
+                HStack {
+                    if viewModel.customTargets.isEmpty {
+                        Text("No custom servers")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
                     Button {
                         beginAdd()
                     } label: {
                         Label("Add Server", systemImage: "plus")
                     }
-                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
             }
-
-            if viewModel.customTargets.isEmpty && !isAdding {
-                Text("Add your own DNS or ping targets (e.g. NextDNS, Control D) to monitor latency to servers we don't ship with.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if !viewModel.customTargets.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(Array(viewModel.customTargets.enumerated()), id: \.element.id) { index, target in
-                        if index > 0 {
-                            Divider()
-                        }
-                        HStack(alignment: .center, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(target.displayName)
-                                    .font(.body)
-                                Text("\(target.host):\(target.port)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button {
-                                viewModel.removeCustomTarget(id: target.id)
-                            } label: {
-                                Image(systemName: "trash")
-                                    .foregroundStyle(.red)
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Remove \(target.displayName)")
-                            .help("Remove \(target.displayName)")
-                        }
-                        .padding(.vertical, 8)
-                    }
-                }
-            }
-
-            if isAdding {
-                Divider()
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Name")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextField("For example, NextDNS", text: $newName)
-                            .textFieldStyle(.roundedBorder)
-                            .focused($focusedField, equals: .name)
-                            .accessibilityLabel("Server name")
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Host")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextField("Hostname or IP address", text: $newHost)
-                            .textFieldStyle(.roundedBorder)
-                            .focused($focusedField, equals: .host)
-                            .accessibilityLabel("Server host")
-                    }
-
-                    HStack(spacing: 8) {
-                        Text("Port")
-                            .foregroundStyle(.secondary)
-                        TextField("53", text: $newPortText)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 80)
-                            .focused($focusedField, equals: .port)
-                            .accessibilityLabel("Port")
-                            .onChangeCompat(of: newPortText) { newValue in
-                                let filtered = newValue.filter(\.isNumber)
-                                if filtered != newValue {
-                                    newPortText = filtered
-                                }
-                            }
-                        Spacer()
-                    }
-
-                    if let validationMessage {
-                        Text(validationMessage)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .accessibilityLabel("Validation error: \(validationMessage)")
-                            .accessibilityFocused($validationErrorFocused)
-                    }
-
-                    HStack {
-                        Spacer()
-                        Button("Cancel") {
-                            cancelAdd()
-                        }
-                        .buttonStyle(.bordered)
-                        .keyboardShortcut(.cancelAction)
-                        Button("Save") {
-                            commitAdd()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || newHost.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                }
-                .padding(.top, 4)
-            }
+        } header: {
+            Text("Custom Servers")
+        } footer: {
+            Text("Add your own DNS or ping targets (e.g. NextDNS, Control D) to monitor latency to servers we don't ship with.")
         }
-        .dashboardCardStyle()
     }
 
     private func beginAdd() {
@@ -1722,52 +1692,6 @@ struct CustomServersCard: View {
         validationMessage = message
         Task { @MainActor in
             validationErrorFocused = true
-        }
-    }
-}
-
-struct DashboardControlRow<Content: View>: View {
-    let title: String
-    let description: String?
-    let content: Content
-    @ScaledMetric(relativeTo: .body) private var labelColumnWidth: CGFloat = 220
-
-    init(_ title: String, description: String? = nil, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.description = description
-        self.content = content()
-    }
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 28) {
-                labelColumn
-                    .frame(width: labelColumnWidth, alignment: .leading)
-
-                content
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(1)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                labelColumn
-                content
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(.vertical, 10)
-    }
-
-    private var labelColumn: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.body)
-            if let description {
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 }

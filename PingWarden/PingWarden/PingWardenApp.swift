@@ -1776,6 +1776,7 @@ struct SettingsContentView: View {
                 LicenseSettingsContent()
             case .targets:
                 TargetsSettingsContent()
+                    .settingsScrollEdgeTreatment()
             case .automation:
                 AutomationSettingsContent()
             case .advanced:
