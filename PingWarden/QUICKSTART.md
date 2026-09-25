@@ -50,7 +50,7 @@ The Control Center widget requires [macOS Tahoe 26](https://support.apple.com/en
 
 1. Click **Control Center** in the menu bar, then click **Edit Controls**.
 2. Find **Ping Protection** and add it. To pin it to the menu bar, drag it there while you edit.
-3. Optional: open **Settings > Automation** and turn on **Hide Menu Bar Icon** so the toggle replaces Ping Warden's own menu bar icon. Ping Warden stays in the Dock so settings remain available.
+3. Optional: open **Settings > Automation** and turn on **Hide Menu Bar Icon** so the toggle replaces Ping Warden's own menu bar icon. Open Ping Warden from Applications or Spotlight to return to Settings.
 
 ## Everyday controls
 

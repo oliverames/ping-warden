@@ -3,6 +3,7 @@
 ## Open items
 
 - Publish the updated `docs/gumroad-product-description.html` to Gumroad and deploy the site after the Control Center marketing change merges. The corrected in-app Control Center strings ship with the next release (since 2026-09-25)
+- Verify on a Mac with the next build: with both icons hidden, a Finder or Spotlight launch opens Settings, a Launch at Login start stays silent, a Control Center toggle launch stays silent, and reopening a running app opens Settings. Then add "hide the Dock icon too" to the README, homepage, and release notes (since 2026-09-25)
 - Capture a Control Center screenshot of the Ping Protection toggle, and one with it pinned to the menu bar, for the homepage and README. Needs a Mac on macOS 26 (since 2026-09-25)
 - Product Hunt waits for new gallery images and a website redesign, with several alternative designs for Oliver to choose from. Not scheduled. No draft or launch exists (since 2026-09-24; [#93](https://github.com/oliverames/ping-warden/issues/93))
 - Decide how to run CI locally instead of on GitHub-hosted runners, which have a usage limit (since 2026-09-24; [#94](https://github.com/oliverames/ping-warden/issues/94))
@@ -28,7 +29,9 @@
 
 **What changed**: A new competitor, AWDL Toggle (github.com/yay/awdl-toggle, posted to r/MacOSBeta on 2026-09-15), leads with a Control Center switch and no menu bar icon. Ping Warden already ships both, so the toggle is now a named feature: a "One switch in Control Center" section on the homepage, a Control Center toggle section and nav link in the README (which also feeds `/docs/overview`), and a "Control it your way" paragraph in `docs/gumroad-product-description.html`. Separately, the Settings footer, the Hide Menu Bar Icon confirmation, the Quick Start, and Troubleshooting told people to add the control in System Settings > Control Center. On macOS 26, third-party controls come from Control Center > Edit Controls (Apple, "Customize the menu bar on Mac"). The guides also implied hiding the menu bar icon was required; it is optional.
 
-**Decisions made**: Kept the Dock-icon lockout invariant (H2) unchanged, so the copy says the app stays in the Dock when the menu bar icon is hidden. Dropped a homepage header link to the new section because four links wrapped the header at phone width. The toggle-reflects-Game-Mode claim was checked against the code: the `effectiveMonitoringEnabled` setter reloads the control.
+**Dock icon (follow-up the same day)**: Oliver chose to allow hiding both the menu bar and Dock icons. The H2 lockout guard that forced the Dock icon on in Control Center mode is gone. `InterfaceVisibilityPolicy` (Core, with tests) decides instead: a launch the person starts opens Settings when no icon is visible, while login-item launches (the `keyAELaunchedAsLogInItem` Apple event) and Control Center launches (the widget now passes `--launched-by-control-center`) stay silent. Reopening a running app already opened Settings (#28). Existing users keep their current Dock setting. Public copy avoids Dock claims because the site deploys on merge before the app ships; it says to open Ping Warden from Applications or Spotlight, which is true in 4.2.1 and after.
+
+**Decisions made**: Dropped a homepage header link to the new section because four links wrapped the header at phone width. The toggle-reflects-Game-Mode claim was checked against the code: the `effectiveMonitoringEnabled` setter reloads the control.
 
 ## 2026-09-24 - Released 4.2.1
 

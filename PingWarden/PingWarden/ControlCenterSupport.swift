@@ -50,7 +50,7 @@ enum ControlCenterSupport {
         var detailText: String {
             switch self {
             case .available:
-                return "Use the Control Center toggle and keep Ping Warden in the Dock"
+                return "Use the Control Center toggle instead of the menu bar icon"
             case .unsupportedOS:
                 return "Requires macOS 26 or newer"
             case .missingWidgetExtension:
