@@ -140,6 +140,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("Ping Warden launching...")
 
+        // Read while the launch Apple event is still current. A login-item
+        // or Control Center launch should not open Settings even when both
+        // icons are hidden; a launch the person started should.
+        let launchEvent = NSAppleEventManager.shared().currentAppleEvent
+        let launchedAsLoginItem = launchEvent?.eventID == kAEOpenApplication
+            && launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+        let launchedByControlCenter = ProcessInfo.processInfo.arguments
+            .contains(InterfaceVisibilityPolicy.controlCenterLaunchArgument)
+
         sessionCoordinator.onSessionStateChanged = { [weak self] in
             self?.updateQuickActionMenuItems()
         }
@@ -272,7 +281,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     guard self.welcomePresentation.shouldPresentAutomatically(
                         helperIsRegistered: PingWardenMonitor.shared.isHelperRegistered
-                    ) else { return }
+                    ) else {
+                        self.openSettingsIfNoVisibleEntryPoint(
+                            launchedAsLoginItem: launchedAsLoginItem,
+                            launchedByControlCenter: launchedByControlCenter
+                        )
+                        return
+                    }
                     self.showWelcomeWindow()
                 }
             }
@@ -282,6 +297,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             // protection and it isn't running, but also stop if a widget/
             // Shortcuts toggle turned it off while the app wasn't running.
             handleMonitoringStateChange()
+            if debugWindowTarget == nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.openSettingsIfNoVisibleEntryPoint(
+                        launchedAsLoginItem: launchedAsLoginItem,
+                        launchedByControlCenter: launchedByControlCenter
+                    )
+                }
+            }
         }
 
 #if DEBUG
@@ -374,8 +397,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        // Safety net for issue #28: when the menu bar icon is hidden (Control Center mode)
-        // and the dock icon is off, re-launching the app is the only way back in.
+        // Issue #28: when the menu bar icon is hidden (Control Center mode) and
+        // the Dock icon is off, opening the app again is the way back in.
         // Always open Settings when the app is re-opened with no visible windows.
         if !flag {
             openSettings()
@@ -438,24 +461,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let welcomeVisible = welcomeWindow?.isVisible ?? false
         let licenseNoticeVisible = licenseNoticeWindow?.isVisible ?? false
 
-        // Lockout invariant (H2): never hide the dock icon while Control
-        // Center mode has the menu bar icon removed. Without this, unchecking
-        // "Show Dock Icon" after enabling Control Center mode leaves no way
-        // into the app except re-launching from Finder — and the state
-        // persists across launches. (Checked against the preference, not
-        // `statusItem == nil`, because this also runs at launch before
-        // setupMenuBar() when statusItem is legitimately still nil.)
-        if PingWardenPreferences.shared.controlCenterWidgetEnabled,
-           !PingWardenPreferences.shared.showDockIcon {
-            log.info("Menu bar icon is hidden (Control Center mode) — forcing dock icon on to prevent lockout")
-            PingWardenPreferences.shared.showDockIcon = true
-            // Deliberately fall through (no early return): at launch this
-            // runs before the dockIconVisibilityChanged observer exists, so
-            // relying on the setter's notification to re-enter would leave
-            // the activation policy unset for the whole session.
-        }
+        // Control Center mode hides the Dock icon too. Opening the app from
+        // Finder, Spotlight, or Launchpad reaches Settings through
+        // applicationShouldHandleReopen, or through
+        // openSettingsIfNoVisibleEntryPoint on a fresh launch.
+        let dockIconShown = InterfaceVisibilityPolicy.isDockIconShown(
+            showDockIconPreference: PingWardenPreferences.shared.showDockIcon,
+            menuBarIconHidden: InterfaceVisibilityPolicy.isMenuBarIconHidden(
+                controlCenterModeEnabled: PingWardenPreferences.shared.controlCenterWidgetEnabled,
+                controlCenterAvailable: ControlCenterSupport.isAvailableForCurrentApp()
+            )
+        )
 
-        if PingWardenPreferences.shared.showDockIcon || settingsVisible || aboutVisible || welcomeVisible || licenseNoticeVisible {
+        if dockIconShown || settingsVisible || aboutVisible || welcomeVisible || licenseNoticeVisible {
             NSApp.setActivationPolicy(.regular)
             ensureApplicationMenuItems()
         } else {
@@ -892,6 +910,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             statusMenu = nil
         }
         stopMenuMetricsMonitoring()
+    }
+
+    /// Control Center mode leaves no menu bar or Dock icon, so a launch the
+    /// person started would otherwise show nothing at all.
+    private func openSettingsIfNoVisibleEntryPoint(launchedAsLoginItem: Bool, launchedByControlCenter: Bool) {
+        let preferences = PingWardenPreferences.shared
+        let menuBarIconHidden = InterfaceVisibilityPolicy.isMenuBarIconHidden(
+            controlCenterModeEnabled: preferences.controlCenterWidgetEnabled,
+            controlCenterAvailable: ControlCenterSupport.isAvailableForCurrentApp()
+        )
+        guard InterfaceVisibilityPolicy.shouldOpenSettingsAtLaunch(
+            menuBarIconHidden: menuBarIconHidden,
+            launchedAsLoginItem: launchedAsLoginItem,
+            launchedByControlCenter: launchedByControlCenter
+        ) else { return }
+        guard !(welcomeWindow?.isVisible ?? false), !(licenseNoticeWindow?.isVisible ?? false) else { return }
+        log.info("Control Center mode has no app icon; opening Settings for a direct launch")
+        openSettings()
     }
 
     @objc func openSettings() {
@@ -1542,13 +1578,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // For unsigned/ad-hoc signed apps, always keep menu bar visible
         let isProperlySignedForControlCenter = ControlCenterSupport.isAvailableForCurrentApp()
 
+        defer { updateDockIconVisibility() }
         if PingWardenPreferences.shared.controlCenterWidgetEnabled && isProperlySignedForControlCenter {
-            // Safety invariant (H2): never remove the menu bar if the dock icon is also hidden,
-            // as this would leave the user with no way to access the app.
-            if !PingWardenPreferences.shared.showDockIcon {
-                log.info("Control Center mode enabled — forcing dock icon on to prevent lockout")
-                PingWardenPreferences.shared.showDockIcon = true
-            }
             removeMenuBar()
         } else {
             // Reset preference if widget isn't available
@@ -1860,11 +1891,21 @@ struct GeneralSettingsContent: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var showDockIcon = PingWardenPreferences.shared.showDockIcon
     @State private var showMenuDropdownMetrics = PingWardenPreferences.shared.showMenuDropdownMetrics
+    @State private var controlCenterModeActive = GeneralSettingsContent.isControlCenterModeActive()
     @State private var settingsErrorMessage: String?
     @State private var isFinishingSetup = false
 
     init(onCheckForUpdates: @escaping () -> Void = {}) {
         self.onCheckForUpdates = onCheckForUpdates
+    }
+
+    /// Control Center mode removes both the menu bar and Dock icons, so the
+    /// Dock and menu options have nothing to act on while it is on.
+    private static func isControlCenterModeActive() -> Bool {
+        InterfaceVisibilityPolicy.isMenuBarIconHidden(
+            controlCenterModeEnabled: PingWardenPreferences.shared.controlCenterWidgetEnabled,
+            controlCenterAvailable: ControlCenterSupport.isAvailableForCurrentApp()
+        )
     }
 
     var body: some View {
@@ -2000,7 +2041,7 @@ struct GeneralSettingsContent: View {
                 }
             }
 
-            Section("App") {
+            Section {
                 Toggle(isOn: Binding(
                     get: { launchAtLogin },
                     set: { newValue in
@@ -2026,7 +2067,12 @@ struct GeneralSettingsContent: View {
                     }
                 }
 
-                Toggle(isOn: $showDockIcon) {
+                // Shown off while Control Center mode hides the icon; the
+                // saved choice returns when that mode is turned off.
+                Toggle(isOn: Binding(
+                    get: { showDockIcon && !controlCenterModeActive },
+                    set: { showDockIcon = $0 }
+                )) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Show Dock Icon")
                         Text("Display app icon in the Dock")
@@ -2034,6 +2080,7 @@ struct GeneralSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .disabled(controlCenterModeActive)
                 .onChangeCompat(of: showDockIcon) { newValue in
                     PingWardenPreferences.shared.showDockIcon = newValue
                 }
@@ -2046,8 +2093,15 @@ struct GeneralSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .disabled(controlCenterModeActive)
                 .onChangeCompat(of: showMenuDropdownMetrics) { newValue in
                     PingWardenPreferences.shared.showMenuDropdownMetrics = newValue
+                }
+            } header: {
+                Text("App")
+            } footer: {
+                if controlCenterModeActive {
+                    Text("Control Center Only is on in Automation, so Ping Warden has no menu bar or Dock icon. Use the Control Center toggle, and open Ping Warden from Applications or Spotlight to return to Settings.")
                 }
             }
 
@@ -2065,9 +2119,13 @@ struct GeneralSettingsContent: View {
         .settingsScrollEdgeTreatment()
         .onAppear {
             monitorState.startObserving()
+            controlCenterModeActive = Self.isControlCenterModeActive()
         }
         .onDisappear {
             monitorState.stopObserving()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .controlCenterModeChanged)) { _ in
+            controlCenterModeActive = Self.isControlCenterModeActive()
         }
         .alert(
             "Setting Could Not Be Changed",
@@ -2384,7 +2442,7 @@ struct AutomationSettingsContent: View {
                 Toggle(isOn: $controlCenterEnabled) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
-                            Text("Hide Menu Bar Icon")
+                            Text("Control Center Only")
                             if !controlCenterAvailability.isAvailable {
                                 StatusBadge(text: controlCenterAvailability.statusText, tint: .unavailable)
                             }
@@ -2394,8 +2452,8 @@ struct AutomationSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .accessibilityLabel("Hide Menu Bar Icon")
-                .accessibilityHint("Keeps Ping Warden in the Dock and uses the Control Center toggle instead of the menu bar icon")
+                .accessibilityLabel("Control Center Only")
+                .accessibilityHint("Uses the Control Center toggle instead of the menu bar and Dock icons")
                 .disabled(!controlCenterAvailability.isAvailable)
                 .onChangeCompat(of: controlCenterEnabled) { newValue in
                     if newValue {
@@ -2412,7 +2470,7 @@ struct AutomationSettingsContent: View {
                 if controlCenterAvailability.isAvailable && controlCenterEnabled {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(controlCenterAvailability.footerText)
-                        Text("Ping Warden stays in the Dock so settings remain available.")
+                        Text("Ping Warden also leaves the Dock. Open it from Applications or Spotlight to return to Settings.")
                     }
                 } else if !controlCenterAvailability.isAvailable {
                     Text(controlCenterAvailability.footerText)
@@ -2438,18 +2496,18 @@ struct AutomationSettingsContent: View {
             Text("Game Mode auto-detect already recognizes a game when it is the frontmost app. Allowing Screen Recording lets it also notice a fullscreen game behind other windows. Ping Warden reads only window metadata and never captures or saves screen contents.")
         }
         .confirmationDialog(
-            "Hide Menu Bar Icon?",
+            "Use Control Center Only?",
             isPresented: $showingControlCenterConfirm,
             titleVisibility: .visible
         ) {
-            Button("Hide Menu Bar Icon") {
+            Button("Use Control Center Only") {
                 PingWardenPreferences.shared.controlCenterWidgetEnabled = true
             }
             Button("Cancel", role: .cancel) {
                 controlCenterEnabled = false
             }
         } message: {
-            Text("The menu bar icon will be hidden, and Ping Warden will stay visible in the Dock. Add the Ping Protection control in System Settings if it is not already in Control Center.")
+            Text("Ping Warden's menu bar and Dock icons will be hidden. Add the Ping Protection control from Control Center → Edit Controls if it is not already there. To return to Settings, open Ping Warden from Applications or Spotlight.")
         }
     }
 

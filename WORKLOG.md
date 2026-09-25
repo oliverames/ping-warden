@@ -2,6 +2,9 @@
 
 ## Open items
 
+- Publish the updated `docs/gumroad-product-description.html` to Gumroad and deploy the site after the Control Center marketing change merges. The corrected in-app Control Center strings ship with the next release (since 2026-09-25)
+- Mac verification of Control Center Only mode (launch paths, Dock restore, settings UI, toggle state) and the post-release copy updates: [#96](https://github.com/oliverames/ping-warden/issues/96) (since 2026-09-25)
+- Control Center screenshots for the homepage and README, tracked in [#96](https://github.com/oliverames/ping-warden/issues/96) (since 2026-09-25)
 - Product Hunt waits for new gallery images and a website redesign, with several alternative designs for Oliver to choose from. Not scheduled. No draft or launch exists (since 2026-09-24; [#93](https://github.com/oliverames/ping-warden/issues/93))
 - Decide how to run CI locally instead of on GitHub-hosted runners, which have a usage limit (since 2026-09-24; [#94](https://github.com/oliverames/ping-warden/issues/94))
 - Signed-app acceptance on the installed app after it updates from 4.2.0 to 4.2.1: What's New, the Help release link, preference persistence, no donation buttons, Targets menu pickers, focus after an invalid host, and license-field Return (since 2026-09-14; [#78](https://github.com/oliverames/ping-warden/issues/78), [#90](https://github.com/oliverames/ping-warden/issues/90))
@@ -21,6 +24,16 @@
 - README mention of the beta channel, deferred until a 2.4.0 build shipped; the README currently does not mention it (since 2026-05-27) (unverified)
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
+
+## 2026-09-25 - Control Center toggle in marketing
+
+**What changed**: A new competitor, AWDL Toggle (github.com/yay/awdl-toggle, posted to r/MacOSBeta on 2026-09-15), leads with a Control Center switch and no menu bar icon. Ping Warden already ships both, so the toggle is now a named feature: a "One switch in Control Center" section on the homepage, a Control Center toggle section and nav link in the README (which also feeds `/docs/overview`), and a "Control it your way" paragraph in `docs/gumroad-product-description.html`. Separately, the Settings footer, the Hide Menu Bar Icon confirmation, the Quick Start, and Troubleshooting told people to add the control in System Settings > Control Center. On macOS 26, third-party controls come from Control Center > Edit Controls (Apple, "Customize the menu bar on Mac"). The guides also implied hiding the menu bar icon was required; it is optional.
+
+**Dock icon (follow-up the same day)**: Oliver chose to allow hiding both the menu bar and Dock icons. The H2 lockout guard that forced the Dock icon on in Control Center mode is gone. `InterfaceVisibilityPolicy` (Core, with tests) decides instead: a launch the person starts opens Settings when no icon is visible, while login-item launches (the `keyAELaunchedAsLogInItem` Apple event) and Control Center launches (the widget now passes `--launched-by-control-center`) stay silent. Reopening a running app already opened Settings (#28). Existing users keep their current Dock setting. Public copy avoids Dock claims because the site deploys on merge before the app ships; it says to open Ping Warden from Applications or Spotlight, which is true in 4.2.1 and after. Oliver then asked that Control Center mode always hide the Dock icon, so opening the app is the single route to Settings. The Show Dock Icon preference is kept but ignored while the mode is on, and General disables it and Show Live Metrics in Menu. Competitor notes and an optional, unposted reply draft are in `docs/2026-09-25-competitor-awdl-toggle.md`; the recommendation is not to post. Troubleshooting gained a hidden-icon entry, and the awdl0 guide lists AWDL Toggle among free options. The setting was then renamed from Hide Menu Bar Icon to Control Center Only; docs give both names while 4.2.1 is current. Mac verification is tracked in #96.
+
+**Resume point (2026-09-25 12:45 UTC)**: PR #95 is a draft on `claude/competitor-research-wqmkir` at 47d2a59. Every CI check passes, including the macOS `xcodebuild` build and CodeQL, and it merges cleanly into `main`. There are no review comments. PR monitoring was stopped at Oliver's request. Next: run the #96 checklist on a Mac with a signed build, then take the PR out of draft and merge it. After merge, publish the Gumroad description and let the site deploy.
+
+**Decisions made**: Dropped a homepage header link to the new section because four links wrapped the header at phone width. The toggle-reflects-Game-Mode claim was checked against the code: the `effectiveMonitoringEnabled` setter reloads the control.
 
 ## 2026-09-24 - Released 4.2.1
 

@@ -192,7 +192,7 @@ Status block:
 Controls:
 
 - Game Mode Auto-Detect: engages when a recognized game is the frontmost app, no permission needed; an optional Enable Fullscreen Detection… button requests Screen Recording to also catch fullscreen games behind other windows. Skipped while the Mac is on Ethernet.
-- Hide Menu Bar Icon mode for people who use the Control Center toggle (macOS 26+, signed release builds only).
+- Control Center Only mode, which removes the menu bar and Dock icons for people who use the Control Center toggle (macOS 26+, signed release builds only). Version 4.2.1 and earlier call it Hide Menu Bar Icon and keep the Dock icon.
 
 ### 8.4 Advanced
 

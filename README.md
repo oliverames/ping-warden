@@ -26,6 +26,7 @@
   <a href="#install-approve-and-verify">Install</a> &bull;
   <a href="#pricing">Pricing</a> &bull;
   <a href="#how-it-works">How it works</a> &bull;
+  <a href="#control-center-toggle">Control Center</a> &bull;
   <a href="#privacy">Privacy</a> &bull;
   <a href="#documentation">Documentation</a> &bull;
   <a href="#build-from-source">Build</a>
@@ -33,7 +34,7 @@
 
 ---
 
-Ping Warden (formerly AWDL Control) is an open source (MIT) macOS menu bar app built for cloud gaming on a Mac. AWDL can contribute to Wi-Fi stutters in GeForce NOW, Xbox Cloud Gaming, self-hosted streaming through Moonlight or Parsec, and other latency-sensitive games or calls. Ping Warden keeps it paused while you play. The source stays MIT. The dashboard, latency history, diagnostics, and updates are free.
+Ping Warden (formerly AWDL Control) is an open source (MIT) Mac app for cloud gaming that you control from the menu bar or, on macOS 26, a native Control Center toggle. AWDL can contribute to Wi-Fi stutters in GeForce NOW, Xbox Cloud Gaming, self-hosted streaming through Moonlight or Parsec, and other latency-sensitive games or calls. Ping Warden keeps it paused while you play. The source stays MIT. The dashboard, latency history, diagnostics, and updates are free.
 
 Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection, including starting a protected Latency Session. Eligible existing users receive the [90-day transition described below](#pricing). Visit [pingwarden.app](https://pingwarden.app/) for the product website and [complete documentation](https://pingwarden.app/docs/).
 
@@ -54,6 +55,12 @@ Running `sudo ifconfig awdl0 down` once is not enough because macOS can bring AW
 ## How it works
 
 Ping Warden uses a privileged helper that waits for kernel route and interface events. When macOS tries to raise `awdl0` while Ping Protection is on, the helper attempts to lower it and increments an intervention counter. That count records attempts, not confirmed blocks or measured spikes prevented. The dashboard puts the counter next to live latency, jitter, probe failures, and history so you can compare the readings on your own network.
+
+## Control Center toggle
+
+On macOS Tahoe 26 or later, Ping Protection is also a native Control Center control. Open Control Center, click **Edit Controls**, and add **Ping Protection**. You can drag it to the menu bar too, next to Wi-Fi and Sound. The toggle reflects whether protection is actually on, including when Game Mode or a Latency Session turned it on.
+
+To keep one icon instead of two, turn on **Settings → Automation → Control Center Only** (called **Hide Menu Bar Icon** in version 4.2.1 and earlier). The toggle then replaces Ping Warden's menu bar icon. Open Ping Warden from Applications or Spotlight whenever you need settings. The control needs a signed release build, and turning protection on still requires a license or an active transition.
 
 ## Install, approve, and verify
 
@@ -79,7 +86,7 @@ In the welcome window, click **Turn On Ping Protection** after activation. If yo
 
 ### 4. Turn on Ping Protection and verify it
 
-Enable **Ping Protection** from the menu bar. Without a key (and outside the transition window) the app points you back to **Settings → License** instead of turning protection on. Open the dashboard and confirm that protection is active. The dashboard shows live latency and counts the helper's intervention attempts when macOS reactivates AWDL.
+Enable **Ping Protection** from the menu bar or the [Control Center toggle](#control-center-toggle). Without a key (and outside the transition window) the app points you back to **Settings → License** instead of turning protection on. Open the dashboard and confirm that protection is active. The dashboard shows live latency and counts the helper's intervention attempts when macOS reactivates AWDL.
 
 The [Quick Start guide](PingWarden/QUICKSTART.md) covers first-run setup and the optional automation features.
 
@@ -91,11 +98,11 @@ The [Quick Start guide](PingWarden/QUICKSTART.md) covers first-run setup and the
 | Live dashboard | Tracks latency, jitter, probe failures, history, and helper interventions |
 | Game Mode auto-detect | Turns protection on when a recognized game is the frontmost app, with no permission needed; optional Screen Recording access also catches fullscreen games behind other windows |
 | Quick pause | Restores nearby-device features for 10 minutes, then returns to your previous protection state |
-| Control Center widget | Provides a system toggle on macOS 26 or newer in signed release builds |
+| [Control Center toggle](#control-center-toggle) | Turns protection on or off from Control Center or the menu bar on macOS 26 or newer, and can replace Ping Warden's own menu bar icon |
 | Diagnostics export | Creates a local support snapshot that you can review before sharing |
 | Automatic updates | Uses Sparkle and signed update metadata to deliver new releases |
 
-Apple added third-party Mac controls to Control Center in [macOS Tahoe 26](https://developer.apple.com/videos/play/wwdc2025/278/?time=536), which is why the widget has a newer requirement than the rest of the app.
+Apple added third-party Mac controls to Control Center in [macOS Tahoe 26](https://developer.apple.com/videos/play/wwdc2025/278/?time=536), which is why the toggle has a newer requirement than the rest of the app.
 
 Ping targets include common public services, discovered GeForce NOW regions, your network gateway, and targets you add yourself.
 
