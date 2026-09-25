@@ -60,7 +60,7 @@ Ping Warden uses a privileged helper that waits for kernel route and interface e
 
 On macOS Tahoe 26 or later, Ping Protection is also a native Control Center control. Open Control Center, click **Edit Controls**, and add **Ping Protection**. You can drag it to the menu bar too, next to Wi-Fi and Sound. The toggle reflects whether protection is actually on, including when Game Mode or a Latency Session turned it on.
 
-To keep one icon instead of two, turn on **Settings → Automation → Hide Menu Bar Icon**. The toggle then replaces Ping Warden's menu bar icon. Open Ping Warden from Applications or Spotlight whenever you need settings. The control needs a signed release build, and turning protection on still requires a license or an active transition.
+To keep one icon instead of two, turn on **Settings → Automation → Control Center Only** (called **Hide Menu Bar Icon** in version 4.2.1 and earlier). The toggle then replaces Ping Warden's menu bar icon. Open Ping Warden from Applications or Spotlight whenever you need settings. The control needs a signed release build, and turning protection on still requires a license or an active transition.
 
 ## Install, approve, and verify
 

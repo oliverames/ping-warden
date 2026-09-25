@@ -2101,7 +2101,7 @@ struct GeneralSettingsContent: View {
                 Text("App")
             } footer: {
                 if controlCenterModeActive {
-                    Text("Hide Menu Bar Icon is on in Automation, so Ping Warden has no menu bar or Dock icon. Use the Control Center toggle, and open Ping Warden from Applications or Spotlight to return to Settings.")
+                    Text("Control Center Only is on in Automation, so Ping Warden has no menu bar or Dock icon. Use the Control Center toggle, and open Ping Warden from Applications or Spotlight to return to Settings.")
                 }
             }
 
@@ -2442,7 +2442,7 @@ struct AutomationSettingsContent: View {
                 Toggle(isOn: $controlCenterEnabled) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
-                            Text("Hide Menu Bar Icon")
+                            Text("Control Center Only")
                             if !controlCenterAvailability.isAvailable {
                                 StatusBadge(text: controlCenterAvailability.statusText, tint: .unavailable)
                             }
@@ -2452,7 +2452,7 @@ struct AutomationSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .accessibilityLabel("Hide Menu Bar Icon")
+                .accessibilityLabel("Control Center Only")
                 .accessibilityHint("Uses the Control Center toggle instead of the menu bar and Dock icons")
                 .disabled(!controlCenterAvailability.isAvailable)
                 .onChangeCompat(of: controlCenterEnabled) { newValue in
@@ -2496,11 +2496,11 @@ struct AutomationSettingsContent: View {
             Text("Game Mode auto-detect already recognizes a game when it is the frontmost app. Allowing Screen Recording lets it also notice a fullscreen game behind other windows. Ping Warden reads only window metadata and never captures or saves screen contents.")
         }
         .confirmationDialog(
-            "Hide Menu Bar Icon?",
+            "Use Control Center Only?",
             isPresented: $showingControlCenterConfirm,
             titleVisibility: .visible
         ) {
-            Button("Hide Menu Bar Icon") {
+            Button("Use Control Center Only") {
                 PingWardenPreferences.shared.controlCenterWidgetEnabled = true
             }
             Button("Cancel", role: .cancel) {

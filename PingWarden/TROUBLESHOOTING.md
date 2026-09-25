@@ -85,10 +85,10 @@ If the setting says **Unavailable**, confirm the macOS version and reinstall the
 
 ## Ping Warden has no menu bar icon
 
-**Hide Menu Bar Icon** in **Settings > Automation** replaces the menu bar icon with the Control Center toggle. Protection keeps running.
+**Control Center Only** in **Settings > Automation** (called **Hide Menu Bar Icon** in version 4.2.1 and earlier) replaces the menu bar icon with the Control Center toggle. Protection keeps running.
 
 1. Open Ping Warden from Applications or Spotlight. If Settings does not appear, open it once more.
-2. Turn off **Hide Menu Bar Icon** under **Settings > Automation** to bring the menu bar icon back.
+2. Turn off **Control Center Only** under **Settings > Automation** to bring the menu bar icon back.
 
 ## The menu bar icon or Settings window stops updating
 
