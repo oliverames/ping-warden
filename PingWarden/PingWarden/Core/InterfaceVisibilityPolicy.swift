@@ -2,12 +2,11 @@
 //  InterfaceVisibilityPolicy.swift
 //  PingWarden
 //
-//  Pure decision logic for Ping Warden's visible entry points. People can
-//  hide the menu bar icon (using the Control Center toggle instead) and the
-//  Dock icon at the same time. The app then has no icon at all, so opening
-//  it directly must show Settings or there is no way back in. Launches the
-//  person did not ask to see, at login or from the Control Center toggle,
-//  stay silent.
+//  Pure decision logic for Ping Warden's visible entry points. Control
+//  Center mode replaces the menu bar icon with the Control Center toggle and
+//  also hides the Dock icon, so the app has no icon at all. Opening the app
+//  directly is then the way to Settings. Launches the person did not ask to
+//  see, at login or from the Control Center toggle, stay silent.
 //
 
 import Foundation
@@ -23,22 +22,20 @@ enum InterfaceVisibilityPolicy {
         controlCenterModeEnabled && controlCenterAvailable
     }
 
-    /// Whether any always-visible way into the app remains.
-    static func hasVisibleEntryPoint(menuBarIconHidden: Bool, showDockIcon: Bool) -> Bool {
-        !menuBarIconHidden || showDockIcon
+    /// Control Center mode hides the Dock icon along with the menu bar icon,
+    /// whatever the Show Dock Icon preference says. The preference itself is
+    /// kept, so leaving Control Center mode restores the person's choice.
+    static func isDockIconShown(showDockIconPreference: Bool, menuBarIconHidden: Bool) -> Bool {
+        showDockIconPreference && !menuBarIconHidden
     }
 
-    /// Open Settings at launch when nothing else would show the app: no menu
-    /// bar icon, no Dock icon, and the person opened the app themselves.
+    /// Open Settings at launch when the app has no icon and the person
+    /// opened it themselves.
     static func shouldOpenSettingsAtLaunch(
         menuBarIconHidden: Bool,
-        showDockIcon: Bool,
         launchedAsLoginItem: Bool,
         launchedByControlCenter: Bool
     ) -> Bool {
-        guard !hasVisibleEntryPoint(menuBarIconHidden: menuBarIconHidden, showDockIcon: showDockIcon) else {
-            return false
-        }
-        return !launchedAsLoginItem && !launchedByControlCenter
+        menuBarIconHidden && !launchedAsLoginItem && !launchedByControlCenter
     }
 }

@@ -20,45 +20,41 @@ final class InterfaceVisibilityPolicyTests: XCTestCase {
         XCTAssertFalse(InterfaceVisibilityPolicy.isMenuBarIconHidden(controlCenterModeEnabled: false, controlCenterAvailable: true))
     }
 
-    // MARK: - hasVisibleEntryPoint
+    // MARK: - isDockIconShown
 
-    func testEitherIconIsAnEntryPoint() {
-        XCTAssertTrue(InterfaceVisibilityPolicy.hasVisibleEntryPoint(menuBarIconHidden: false, showDockIcon: false))
-        XCTAssertTrue(InterfaceVisibilityPolicy.hasVisibleEntryPoint(menuBarIconHidden: true, showDockIcon: true))
-        XCTAssertFalse(InterfaceVisibilityPolicy.hasVisibleEntryPoint(menuBarIconHidden: true, showDockIcon: false))
+    func testControlCenterModeHidesDockIconRegardlessOfPreference() {
+        XCTAssertFalse(InterfaceVisibilityPolicy.isDockIconShown(showDockIconPreference: true, menuBarIconHidden: true))
+        XCTAssertFalse(InterfaceVisibilityPolicy.isDockIconShown(showDockIconPreference: false, menuBarIconHidden: true))
+    }
+
+    func testDockIconFollowsPreferenceWithMenuBarIcon() {
+        XCTAssertTrue(InterfaceVisibilityPolicy.isDockIconShown(showDockIconPreference: true, menuBarIconHidden: false))
+        XCTAssertFalse(InterfaceVisibilityPolicy.isDockIconShown(showDockIconPreference: false, menuBarIconHidden: false))
     }
 
     // MARK: - shouldOpenSettingsAtLaunch
 
-    func testDirectLaunchWithNoIconsOpensSettings() {
+    func testDirectLaunchInControlCenterModeOpensSettings() {
         XCTAssertTrue(InterfaceVisibilityPolicy.shouldOpenSettingsAtLaunch(
-            menuBarIconHidden: true, showDockIcon: false,
-            launchedAsLoginItem: false, launchedByControlCenter: false
+            menuBarIconHidden: true, launchedAsLoginItem: false, launchedByControlCenter: false
         ))
     }
 
-    func testLoginLaunchWithNoIconsStaysSilent() {
+    func testLoginLaunchStaysSilent() {
         XCTAssertFalse(InterfaceVisibilityPolicy.shouldOpenSettingsAtLaunch(
-            menuBarIconHidden: true, showDockIcon: false,
-            launchedAsLoginItem: true, launchedByControlCenter: false
+            menuBarIconHidden: true, launchedAsLoginItem: true, launchedByControlCenter: false
         ))
     }
 
-    func testControlCenterLaunchWithNoIconsStaysSilent() {
+    func testControlCenterLaunchStaysSilent() {
         XCTAssertFalse(InterfaceVisibilityPolicy.shouldOpenSettingsAtLaunch(
-            menuBarIconHidden: true, showDockIcon: false,
-            launchedAsLoginItem: false, launchedByControlCenter: true
+            menuBarIconHidden: true, launchedAsLoginItem: false, launchedByControlCenter: true
         ))
     }
 
-    func testVisibleIconNeverForcesSettings() {
+    func testMenuBarIconNeverForcesSettings() {
         XCTAssertFalse(InterfaceVisibilityPolicy.shouldOpenSettingsAtLaunch(
-            menuBarIconHidden: false, showDockIcon: false,
-            launchedAsLoginItem: false, launchedByControlCenter: false
-        ))
-        XCTAssertFalse(InterfaceVisibilityPolicy.shouldOpenSettingsAtLaunch(
-            menuBarIconHidden: true, showDockIcon: true,
-            launchedAsLoginItem: false, launchedByControlCenter: false
+            menuBarIconHidden: false, launchedAsLoginItem: false, launchedByControlCenter: false
         ))
     }
 
