@@ -83,6 +83,13 @@ The widget requires [macOS Tahoe 26](https://support.apple.com/en-us/122868) or 
 
 If the setting says **Unavailable**, confirm the macOS version and reinstall the signed release.
 
+## Ping Warden has no menu bar icon
+
+**Hide Menu Bar Icon** in **Settings > Automation** replaces the menu bar icon with the Control Center toggle. Protection keeps running.
+
+1. Open Ping Warden from Applications or Spotlight. If Settings does not appear, open it once more.
+2. Turn off **Hide Menu Bar Icon** under **Settings > Automation** to bring the menu bar icon back.
+
 ## The menu bar icon or Settings window stops updating
 
 1. Turn Ping Protection off and back on.

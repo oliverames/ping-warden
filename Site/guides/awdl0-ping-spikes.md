@@ -42,7 +42,7 @@ AWDL can contribute to stutter in GeForce NOW, Xbox Cloud Gaming, and self-hoste
 
 macOS can bring `awdl0` back up on its own, including after sleep, a network change, or a reboot. The command is useful for comparison, but it does not keep the interface down throughout a session.
 
-The obvious workaround is a loop: check the flags on a timer, take the interface down whenever it's up, repeat. [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller) does that, [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl) covers the privileged-helper side of the problem, and both are free and worth reading. A polling script genuinely works, and if you already know your way around a LaunchDaemon you can be done in an afternoon.
+The obvious workaround is a loop: check the flags on a timer, take the interface down whenever it's up, repeat. [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller) does that, [james-howard/AWDLControl](https://github.com/james-howard/AWDLControl) covers the privileged-helper side of the problem, and [yay/awdl-toggle](https://github.com/yay/awdl-toggle) adapts AWDLControl's monitor into a plain Control Center switch for macOS 26. All three are free and worth reading. A polling script genuinely works, and if you already know your way around a LaunchDaemon you can be done in an afternoon.
 
 What polling can't do is close the window. The script only sees the interface after it's up, so the time between macOS raising AWDL and the next poll is time the radio has already started dividing. Shrinking the interval narrows the window and raises the wakeup cost, and it never reaches zero.
 
