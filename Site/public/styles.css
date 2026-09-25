@@ -51,6 +51,10 @@ h3 { font-size: 19px; line-height: 1.3; letter-spacing: -.018em; margin: 0 0 6px
 .explanation article { min-width: 0; }
 .explanation article:last-child { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; border-top: 1px solid var(--line); padding-top: 30px; }
 .explanation code { overflow-wrap: anywhere; }
+.feature { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; border-top: 1px solid var(--line); padding-block: 30px 38px; }
+.feature .eyebrow { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.feature h2 { margin-top: 0; }
+.feature p + p { margin-top: 12px; }
 .setup { display: grid; grid-template-columns: 1fr 1fr; gap: 38px; border-top: 1px solid var(--line); padding-block: 36px; }
 .setup ol { list-style: none; counter-reset: step; margin: 0; padding: 0; }
 .setup li { position: relative; counter-increment: step; padding-left: 60px; margin-bottom: 24px; }
@@ -120,6 +124,7 @@ footer nav { gap: 20px; }
   .explanation { grid-template-columns: 1fr; gap: 25px; padding-bottom: 30px; }
   .explanation article:last-child { grid-template-columns: 1fr; gap: 0; padding-top: 25px; }
   body { font-size: 17px; }
+  .feature { grid-template-columns: 1fr; gap: 10px; padding-block: 25px 30px; }
   .setup { grid-template-columns: 1fr; gap: 10px; padding-block: 30px; }
   .setup li { padding-left: 51px; }
   footer { flex-direction: column; align-items: flex-start; gap: 12px; padding-block: 28px; }

@@ -2,6 +2,8 @@
 
 ## Open items
 
+- Publish the updated `docs/gumroad-product-description.html` to Gumroad and deploy the site after the Control Center marketing change merges. The corrected in-app Control Center strings ship with the next release (since 2026-09-25)
+- Capture a Control Center screenshot of the Ping Protection toggle, and one with it pinned to the menu bar, for the homepage and README. Needs a Mac on macOS 26 (since 2026-09-25)
 - Product Hunt waits for new gallery images and a website redesign, with several alternative designs for Oliver to choose from. Not scheduled. No draft or launch exists (since 2026-09-24; [#93](https://github.com/oliverames/ping-warden/issues/93))
 - Decide how to run CI locally instead of on GitHub-hosted runners, which have a usage limit (since 2026-09-24; [#94](https://github.com/oliverames/ping-warden/issues/94))
 - Signed-app acceptance on the installed app after it updates from 4.2.0 to 4.2.1: What's New, the Help release link, preference persistence, no donation buttons, Targets menu pickers, focus after an invalid host, and license-field Return (since 2026-09-14; [#78](https://github.com/oliverames/ping-warden/issues/78), [#90](https://github.com/oliverames/ping-warden/issues/90))
@@ -21,6 +23,12 @@
 - README mention of the beta channel, deferred until a 2.4.0 build shipped; the README currently does not mention it (since 2026-05-27) (unverified)
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
+
+## 2026-09-25 - Control Center toggle in marketing
+
+**What changed**: A new competitor, AWDL Toggle (github.com/yay/awdl-toggle, posted to r/MacOSBeta on 2026-09-15), leads with a Control Center switch and no menu bar icon. Ping Warden already ships both, so the toggle is now a named feature: a "One switch in Control Center" section on the homepage, a Control Center toggle section and nav link in the README (which also feeds `/docs/overview`), and a "Control it your way" paragraph in `docs/gumroad-product-description.html`. Separately, the Settings footer, the Hide Menu Bar Icon confirmation, the Quick Start, and Troubleshooting told people to add the control in System Settings > Control Center. On macOS 26, third-party controls come from Control Center > Edit Controls (Apple, "Customize the menu bar on Mac"). The guides also implied hiding the menu bar icon was required; it is optional.
+
+**Decisions made**: Kept the Dock-icon lockout invariant (H2) unchanged, so the copy says the app stays in the Dock when the menu bar icon is hidden. Dropped a homepage header link to the new section because four links wrapped the header at phone width. The toggle-reflects-Game-Mode claim was checked against the code: the `effectiveMonitoringEnabled` setter reloads the control.
 
 ## 2026-09-24 - Released 4.2.1
 
