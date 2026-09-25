@@ -2449,7 +2449,7 @@ struct AutomationSettingsContent: View {
                 controlCenterEnabled = false
             }
         } message: {
-            Text("The menu bar icon will be hidden, and Ping Warden will stay visible in the Dock. Add the Ping Protection control in System Settings if it is not already in Control Center.")
+            Text("The menu bar icon will be hidden, and Ping Warden will stay visible in the Dock. Add the Ping Protection control from Control Center → Edit Controls if it is not already there.")
         }
     }
 

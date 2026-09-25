@@ -63,7 +63,7 @@ enum ControlCenterSupport {
         var footerText: String {
             switch self {
             case .available:
-                return "Add the Ping Protection control in System Settings → Control Center. This setting only hides the menu bar icon."
+                return "Add the Ping Protection control from Control Center → Edit Controls. This setting only hides the menu bar icon."
             case .unsupportedOS:
                 return "Control Center widgets in Ping Warden require macOS 26 or newer."
             case .missingWidgetExtension:

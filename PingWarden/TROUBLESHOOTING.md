@@ -78,9 +78,8 @@ Automatic detection depends on the app metadata used by macOS Game Mode. Some fu
 The widget requires [macOS Tahoe 26](https://support.apple.com/en-us/122868) or newer and a signed Ping Warden release build.
 
 1. Install the latest signed release from GitHub rather than a local debug build.
-2. Open **Settings > Automation** and turn on **Hide Menu Bar Icon**.
-3. Open **System Settings > Control Center**.
-4. Find Ping Warden and add it to Control Center or the menu bar.
+2. Click **Control Center** in the menu bar, then click **Edit Controls**.
+3. Find **Ping Protection** and add it to Control Center, or drag it to the menu bar.
 
 If the setting says **Unavailable**, confirm the macOS version and reinstall the signed release.
 

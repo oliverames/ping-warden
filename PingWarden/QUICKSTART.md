@@ -48,9 +48,9 @@ Game Mode turns protection on when a recognized game is the frontmost app. Once 
 
 The Control Center widget requires [macOS Tahoe 26](https://support.apple.com/en-us/122868) or newer and a signed release build.
 
-1. Open **Settings > Automation** and turn on **Hide Menu Bar Icon**.
-2. Open **System Settings > Control Center**.
-3. Find Ping Warden and add it to Control Center or the menu bar.
+1. Click **Control Center** in the menu bar, then click **Edit Controls**.
+2. Find **Ping Protection** and add it. To pin it to the menu bar, drag it there while you edit.
+3. Optional: open **Settings > Automation** and turn on **Hide Menu Bar Icon** so the toggle replaces Ping Warden's own menu bar icon. Ping Warden stays in the Dock so settings remain available.
 
 ## Everyday controls
 
