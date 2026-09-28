@@ -360,6 +360,94 @@ struct ProtectedSessionCard: View {
         let state = protectionExperience.policyState
 
         VStack(alignment: .leading, spacing: 14) {
+            if coordinator.isActive || state.licenseAllowsProtection {
+                sessionControls(state)
+
+                if coordinator.isActive {
+                    activeSessionBody
+                } else {
+                    savedSessions
+                }
+            } else {
+                licenseOffer
+
+                // A license is required to start a protected session, not to
+                // read, share or remove recaps the user already owns.
+                if coordinator.latestSummary != nil || !coordinator.history.isEmpty {
+                    DisclosureGroup("Previous Latency Sessions") {
+                        savedSessions
+                            .padding(.top, 8)
+                    }
+                    .font(.caption)
+                }
+            }
+
+            // History actions remain available without a license, so their
+            // errors must also remain visible outside the entitlement branch.
+            if let error = coordinator.lastError {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityLabel("Latency session error: \(error)")
+            }
+        }
+        .dashboardCardStyle()
+        .confirmationDialog(
+            "Clear Latency Session History?",
+            isPresented: $showingClearHistoryConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Clear History", role: .destructive) {
+                coordinator.clearHistory()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes every saved latency session recap from this Mac.")
+        }
+    }
+
+    private var licenseOffer: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Unlock Ping Protection", systemImage: "shield.lefthalf.filled")
+                .font(.headline)
+            Text("Help reduce Wi-Fi latency spikes caused by nearby Apple-device activity. Includes protected sessions with a recap of each game or call.")
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Protection temporarily pauses AirDrop and related nearby-device features.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { licenseActions }
+                VStack(alignment: .leading, spacing: 8) { licenseActions }
+            }
+
+            Text("One-time purchase. Basic latency monitoring stays free.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var licenseActions: some View {
+        Button("Buy a License · $15") {
+            NSWorkspace.shared.open(LicenseManager.purchaseURL)
+        }
+        .buttonStyle(.borderedProminent)
+
+        Button("Enter License") {
+            NotificationCenter.default.post(
+                name: .pingWardenOpenSettingsSection,
+                object: nil,
+                userInfo: ["section": "License"]
+            )
+        }
+        .buttonStyle(.bordered)
+        .accessibilityHint("Opens License settings to activate or verify an existing license")
+    }
+
+    private func sessionControls(_ state: ProtectionExperiencePolicy.State) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Latency Session")
@@ -379,19 +467,11 @@ struct ProtectedSessionCard: View {
                         .buttonStyle(.borderedProminent)
                         .tint(.red)
                         .keyboardShortcut(".", modifiers: [.command, .shift])
-                    } else if state.licenseAllowsProtection {
+                    } else {
                         Button("Start Session") {
                             Task { await protectionExperience.startManualSession() }
                         }
                         .buttonStyle(.borderedProminent)
-                        .keyboardShortcut("s", modifiers: [.command, .shift])
-                    } else {
-                        // Still offered, so the explanation it gives stays
-                        // reachable, but not as the card's main action.
-                        Button("Start Session") {
-                            Task { await protectionExperience.startManualSession() }
-                        }
-                        .buttonStyle(.bordered)
                         .keyboardShortcut("s", modifiers: [.command, .shift])
                     }
                 }
@@ -399,39 +479,16 @@ struct ProtectedSessionCard: View {
             }
 
             if !coordinator.isActive {
-                Label(
-                    idleProtectionGuidance(state),
-                    systemImage: "shield.lefthalf.filled"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                if !state.licenseAllowsProtection {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Label("Latency sessions turn on Ping Protection, which needs a license.", systemImage: "key")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Button("Buy a License… · $15") {
-                            NSWorkspace.shared.open(LicenseManager.purchaseURL)
-                        }
-                        .buttonStyle(.link)
-                        .font(.caption)
-                    }
-                }
-            }
-
-            // Only the session's own errors belong here. Protection errors
-            // show once, in the Ping Protection card.
-            if let error = coordinator.lastError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
+                Label(idleProtectionGuidance(state), systemImage: "shield.lefthalf.filled")
                     .font(.caption)
-                    .foregroundStyle(.red)
-                    .accessibilityLabel("Latency session error: \(error)")
+                    .foregroundStyle(.secondary)
             }
+        }
+    }
 
-            if coordinator.isActive {
-                activeSessionBody
-            } else if let summary = coordinator.latestSummary {
+    private var savedSessions: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let summary = coordinator.latestSummary {
                 SessionRecapView(summary: summary)
             } else {
                 Label(
@@ -442,7 +499,7 @@ struct ProtectedSessionCard: View {
                 .foregroundStyle(.secondary)
             }
 
-            if !coordinator.history.isEmpty && !coordinator.isActive {
+            if !coordinator.history.isEmpty {
                 let recentSessions = Array(coordinator.history.dropFirst())
 
                 if !recentSessions.isEmpty {
@@ -472,19 +529,6 @@ struct ProtectedSessionCard: View {
                     .font(.caption)
                 }
             }
-        }
-        .dashboardCardStyle()
-        .confirmationDialog(
-            "Clear Latency Session History?",
-            isPresented: $showingClearHistoryConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Clear History", role: .destructive) {
-                coordinator.clearHistory()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This permanently removes every saved latency session recap from this Mac.")
         }
     }
 

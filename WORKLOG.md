@@ -1,5 +1,22 @@
 # Ping Warden Worklog
 
+## 2026-09-28 - Published 4.3.0 and unlicensed dashboard follow-up
+
+Version 4.3.0 is published from `2b5d02e`; signed feed copies are committed as `26d6958`. Public GitHub and Gumroad downloads match the frozen notarized artifact. Stable, beta and legacy feeds retain all 35 historical entries and verify with the previous release's signing key. The website and release notes are live. Exact-source CI passed all seven jobs and 63 steps, including all 50 Swift source extractions. Oliver updated the production app himself. Its installed version, signature, notarization and retained session history are verified. Saved choices are unchanged apart from normal update/window/cache metadata. The isolated test helper and app have been removed.
+
+The first missing-helper Repair attempt can still fail on the tested macOS 27.2 host. This is disclosed in the published notes and remains follow-up work under #99. Release-volume cleanup recovery is tracked in #103. Reddit moderator messages remain blocked by the service's generic send error. These do not hold the published release.
+
+**Current scope and ownership:** Oliver requested replacing the confusing unavailable Latency Session controls with a license offer for users without protection access. Root owns all source edits, Git, UI and delivery. A read-only reviewer will check entitlement and saved-history edge cases. No other active chat owns this repository. This is a follow-up to the immutable published 4.3.0 artifact.
+
+**Task list and resume point:**
+- [x] Publish and independently verify 4.3.0, website, update continuity and customer delivery.
+- [x] Verify Oliver's installed production update and remove the isolated test fixture.
+- [x] Send the authorized post-publication customer reply and verify it in Sent.
+- [x] Replace unlicensed session actions with a clear purchase/activation card while retaining saved history and eligible-user controls.
+- [x] Verify the focused UI change and update release tracking and the dated private report. Commit/push completes this follow-up; delivery remains #104.
+
+**UI verification:** The native universal Release build passed with zero warnings/errors, and all 35 existing presentation checks passed. An inert native harness compiled the exact production views and exercised seven entitlement/history states, purchase and activation actions while busy, prior-recapped sharing, and ending an active session after entitlement loss. Light and narrow dark layouts were inspected. Both new action labels omit ellipses at Oliver's request. No production app, helper, license or session data was changed by this UI review. The harness is closed. Shipping this follow-up remains tracked in #104; it is not part of the published 4.3.0 artifact.
+
 ## 2026-09-28 - Final quiet-launch correction and publication scope
 
 The Control Center toggle and containing-app launch work in the licensed, signed test fixture. Its cold launch exposed a separate Settings presentation bug: NSWorkspace ignores launch arguments from a sandboxed caller. The widget now leaves a one-use App Group launch hint, and the app consumes it before choosing its launch presentation. Normal Finder reopening remains unrestricted. A failed request removes only its own hint, and abandoned hints expire after 60 seconds. A near-simultaneous independent cold launch can consume the hint, affecting initial window presentation only. No authorization or saved protection preference depends on it.
@@ -67,15 +84,15 @@ The coordinator owns repository edits, installed test apps, Git, and delivery. A
 
 ## Open items
 
-- Publish the updated `docs/gumroad-product-description.html` to Gumroad and deploy the site after the Control Center marketing change merges. The corrected in-app Control Center strings ship with the next release (since 2026-09-25)
-- Mac verification of Control Center Only mode (launch paths, Dock restore, settings UI, toggle state) and the post-release copy updates: [#96](https://github.com/oliverames/ping-warden/issues/96) (since 2026-09-25)
+- Deliver the new unlicensed-dashboard purchase/activation card in a subsequent release, tracked in [#104](https://github.com/oliverames/ping-warden/issues/104). The published 4.3.0 artifact remains unchanged.
+
+- Remaining older-OS verification and gallery assets for Control Center Only mode; current-host launch paths, Dock restore, Settings access and toggle state passed: [#96](https://github.com/oliverames/ping-warden/issues/96) (since 2026-09-25)
 - Control Center screenshots for the homepage and README, tracked in [#96](https://github.com/oliverames/ping-warden/issues/96) (since 2026-09-25)
 - Product Hunt waits for new gallery images and a website redesign, with several alternative designs for Oliver to choose from. Not scheduled. No draft or launch exists (since 2026-09-24; [#93](https://github.com/oliverames/ping-warden/issues/93))
 - Decide how to run CI locally instead of on GitHub-hosted runners, which have a usage limit (since 2026-09-24; [#94](https://github.com/oliverames/ping-warden/issues/94))
-- Signed checks under [#78](https://github.com/oliverames/ping-warden/issues/78): Off, ordinary quit restore, and responsive-helper Repair while on passed in the approved isolated licensed fixture on 2026-09-28. Forced awdl0 re-raise, VoiceOver, appearance, and live-game checks remain. The 4.2.0 to 4.2.1 update checks passed earlier that day (since 2026-09-14).
+- Signed checks under [#78](https://github.com/oliverames/ping-warden/issues/78): Off, ordinary quit restore, and responsive-helper Repair while on passed in the approved isolated licensed fixture on 2026-09-28. Forced awdl0 re-raise also passed during 4.3.0 verification. VoiceOver, remaining appearance and live-game checks remain. The 4.2.0 to 4.2.1 update checks passed earlier that day (since 2026-09-14).
 - Live-game validation of the frontmost-app engage and disengage handoff and the Ethernet skip. Needs an eligible real-game session and wired hardware; only Wi-Fi was available on 2026-09-21 (since 2026-09-06; [#64](https://github.com/oliverames/ping-warden/issues/64))
-- [#92](https://github.com/oliverames/ping-warden/issues/92): Sandbox plus one exact Mach-lookup exception implemented and verified in a signed isolated fixture on macOS 27.2. Oliver lifted the implementation hold. macOS 26 runtime acceptance and approved publication remain. Crash-state display is separate under [#101](https://github.com/oliverames/ping-warden/issues/101).
-- PR #95 (Control Center Only) is a draft at 6c25b4f. It waits on the #92 fix and the remaining signed checks ([#96](https://github.com/oliverames/ping-warden/issues/96))
+- Crash-state Control Center display remains under [#101](https://github.com/oliverames/ping-warden/issues/101). The sandbox and quiet-launch fix shipped in 4.3.0 and #92 is closed. Physical macOS 26 acceptance remains under #96.
 - Exercise the session recorder with the Dashboard open during a Game Mode session to confirm the recap stays on the session's target (since 2026-09-14) (unverified)
 - Confirm the four inferred `transientSystemUIBundleIdentifiers` entries beyond `UserNotificationCenter`; a SecurityAgent password sheet over a game would confirm the most likely one (since 2026-09-12)
 - Re-run `python3 scripts/download_stats.py --snapshot` to measure 4.x acceptance after the upgrade-notice rewrite and announcements. The latest snapshot in `docs/download-history.tsv` is 2026-09-14 (since 2026-09-11)
@@ -88,8 +105,9 @@ The coordinator owns repository edits, installed test apps, Git, and delivery. A
 - README mention of the beta channel, deferred until a 2.4.0 build shipped; the README currently does not mention it (since 2026-05-27) (unverified)
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
-- Customer report (2026-09-27, Intel MacBook Pro 2017, macOS 13.7.8): helper registered and allowed but never answers XPC (health check timeout), Welcome skipped. Oliver sent the reply asking for `launchctl print system/com.amesvt.pingwarden.helper` output and a clean reinstall on 2026-09-27. Waiting for the customer's readout and result (since 2026-09-27)
-- Release the unreleased main work (a26e6fe helper recovery plus the whole-app review fixes) after the delta audit, the signed protection checks, and Oliver's approval (since 2026-09-27; [#99](https://github.com/oliverames/ping-warden/issues/99))
+- Customer report (2026-09-27, Intel MacBook Pro 2017, macOS 13.7.8): helper registered and allowed but never answers XPC (health check timeout), Welcome skipped. Oliver sent the reply asking for `launchctl print system/com.amesvt.pingwarden.helper` output and a clean reinstall on 2026-09-27. The readout confirmed the missing job. The 4.3.0 release/retest reply was sent and verified on 2026-09-28; awaiting customer retest
+- First-attempt missing-helper Repair on macOS 27.2 remains under [#99](https://github.com/oliverames/ping-warden/issues/99). The release is published with this limitation disclosed.
+- Bounded recovery for a temporarily busy validation volume remains under [#103](https://github.com/oliverames/ping-warden/issues/103). The completed release required an ordinary eject and full canonical rerun before any publication.
 - Sentry: decide on a one-time delivery test against a separate project, on `enableUncaughtNSExceptionReporting`, and on helper-timeout events (a disclosure change). Server side checked clean on 2026-09-27; the last accepted error event was 2026-08-06 (since 2026-09-27; [#100](https://github.com/oliverames/ping-warden/issues/100))
 
 ## 2026-09-28 - Session wrap-up: review fixes merged, #92 escalated
