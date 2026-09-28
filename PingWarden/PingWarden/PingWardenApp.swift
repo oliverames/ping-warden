@@ -134,6 +134,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private let menuMetricsConsumerID = UUID()
     private var menuMetricsObserverToken: UUID?
     private var menuMetricsTimer: Timer?
+    private var menuInterventionFeedToken: UUID?
     private var menuCurrentPingMs: Double?
     private var menuInterventionCount: Int?
     private var isStatusMenuOpen = false
@@ -485,6 +486,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if let menuMetricsObserverToken {
             PingMonitor.shared.removeObserver(menuMetricsObserverToken)
             self.menuMetricsObserverToken = nil
+        }
+        if let menuInterventionFeedToken {
+            InterventionCountFeed.shared.unsubscribe(menuInterventionFeedToken)
+            self.menuInterventionFeedToken = nil
         }
     }
 
@@ -1377,7 +1382,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         isStatusMenuOpen = true
         syncMenuMetricsTargetIfNeeded()
         updateMenuItem()
-        refreshMenuInterventionCount()
         // Live dropdown metrics only run while the menu can actually show
         // them; opening starts the probe and intervention polling and
         // closing tears it down again.
@@ -1519,16 +1523,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             priority: 10
         )
 
-        refreshMenuInterventionCount()
+        // The menu shares the Dashboard's poll of the helper instead of
+        // asking the same question on its own timer. Subscribing asks for a
+        // fresh count right away.
+        if menuInterventionFeedToken == nil {
+            menuInterventionFeedToken = InterventionCountFeed.shared.subscribe { [weak self] count in
+                guard let self else { return }
+                self.menuInterventionCount = count
+                self.updateMenuMetricsMenuItems()
+            }
+        } else {
+            InterventionCountFeed.shared.refreshNow()
+        }
 
         if menuMetricsTimer == nil {
             menuMetricsTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     self?.syncMenuMetricsTargetIfNeeded()
-                    self?.refreshMenuInterventionCount()
                 }
             }
             if let menuMetricsTimer {
+                menuMetricsTimer.tolerance = 0.5
                 RunLoop.main.add(menuMetricsTimer, forMode: .common)
             }
         }
@@ -1541,6 +1556,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if let menuMetricsObserverToken {
             PingMonitor.shared.removeObserver(menuMetricsObserverToken)
             self.menuMetricsObserverToken = nil
+        }
+        if let menuInterventionFeedToken {
+            InterventionCountFeed.shared.unsubscribe(menuInterventionFeedToken)
+            self.menuInterventionFeedToken = nil
         }
         menuCurrentPingMs = nil
         menuInterventionCount = nil
@@ -1557,18 +1576,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             interval: 2,
             priority: 10
         )
-    }
-
-    private func refreshMenuInterventionCount() {
-        guard PingWardenPreferences.shared.showMenuDropdownMetrics else { return }
-
-        PingWardenMonitor.shared.getInterventionCount { [weak self] count in
-            Task { @MainActor in
-                guard let self, let count else { return }
-                self.menuInterventionCount = count
-                self.updateMenuMetricsMenuItems()
-            }
-        }
     }
 
     private func menuMetricsTarget() -> (host: String, port: UInt16) {
