@@ -157,6 +157,14 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         objectWillChange.send()
     }
 
+    /// The helper is registered but did not answer at launch. Point to the
+    /// repair path without replacing a more specific message.
+    func noteHelperNotResponding() {
+        guard lastError == nil else { return }
+        lastError = "Ping Warden's helper is not responding. Open Advanced settings and click Repair."
+        objectWillChange.send()
+    }
+
     @discardableResult
     func setPersistentProtection(_ enabled: Bool) async -> Bool {
         // The license gate covers every path that would put AWDL down:
@@ -192,11 +200,29 @@ final class ProtectionExperienceCoordinator: ObservableObject {
 
         if !enabled,
            !monitor.isMonitoringRequested,
-           !monitor.isMonitoringActive,
-           preferences.lastKnownState == "up" {
-            preferences.isMonitoringEnabled = false
-            objectWillChange.send()
-            return true
+           !monitor.isMonitoringActive {
+            // Off needs no helper command when AWDL is demonstrably
+            // available. Reading the interface covers a first enable that
+            // timed out and left the state "unknown", so a silent helper
+            // cannot turn "off" into a false wireless-sharing warning.
+            let interfaceUp = preferences.lastKnownState == "up"
+                ? nil
+                : await monitor.awdlInterfaceIsUp()
+            guard generation == actionGeneration else { return false }
+            if HelperRecovery.disableAlreadySatisfied(
+                isRequested: monitor.isMonitoringRequested,
+                isActive: monitor.isMonitoringActive,
+                lastKnownState: preferences.lastKnownState,
+                interfaceUp: interfaceUp
+            ) {
+                preferences.isMonitoringEnabled = false
+                if interfaceUp == true {
+                    preferences.effectiveMonitoringEnabled = false
+                    preferences.lastKnownState = "up"
+                }
+                objectWillChange.send()
+                return true
+            }
         }
 
         transition = enabled ? .enablingProtection : .disablingProtection
@@ -218,7 +244,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         transition = .idle
         if !success {
             lastError = enabled
-                ? "Ping Protection could not turn on. Run the helper test in Advanced settings."
+                ? "Ping Protection could not turn on. Open Advanced settings and click Repair."
                 : "Ping Protection could not turn off. Quit Ping Warden to restore wireless sharing, then try again."
         }
         objectWillChange.send()

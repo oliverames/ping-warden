@@ -14,7 +14,11 @@ final class FakeHelper: PingWardenHelperProtocol {
     var states: [(Bool) -> Void] = []
     func setAWDLEnabled(_ enable: Bool, reply: @escaping (Bool) -> Void) { commands.append((enable, reply)) }
     func isAWDLEnabled(reply: @escaping (Bool) -> Void) { states.append(reply) }
-    func getVersion(reply: @escaping (String) -> Void) { versions.append(reply) }
+    // When set, every version request answers at once, like a live daemon.
+    static var autoReplyVersion: String?
+    func getVersion(reply: @escaping (String) -> Void) {
+        if let version = Self.autoReplyVersion { reply(version) } else { versions.append(reply) }
+    }
     func getAWDLStatus(reply: @escaping (String) -> Void) { reply("fake") }
     func getAWDLInterventionCount(reply: @escaping (Int) -> Void) { reply(0) }
     func resetAWDLInterventionCount(reply: @escaping (Bool) -> Void) { reply(true) }
@@ -36,10 +40,25 @@ final class NSXPCConnection {
 final class NSXPCInterface { init(with type: Any.Type) {} }
 final class SMAppService {
     enum Status { case enabled, notRegistered, notFound, requiresApproval }
-    var status: Status = .enabled
+    // One in-memory registration shared by every handle, like the system's.
+    static var fixtureStatus: Status = .enabled
+    // Registration calls reach only this fixture, and only in tests that opt in.
+    static var fixtureAllowsRegistration = false
+    static var registerCalls = 0
+    static var unregisterCalls = 0
+    var status: Status { Self.fixtureStatus }
     static func daemon(plistName: String) -> SMAppService { SMAppService() }
     static func openSystemSettingsLoginItems() { fatalError("Must never open real system settings") }
-    func register() throws { fatalError("Must never register a helper") }
+    func register() throws {
+        precondition(Self.fixtureAllowsRegistration, "Must never register a helper")
+        Self.registerCalls += 1
+        Self.fixtureStatus = .enabled
+    }
+    func unregister() async throws {
+        precondition(Self.fixtureAllowsRegistration, "Must never unregister a helper")
+        Self.unregisterCalls += 1
+        Self.fixtureStatus = .notRegistered
+    }
 }
 final class PingWardenPreferences {
     static let shared = PingWardenPreferences()

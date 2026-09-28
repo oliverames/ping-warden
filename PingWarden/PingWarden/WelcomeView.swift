@@ -183,7 +183,7 @@ struct WelcomeView: View {
                     .font(.headline)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Approve Ping Warden in Login Items, then try again. If it is already allowed, open Advanced settings and run the helper test.")
+                Text("Approve Ping Warden in Login Items, then try again. If it is already allowed, restart your Mac, then open Advanced settings and click Repair.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

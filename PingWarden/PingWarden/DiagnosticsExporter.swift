@@ -28,6 +28,30 @@ enum DiagnosticsExporter {
         #endif
     }
 
+    /// launchd's view of the helper job, which can disagree with the
+    /// registration status: a registration can report enabled while launchd
+    /// has no job or cannot spawn it. Reading it needs no privileges.
+    static func helperLaunchdJobSummary() -> String {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        task.arguments = ["print", "system/com.amesvt.pingwarden.helper"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        do {
+            try task.run()
+            // Read to EOF before waiting so a full pipe cannot block launchctl.
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            task.waitUntilExit()
+            return DiagnosticsPrivacy.launchdJobSummary(
+                launchctlOutput: String(decoding: data, as: UTF8.self),
+                exitStatus: task.terminationStatus
+            )
+        } catch {
+            return "unavailable (\(error.localizedDescription))"
+        }
+    }
+
     static func exportSnapshot() -> ExportResult? {
         // Both getInterventionCount and performHealthCheck below use
         // semaphore waits that would deadlock/stall the main thread. Enforce
@@ -79,6 +103,11 @@ enum DiagnosticsExporter {
 
         let health = monitor.performHealthCheck()
         let awdlStatus = monitor.currentAWDLInterfaceStatus()
+        let launchdJob = Self.helperLaunchdJobSummary()
+        let appLocation = DiagnosticsPrivacy.appLocation(
+            bundlePath: Bundle.main.bundlePath,
+            homeDirectory: NSHomeDirectory()
+        )
 
         let selectedTargetID = UserDefaults.standard.string(forKey: "DashboardSelectedPingTargetID")
         let customTargetIDs = Set(
@@ -101,6 +130,7 @@ enum DiagnosticsExporter {
           version=\(version)
           build=\(build)
           bundle_id=\(Bundle.main.bundleIdentifier ?? "unknown")
+          location=\(appLocation)
 
         system:
           macos=\(osString)
@@ -117,6 +147,7 @@ enum DiagnosticsExporter {
         runtime:
           helper_registered=\(monitor.isHelperRegistered)
           registration_status=\(registrationStatus)
+          launchd_job=\(launchdJob)
           monitor_active=\(monitor.isMonitoringActive)
           intervention_count=\(interventionCount.withValue { $0.map(String.init) ?? "unavailable" })
           awdl_interface=\(awdlStatus)

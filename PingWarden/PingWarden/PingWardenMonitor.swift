@@ -59,6 +59,12 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Maximum XPC connection retry attempts
     private let maxXPCRetries = 3
 
+    /// How long the helper gets to answer a validation request.
+    private var helperReplyTimeout: TimeInterval = 2.0
+
+    /// Pause between attempts while confirming the helper answers.
+    private var helperRetryDelay: TimeInterval = 1.0
+
     /// Current XPC retry count (protected by stateLock)
     private var _xpcRetryCount = 0
 
@@ -393,6 +399,125 @@ class PingWardenMonitor: @unchecked Sendable {
             log.error("Unknown helper status: \(String(describing: currentStatus))")
             signposter.endInterval("RegisterHelper", state)
             completion?(false)
+        }
+    }
+
+    /// Ask the helper for its version, retrying a few times so a daemon that
+    /// launchd is still spawning gets a chance. `activate()` succeeding
+    /// locally proves nothing, and an enabled registration can outlive the
+    /// launchd job behind it, so only a reply counts. The probe reuses the
+    /// current connection: replacing it would drop a protection command
+    /// already in flight on it. Completes on the main queue.
+    func confirmHelperResponds(
+        attempts: Int = 3,
+        completion: @escaping @Sendable (Bool) -> Void
+    ) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.confirmHelperResponds(attempts: attempts, completion: completion)
+            }
+            return
+        }
+        guard isHelperRegistered else {
+            completion(false)
+            return
+        }
+        let retryIfSilent: @Sendable (Bool) -> Void = { [weak self] responded in
+            let monitor = self
+            DispatchQueue.main.async {
+                guard let monitor, !responded, attempts > 1 else {
+                    completion(responded)
+                    return
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + monitor.helperRetryDelay) {
+                    monitor.confirmHelperResponds(attempts: attempts - 1, completion: completion)
+                }
+            }
+        }
+        if xpcConnection == nil {
+            connectXPC(onValidated: retryIfSilent)
+        } else {
+            validateXPCConnection(completion: retryIfSilent)
+        }
+    }
+
+    /// Repair a helper that should be working. A registration that answers
+    /// is left alone. A registration that is enabled but silent is rebuilt:
+    /// unregister, then register again, which recreates the launchd job that
+    /// Background Task Management still claims exists. Macs that approved the
+    /// helper before re-register without another prompt. Success is reported
+    /// only after the helper actually answers. Runs only from an explicit
+    /// user action, never automatically. Completes on the main queue.
+    func repairHelperRegistration(completion: @escaping @Sendable (Bool) -> Void) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.repairHelperRegistration(completion: completion)
+            }
+            return
+        }
+        let registerThenConfirm: @Sendable () -> Void = { [weak self] in
+            guard let self else {
+                completion(false)
+                return
+            }
+            self.registerHelper { registered in
+                DispatchQueue.main.async {
+                    guard registered else {
+                        completion(false)
+                        return
+                    }
+                    self.confirmHelperResponds(completion: completion)
+                }
+            }
+        }
+
+        guard helperService.status == .enabled else {
+            registerThenConfirm()
+            return
+        }
+
+        confirmHelperResponds { [weak self] responds in
+            guard let self else {
+                completion(false)
+                return
+            }
+            if responds {
+                completion(true)
+                return
+            }
+            // Never tear down a registration that cannot be rebuilt.
+            if let failure = self.validateHelperBundle() {
+                self.showError(failure.userMessage)
+                completion(false)
+                return
+            }
+            log.warning("Helper is registered but not answering; rebuilding its registration")
+            let plistName = self.helperPlistName
+            Task { @MainActor in
+                do {
+                    try await SMAppService.daemon(plistName: plistName).unregister()
+                    log.info("Stale helper registration removed")
+                } catch {
+                    // Continue: registering over a stale record can still
+                    // recreate the job, and the final reply check decides.
+                    log.error("Helper unregister during repair failed: \(error.localizedDescription)")
+                }
+                registerThenConfirm()
+            }
+        }
+    }
+
+    /// Whether awdl0 reads up right now, from its interface flags and without
+    /// the helper. `nil` when the flags cannot be read.
+    func awdlInterfaceIsUp() async -> Bool? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let self else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: HelperRecovery.interfaceIsUp(flagsLine: self.getAWDLInterfaceStatus()))
+            }
         }
     }
 
@@ -800,8 +925,9 @@ class PingWardenMonitor: @unchecked Sendable {
         return _xpcRetryCount
     }
 
-    /// Connect to helper via XPC
-    private func connectXPC() {
+    /// Connect to helper via XPC. `onValidated` receives, on the main queue,
+    /// whether the helper answered the connection's validation request.
+    private func connectXPC(onValidated: (@Sendable (Bool) -> Void)? = nil) {
         log.debug("Connecting to XPC service: \(self.xpcServiceName)")
 
         // Use .privileged for daemon registered via SMAppService
@@ -846,6 +972,9 @@ class PingWardenMonitor: @unchecked Sendable {
         validateXPCConnection { [weak self] isValid in
             let monitor = self
             DispatchQueue.main.async {
+                // Any reply proves the daemon answers, even one arriving on a
+                // connection that has since been replaced.
+                defer { onValidated?(isValid) }
                 guard let monitor, isValid,
                       monitor.xpcConnection.map(ObjectIdentifier.init) == connectionID else { return }
                 monitor.xpcRetryCount = 0
@@ -875,7 +1004,7 @@ class PingWardenMonitor: @unchecked Sendable {
             return true
         }
 
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2.0) {
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + helperReplyTimeout) {
             if finish(false) {
                 log.warning("XPC validation: Connection timeout - helper may not be running")
             }

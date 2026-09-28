@@ -282,6 +282,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             // protection and it isn't running, but also stop if a widget/
             // Shortcuts toggle turned it off while the app wasn't running.
             handleMonitoringStateChange()
+
+            // A registration can outlive the launchd job behind it, which
+            // makes every request time out while the app looks set up and
+            // skips the introduction. Only report here; rebuilding the
+            // registration waits for the person to choose setup or Repair.
+            monitor.confirmHelperResponds { [weak self] responds in
+                Task { @MainActor in
+                    guard let self, !responds else { return }
+                    log.warning("Helper is registered but did not answer at launch")
+                    self.protectionExperience.noteHelperNotResponding()
+                    guard debugWindowTarget == nil,
+                          self.welcomePresentation.shouldPresentAutomatically(helperIsRegistered: false) else { return }
+                    self.showWelcomeWindow()
+                }
+            }
         }
 
 #if DEBUG
@@ -533,7 +548,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         let experience = protectionExperience
         let welcomeView = WelcomeView { completion in
-            PingWardenMonitor.shared.registerHelper { registered in
+            // Repair covers first-time registration and a registration that
+            // exists but never answers, and succeeds only on a helper reply.
+            PingWardenMonitor.shared.repairHelperRegistration { registered in
                 Task { @MainActor in
                     guard registered else {
                         completion(false)
@@ -2089,18 +2106,20 @@ struct GeneralSettingsContent: View {
     private func finishSetup() {
         guard !isFinishingSetup else { return }
         isFinishingSetup = true
-        PingWardenMonitor.shared.registerHelper { success in
+        PingWardenMonitor.shared.repairHelperRegistration { success in
             Task { @MainActor in
                 guard success else {
                     isFinishingSetup = false
-                    settingsErrorMessage = "Ping Warden is still waiting for approval in System Settings → General → Login Items."
+                    settingsErrorMessage = PingWardenMonitor.shared.isHelperRegistered
+                        ? "The helper was approved but is not responding. Restart your Mac, then open Advanced settings and click Repair."
+                        : "Ping Warden is still waiting for approval in System Settings → General → Login Items."
                     return
                 }
                 let enabled = await protectionExperience.setPersistentProtection(true)
                 isFinishingSetup = false
                 if !enabled {
                     settingsErrorMessage = protectionExperience.lastError
-                        ?? "The helper was approved, but Ping Protection could not turn on. Run the helper test in Advanced settings."
+                        ?? "The helper was approved, but Ping Protection could not turn on. Open Advanced settings and click Repair."
                 }
             }
         }
@@ -2621,7 +2640,7 @@ struct AdvancedSettingsContent: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Ping Warden will reconnect to the approved helper and restore your current protection preference. It will not erase settings or session history.")
+            Text("Ping Warden will check that the helper answers. If it does not, Ping Warden registers the helper again, which macOS may announce with a Login Items notification. Your protection preference, settings, and session history stay as they are.")
         }
         .confirmationDialog(
             "Prepare Ping Warden for Removal?",
@@ -2704,15 +2723,15 @@ struct AdvancedSettingsContent: View {
 
     private func repairHelperConnection() {
         let shouldRemainEnabled = PingWardenPreferences.shared.isMonitoringEnabled
-        PingWardenMonitor.shared.registerHelper { success in
+        PingWardenMonitor.shared.repairHelperRegistration { repaired in
             Task { @MainActor in
-                guard success else {
-                    maintenanceErrorMessage = "The helper could not reconnect. Confirm that Ping Warden is allowed in System Settings → General → Login Items, then run the helper test."
+                guard repaired else {
+                    maintenanceErrorMessage = "The helper still is not responding. Confirm that Ping Warden is allowed in System Settings → General → Login Items, restart your Mac, and then click Repair again."
                     return
                 }
                 let restored = await protectionExperience.setPersistentProtection(shouldRemainEnabled)
                 if !restored {
-                    maintenanceErrorMessage = "The helper reconnected, but Ping Warden could not restore your protection preference."
+                    maintenanceErrorMessage = "The helper is responding again, but Ping Warden could not restore your protection preference."
                 }
             }
         }
