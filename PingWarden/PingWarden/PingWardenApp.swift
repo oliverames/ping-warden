@@ -175,7 +175,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 && launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem,
             launchIsDefault: notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool ?? true,
             arguments: ProcessInfo.processInfo.arguments,
-            relaunchedByUpdater: consumeUpdateRelaunchMarker()
+            relaunchedByUpdater: consumeUpdateRelaunchMarker(),
+            launchedByControlCenter: ControlCenterLaunchHandoff.consume(in: PingWardenPreferences.shared.defaults)
         ))
         log.info("Launch reason: \(String(describing: self.launchReasonState.reason), privacy: .public)")
 

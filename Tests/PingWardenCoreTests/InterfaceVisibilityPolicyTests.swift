@@ -242,15 +242,17 @@ final class InterfaceVisibilityPolicyTests: XCTestCase {
 
     // MARK: - Widget parity
 
-    func testWidgetArgumentMatchesWidgetSource() throws {
-        // The widget target cannot import PingWardenCore, so it repeats the
-        // literal. Guard against the two drifting apart.
+    func testWidgetUsesSharedLaunchHandoff() throws {
+        // Both targets compile the same handoff implementation. Ensure the
+        // sandboxed caller does not regress to ignored launch arguments.
         let widgetSource = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("PingWarden/PingWardenWidget/PingWardenToggleIntent.swift")
         let source = try String(contentsOf: widgetSource, encoding: .utf8)
-        XCTAssertTrue(source.contains("\"\(Policy.controlCenterLaunchArgument)\""))
+        XCTAssertTrue(source.contains("ControlCenterLaunchHandoff.begin(in: defaults)"))
+        XCTAssertTrue(source.contains("ControlCenterLaunchHandoff.cancel(token, in: defaults)"))
+        XCTAssertFalse(source.contains("configuration.arguments"))
     }
 }

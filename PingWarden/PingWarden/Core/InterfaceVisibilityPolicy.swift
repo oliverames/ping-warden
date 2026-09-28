@@ -57,18 +57,17 @@ struct LaunchSignals: Equatable, Sendable {
     /// notification. It is false when macOS relaunched the app to restore
     /// saved state or to open something, and true (or absent) otherwise.
     var launchIsDefault = true
-    /// The process arguments. The widget passes
-    /// `InterfaceVisibilityPolicy.controlCenterLaunchArgument`.
+    /// The process arguments, retained for launches from older callers.
     var arguments: [String] = []
     /// A fresh marker left by `updaterWillRelaunchApplication`.
     var relaunchedByUpdater = false
+    /// A one-use App Group hint from the sandboxed Control Center widget.
+    var launchedByControlCenter = false
 }
 
 /// Holds the launch reason for this process. Sources that learn about the
 /// launch later than `applicationDidFinishLaunching` call `record(_:)`
-/// before the launch decision runs. A Control Center intent that launches
-/// the app without the command-line argument (#92) is expected to be one
-/// such source, so it can mark the launch without touching the policy.
+/// before the launch decision runs.
 struct LaunchReasonState: Equatable, Sendable {
     private(set) var reason: LaunchReason
 
@@ -112,8 +111,8 @@ struct LaunchPresentationGate: Equatable, Sendable {
 }
 
 enum InterfaceVisibilityPolicy {
-    /// Passed by the widget when it launches the app to own the helper
-    /// connection. Must match `PingProtectionIntentHandler` in the widget.
+    /// Retained for compatibility. Sandboxed widgets use the App Group hint
+    /// because NSWorkspace ignores their launch arguments.
     static let controlCenterLaunchArgument = "--launched-by-control-center"
 
     /// Saved by the new Control Center Only toggle. The legacy key,
@@ -169,7 +168,9 @@ enum InterfaceVisibilityPolicy {
 
     /// Combines the launch sources. Any silent source wins over `.direct`.
     static func launchReason(from signals: LaunchSignals) -> LaunchReason {
-        if signals.arguments.contains(controlCenterLaunchArgument) { return .controlCenter }
+        if signals.launchedByControlCenter || signals.arguments.contains(controlCenterLaunchArgument) {
+            return .controlCenter
+        }
         if signals.launchedAsLoginItem { return .loginItem }
         if signals.relaunchedByUpdater { return .updateRelaunch }
         if !signals.launchIsDefault { return .sessionRestore }

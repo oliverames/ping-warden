@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		LaunchHandoffBuild /* ControlCenterLaunchHandoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = LaunchHandoffRef /* ControlCenterLaunchHandoff.swift */; };
 		5E1705182026010100000003 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 5E1705182026010100000002 /* Sentry */; };
 		815E03172EAEA562006913A8 /* PingWardenWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = WidgetRef /* PingWardenWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		81CB02502F357A9600AB4024 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 81CB024F2F357A9600AB4024 /* Sparkle */; };
@@ -46,6 +47,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		LaunchHandoffRef /* ControlCenterLaunchHandoff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingWarden/Core/ControlCenterLaunchHandoff.swift; sourceTree = SOURCE_ROOT; };
 		81A89CFF2F34EADE00B4745F /* install.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = install.sh; sourceTree = "<group>"; };
 		81A89D002F34EB0A00B4745F /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		81A89D012F34EB2A00B4745F /* create-dmg.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "create-dmg.sh"; sourceTree = "<group>"; };
@@ -368,6 +370,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				LaunchHandoffBuild /* ControlCenterLaunchHandoff.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

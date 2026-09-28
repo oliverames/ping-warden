@@ -46,6 +46,11 @@ final class PingWardenPreferences: @unchecked Sendable {
         defaults ?? .standard
     }
 
+    /// The intent checks usesAppGroupSuite before preparing a launch hint.
+    var defaultsForLaunchHandoff: UserDefaults {
+        defaults ?? .standard
+    }
+
     private init() {
         if let suite = UserDefaults(suiteName: appGroupID) {
             log.debug("Successfully connected to App Group suite")

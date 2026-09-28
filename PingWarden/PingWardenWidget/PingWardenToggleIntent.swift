@@ -121,12 +121,17 @@ private enum PingProtectionIntentHandler {
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = false
-        // Tells the app this launch came from Control Center, so it stays
-        // silent even when the menu bar and Dock icons are both hidden.
-        // Must match InterfaceVisibilityPolicy.controlCenterLaunchArgument.
-        configuration.arguments = ["--launched-by-control-center"]
-        let app = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
-        guard !app.isTerminated else { throw AWDLError.appLaunchFailed }
+        // NSWorkspace ignores arguments from sandboxed callers. Publish the
+        // one-use presentation hint only when a cold launch is needed.
+        let defaults = PingWardenPreferences.shared.defaultsForLaunchHandoff
+        let token = ControlCenterLaunchHandoff.begin(in: defaults)
+        do {
+            let app = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+            guard !app.isTerminated else { throw AWDLError.appLaunchFailed }
+        } catch {
+            ControlCenterLaunchHandoff.cancel(token, in: defaults)
+            throw error
+        }
     }
 
     private static func postMonitoringStateNotifications() {
