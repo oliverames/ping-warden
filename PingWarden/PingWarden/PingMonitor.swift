@@ -83,7 +83,10 @@ class PingMonitor: @unchecked Sendable {
     private var telemetryDemands: [UUID: TelemetryDemand] = [:]
     private var demandRevision: UInt64 = 0
     private var observers: [UUID: (Snapshot) -> Void] = [:]
-    
+    /// Whether the last probe failed, for logging only. Touched only on
+    /// `queue`, which runs one probe at a time.
+    private var lastProbeFailed = false
+
     /// Current server to ping
     var server: String = "8.8.8.8"
     
@@ -262,8 +265,17 @@ class PingMonitor: @unchecked Sendable {
                 self.observerCallbacks().forEach { $0(snapshot) }
             }
 
+            // An unreachable target fails every probe, so only the change
+            // between reachable and unreachable is worth a warning.
+            let previousProbeFailed = self.lastProbeFailed
+            self.lastProbeFailed = !success
             if success {
+                if previousProbeFailed {
+                    log.info("Ping to \(host) succeeded again")
+                }
                 log.debug("Ping to \(host): \(String(format: "%.1f", result.latencyMs))ms")
+            } else if previousProbeFailed {
+                log.debug("Ping to \(host) failed")
             } else {
                 log.warning("Ping to \(host) failed")
             }
