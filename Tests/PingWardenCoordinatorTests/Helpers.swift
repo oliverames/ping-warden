@@ -30,6 +30,11 @@ extension PingWardenMonitor {
     }
     var harnessConnection: NSXPCConnection? { _xpcConnection }
     var harnessRetries: Int { _xpcRetryCount }
+    func harnessSetRetries(_ count: Int) {
+        stateLock.lock()
+        _xpcRetryCount = count
+        stateLock.unlock()
+    }
 }
 extension ProtectionExperienceCoordinator {
     func harnessReset() {

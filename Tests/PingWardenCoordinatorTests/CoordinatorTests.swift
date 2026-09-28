@@ -376,11 +376,13 @@ do {
     let alerts = NSAlert.messages.count
     let result = LockedValue<Bool?>(nil)
     monitor.repairHelperRegistration(presentsErrors: false) { ok in result.withValue { $0 = ok } }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+    // Approval takes longer than the three reconnect attempts (1 + 2 + 4 s),
+    // so exhaustion would fire mid-repair if the repair did not hold it.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 8.5) {
         SMAppService.fixtureStatus = .enabled
         FakeHelper.autoReplyVersion = "fixture-helper"
     }
-    spin(until: { result.withValue { $0 } != nil }, timeout: 8)
+    spin(until: { result.withValue { $0 } != nil }, timeout: 14)
     spin(0.1)
     check(result.withValue { $0 } == true, "B6: the repair succeeds")
     check(NSAlert.messages.count == alerts, "B6: no alert fires during the repair")
@@ -390,6 +392,21 @@ do {
     check(reasserts == [false], "B6: the repaired helper is asked to restore protection")
     settle()
     check(monitor.isMonitoringActive, "B6: protection is restored after the repair")
+}
+
+// B6: a repair that succeeds without rebuilding a connection still clears
+// the retries earlier drops consumed, so the next drop gets a full budget.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    _ = MainActor.assumeIsolated { turnOnThroughCoordinator() }
+    monitor.harnessSetRetries(2)
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    let result = LockedValue<Bool?>(nil)
+    monitor.repairHelperRegistration(presentsErrors: false) { ok in result.withValue { $0 = ok } }
+    spin(until: { result.withValue { $0 } != nil }, timeout: 3)
+    check(result.withValue { $0 } == true, "B6: an answering helper repairs as success")
+    check(monitor.harnessRetries == 0, "B6: a successful repair resets the retry count")
+    settle()
 }
 
 // B7 (B-T10): launch never enables protection for an unapproved helper.
