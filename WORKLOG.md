@@ -1,5 +1,22 @@
 # Ping Warden Worklog
 
+## 2026-09-28 - Integrated release readiness and Felix follow-up
+
+**Request**: Commit and merge the pending Control Center work into main, clean up, and run full release gates with particular care for performance, functionality, and existing users. Verify crash reporting defaults on while preserving explicit opt-outs. Investigate the missing dashboard Liquid Glass appearance against Oliver's screenshot. Reply to Felix with thanks and a retest request only after the fix is live. Clarification of publication authorization is pending because the prior release hold was explicit.
+
+**Plan and ownership**: The coordinator owns all source edits, merges, builds, installed fixture operations, and delivery. Independent agents will review (1) upgrade and helper compatibility and (2) dashboard appearance/performance. No other active chat is working in ping-warden. The existing main checkout is clean at e8d20b1 and has no other worktrees.
+
+**Shared task list**:
+- [ ] Review current PR #95, CI, open gates, Felix's thread, and release runbook.
+- [ ] Merge authorized Control Center work, preserving existing preferences and helper/upgrade compatibility.
+- [ ] Diagnose and fix the dashboard appearance regression, then measure visible/hidden performance.
+- [ ] Verify crash-report defaults and prior opt-outs, plus release delta and functional gates.
+- [ ] Build and test the integrated signed candidate, including existing-install upgrade paths.
+- [ ] Commit/push and clean up completed branches and fixtures without removing user state.
+- [ ] If publication is authorized and gates pass, release and verify the delivered artifact/feed before replying to Felix.
+
+**Resume point**: Re-read this list, current git status, the new agent reports, and `docs/2026-09-28-control-center-verification.md`. The previous test setup has been removed and production is unchanged. Preserve the original production app and preferences until a deliberate upgrade test. Felix's screenshot reports no launchd helper service and first launch from Downloads. Do not call the fix live before verified publication.
+
 ## 2026-09-28 - Codex continuation of Control Center investigation
 
 **Request**: Continue the work Claude could not resolve. The latest transcript and worklog identify #92, widget loading and intent routing, as the remaining technical blocker. Oliver lifted the implementation hold on September 28 by choosing "Resume #92 investigation and implementation". Publication remains on hold.
