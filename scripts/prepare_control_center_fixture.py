@@ -38,7 +38,7 @@ def replace_body(path, declaration, body):
     path.write_text(text[:start + 1] + "\n" + body + "\n    " + text[end - 1:])
 
 
-def prepare(destination):
+def prepare(destination, license_state="paid"):
     repo = Path(__file__).resolve().parents[1]
     destination = destination.resolve()
     if destination == repo or repo in destination.parents:
@@ -65,10 +65,15 @@ def prepare(destination):
 
     app = project / "PingWarden"
     license_source = app / "LicenseManager.swift"
+    initial_state = ("cachedLicenseValid: true, lastVerifiedAt: now, grandfatherDeadline: nil"
+                     if license_state == "paid" else
+                     "cachedLicenseValid: false, lastVerifiedAt: nil, grandfatherDeadline: now.addingTimeInterval(21 * 86400)")
     replace_body(license_source, "private init()", '''        defaults = Self.sharedDefaults()
-        let now = Date()
-        Self.writeSealedState(SealedState(cachedLicenseValid: true,
-            lastVerifiedAt: now, grandfatherDeadline: nil, lastSeenAt: now), to: defaults)''')
+        // Seed only once so same-identity upgrade tests exercise preservation.
+        if defaults.object(forKey: Self.sealKey) == nil {
+            let now = Date()
+            Self.writeSealedState(SealedState(INITIAL_STATE, lastSeenAt: now), to: defaults)
+        }'''.replace("INITIAL_STATE", initial_state))
     for declaration in [
         "func establishGrandfatheringIfNeeded(helperEnabled: Bool)",
         "func startPeriodicReverification()", "func reverifyAtLaunchIfNeeded()",
@@ -106,4 +111,7 @@ def prepare(destination):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("destination", type=Path, help="New scratch directory, outside this checkout")
-    prepare(parser.parse_args().destination)
+    parser.add_argument("--license-state", choices=["paid", "transition"], default="paid",
+                        help="Initial synthetic entitlement; an existing sealed state is preserved")
+    arguments = parser.parse_args()
+    prepare(arguments.destination, arguments.license_state)
