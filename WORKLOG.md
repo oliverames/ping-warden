@@ -4,7 +4,9 @@
 
 Oliver authorized adding pingwarden.app to his chosen Google account. Added the supplied HTML ownership tag to the homepage source and generated site. The tag is public verification metadata. DNS, analytics, crawl policy and app artifacts remain unchanged. Root owns the site and Git changes; agents own their named community submissions.
 
-Resume after deployment: verify ownership in the retained Chrome tab, submit the existing sitemap, inspect the homepage and three symptom guides, and record the actual indexing results under #106. The earlier account-choice question below is resolved. Owner licensing and licensed gallery capture remain separate prerequisites for Product Hunt and MacMenuBar.
+Deployment `ac6ed84` and Website run 36485855185 passed. Google verified ownership through the HTML tag. URL Inspection reports the homepage and all three priority guides as indexed. The homepage live test passed, and each guide has one valid Breadcrumbs item. The sitemap submission was accepted. Its initial report says it could not be read, while Google's live test of the exact sitemap at 21:34:39 UTC shows crawling allowed and a successful fetch. The public XML has 12 valid, distinct URLs. Leave the accepted submission in place for processing. No network or crawler settings changed.
+
+Follow-up #106 retains the sitemap processing result and the first performance baseline. Search Console performance data is still processing, so no traffic or ranking improvement is claimed. The earlier account-choice question below is resolved. Community publication continues independently under #105 and #93.
 
 ---
 
@@ -15,6 +17,8 @@ Resume after deployment: verify ownership in the retained Chrome tab, submit the
 **Verification:** Native Xcode build of the production project succeeded with no reported errors. All 28 existing interface-policy tests and all 35 presentation checks passed, with no skipped tests. The first SwiftPM attempt was blocked by sandbox compiler-cache access, then passed with normal cache access. This is a next-build source change, not an installed or published update. The installed 4.3.0 stays unchanged. No new behavior tests were added for this relocation.
 
 **Delivery:** Include this move with the pending license-card follow-up in the next release. Refresh the setup and troubleshooting instructions when that build is published; current live 4.3.0 documentation correctly points to Automation. Discovery submissions continue separately. Unlicensed-state tests continue to use isolated copies.
+
+Commit `c195d90` is pushed. Its Build Verification run 36483975224 and CodeQL run 36483975226 both passed. The later ownership-tag commit's Build Verification also passed; its analysis was still running at this checkpoint.
 
 ---
 
