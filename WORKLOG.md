@@ -21,6 +21,22 @@
 - README mention of the beta channel, deferred until a 2.4.0 build shipped; the README currently does not mention it (since 2026-05-27) (unverified)
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
+- Customer report (2026-09-27, Intel MacBook Pro 2017, macOS 13.7.8): helper registered and allowed but never answers XPC (health check timeout), Welcome skipped. The reply asking for `launchctl print system/com.amesvt.pingwarden.helper` output and a clean reinstall is a Gmail draft in his thread, waiting for Oliver to switch From to oliver@ames.consulting and send (since 2026-09-27)
+- Ship a26e6fe (helper recovery) as 4.2.2 after Oliver approves and after the pre-release delta audit. The delta changes helper-registration behavior, though only on explicit Repair or setup when the helper does not answer (since 2026-09-27)
+- Add a "helper test says not responding (timed out)" section to `PingWarden/TROUBLESHOOTING.md` with the Login Items toggle, clean reinstall, and `sfltool resetbtm` steps. Pushing it deploys the public site, so it waits for Oliver (since 2026-09-27)
+- Sentry: confirm server-side acceptance (Stats outcomes, Inbound Filters, Client Keys, Debug Files for the 4.2.1 UUIDs), decide on a one-time delivery test against a separate project, and decide on `enableUncaughtNSExceptionReporting`. No event has reached the project since 2026-06-25 (since 2026-09-27)
+
+## 2026-09-27 - Helper-timeout recovery
+
+**What changed**: a26e6fe makes Repair, Welcome setup, and Finish Setup confirm that the helper answers, and rebuilds a registered but silent helper (unregister, register) only from those explicit actions. Success requires a helper reply, and a registration is never removed when the bundle could not rebuild it. At launch, a registered helper that stays silent after three attempts shows the Welcome once if it was never presented, otherwise a dashboard message pointing to Repair. Turning protection off skips the helper when nothing requested it and awdl0 reads up. Diagnostics add `location` (category only, no path) and `launchd_job` (whitelisted `launchctl print` fields; exit 113 means no job).
+
+**Evidence**: The 4.2.1 app, helper, and widget are universal (x86_64 and arm64) with minos 13.0, and the helper signing identifier and team are unchanged since 2.2.2. Before the fix, `registerHelper` returned success on `.enabled` without a helper reply, so Repair could not rebuild a stale Background Task Management record, and a first enable that timed out left `lastKnownState` "unknown", so turning off called the silent helper and failed. The customer's Login Items shows the background item enabled.
+
+**Verification**: Release build (CI flags) succeeded with no warnings on either main or the change. 164 core tests (11 new), the monitor harness (5 new repair and probe checks, each mutation-tested to fail against a broken implementation), 162 helper checks, 38 crash-reporter checks, release-tool tests, and 26 presentation checks passed. Not verified: a real Ventura or Intel run, and a real unregister-then-register cycle on any Mac. The repair path is covered only by the in-memory harness.
+
+**Sentry audit (read-only, 2026-09-27)**: Client wiring is correct. The SDK 9.26.0 is statically linked in the shipped binary, the DSN matches the project's only key, release names match `release.sh` (`com.amesvt.pingwarden@4.2.1+42100`), dSYM UUIDs match the binary, and consent defaults on for new and never-chose installs per #85. Zero errors and issues in 90 days; the last event arrived 2026-06-25 on 2.4.3. Reporting was off by default from 3.0.0 through 4.1.9 and on again only from 4.2.0, so zero is plausible but delivery is unproven. Non-fatal errors, including the helper timeout, are never sent. Server-side filters, key rate limits, and outcome stats were not readable through the connector.
+
+**Left off at**: main at a26e6fe plus this worklog commit. No release, no version bump, no site change.
 
 ## 2026-09-24 - Released 4.2.1
 
