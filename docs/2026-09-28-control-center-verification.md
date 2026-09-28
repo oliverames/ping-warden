@@ -4,11 +4,21 @@ Author: Oliver Ames
 
 Date: September 28, 2026
 
-## Result
+## Final release result
 
-The #92 implementation is committed on main as `7f87bbb`. The extension is sandboxed, retains its App Group, and can look up exactly the existing authenticated helper endpoint. A signed isolated fixture loaded and enabled protection through the real helper, including with its containing app initially quit. The installed production app was preserved. Nothing was notarized or published in this session.
+[4.3.0](https://github.com/oliverames/ping-warden/releases/tag/v4.3.0) is published from `2b5d02e`, including the sandbox fix and PR #95. The [exact-source checks](https://github.com/oliverames/ping-warden/actions/runs/36463159102) completed successfully, including extraction of all 50 Swift files. The universal Developer ID app and DMG passed notarization and delivered-artifact checks. Public GitHub and Gumroad downloads matched, and stable, beta and legacy update feeds verified with the prior signing key while retaining historical entries.
 
-Oliver approved resuming #92 implementation and creating an isolated app with a synthetic valid license. This supersedes the earlier implementation hold. The release hold remains in place under #99.
+The final signed/notarized isolated fixture also passed cold Control Center launch with Settings hidden, ordinary reopening, On/Off, forced interface recovery and ordinary quit restoration on macOS 27.2. The user supplied the decisive Control Center click and quiet-window observation. A one-use App Group hint now identifies that cold launch; sandboxed NSWorkspace caller arguments were insufficient. Existing direct-launch behavior and saved preferences are preserved.
+
+The isolated test app and helper were removed. The user subsequently updated production to 4.3.0; its installed version, signature and notarization were verified, with session-history bytes preserved. The exact production update route was not independently observed. The initial signed-fixture observations below are historical and are superseded where the final tests above add coverage.
+
+[Issue #92](https://github.com/oliverames/ping-warden/issues/92) is closed. Physical macOS 26/older-OS/Intel coverage and remaining login, automation, accessibility and gallery checks remain under [#96](https://github.com/oliverames/ping-warden/issues/96), [#78](https://github.com/oliverames/ping-warden/issues/78) and [#64](https://github.com/oliverames/ping-warden/issues/64). First-attempt missing-helper Repair remains [#99](https://github.com/oliverames/ping-warden/issues/99), disclosed in the release notes. Crash-state display remains [#101](https://github.com/oliverames/ping-warden/issues/101).
+
+## Initial signed-fixture result, before final release verification
+
+The #92 implementation is committed on main as `7f87bbb`. The extension is sandboxed, retains its App Group, and can look up exactly the existing authenticated helper endpoint. A signed isolated fixture loaded and enabled protection through the real helper, including with its containing app initially quit. The installed production app was preserved. At this initial checkpoint, the fixture was signed but had not been notarized or published.
+
+Oliver approved resuming #92 implementation and creating an isolated app with a synthetic valid license. This supersedes the earlier implementation hold. At that checkpoint, the release hold remained in place under #99; it was later lifted for the verified fixes.
 
 ## Change and rationale
 
@@ -60,7 +70,7 @@ The widget supplies a `ControlWidgetToggle`, symbols, labels, and blue tint. It 
 
 The adjacent plain icon comes from the app's `NSStatusItem`, a separate API. The existing Hide Menu Bar Icon preference removed that duplicate in the fixture. PR #95 adds an explicit Control Center Only choice that also hides the Dock icon while preserving older users' preferences. Adding a control alone does not currently select that app preference.
 
-## Cleanup and remaining work
+## Initial cleanup and remaining work at that checkpoint
 
 The fixture helper was absent from launchd after removal. Its control and extension registration were removed. The installed fixture app, generated App Group, widget container, diagnostic sandbox container, and fixture preference file were moved to the Trash. AWDL ended UP. SHA-256 comparisons confirmed unchanged production app executable, helper executable, app preferences, and App Group preferences. The production helper remained not running with its original registration version and run count.
 
