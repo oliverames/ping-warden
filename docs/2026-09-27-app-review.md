@@ -29,26 +29,26 @@ Nothing in the shipped 4.2.1 helper is specific to macOS 13 or Intel. For the Se
 
 ## Lane B: app protection pipeline
 
-Generation tokens, the license gate, persistent-protection recovery, and a26e6fe's probe and repair each complete exactly once. The weak spot is the gap between app state and what the helper enforces.
+Generation tokens, the license gate, persistent-protection recovery, and a26e6fe's probe and repair each complete exactly once. The weak spot is the gap between app state and what the helper enforces. The fixes add `scripts/test_coordinator.py` (111 checks, run in CI), which compiles the production coordinator and monitor against in-memory stubs; each of 26 reverted fixes fails a test. Welcome-window parts of B5 and B14 moved to the lane C batch.
 
 | ID | Sev | Finding | Status |
 |---|---|---|---|
-| B1 | P0 impact | a26e6fe's Off shortcut trusted one interface reading, so an Off could skip the stop while the helper enforced, and the skip persisted through `lastKnownState`. | In progress |
-| B2 | P1 | The menu item "Turn Off Ping Protection" could turn protection on, and "Turning On Protection" could show indefinitely. | In progress |
-| B3 | P1 | A helper restart during a session ended protection for the rest of the game. | In progress |
-| B4 | P2 | The app's own distributed notification echoed back and cleared messages, including license-revocation text. | In progress |
-| B5 | P2 | Repair was not single-flight. | In progress |
-| B6 | P2 | A "Lost connection" alert fired during a repair that then succeeded. | In progress |
-| B7 | P2 | Launch opened Login Items with no user action. | In progress |
-| B8 | P2 | Automated paths raised modal alerts, some over games, and setup failures stacked duplicates. | In progress |
-| B9 | P2 | The saved intent was not retried after the helper recovered. | In progress |
+| B1 | P0 impact | a26e6fe's Off shortcut trusted one interface reading, so an Off could skip the stop while the helper enforced, and the skip persisted through `lastKnownState`. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B2 | P1 | The menu item "Turn Off Ping Protection" could turn protection on, and "Turning On Protection" could show indefinitely. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B3 | P1 | A helper restart during a session ended protection for the rest of the game. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B4 | P2 | The app's own distributed notification echoed back and cleared messages, including license-revocation text. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B5 | P2 | Repair was not single-flight. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B6 | P2 | A "Lost connection" alert fired during a repair that then succeeded. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B7 | P2 | Launch opened Login Items with no user action. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B8 | P2 | Automated paths raised modal alerts, some over games, and setup failures stacked duplicates. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B9 | P2 | The saved intent was not retried after the helper recovered. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
 | B10 | P2 | Control Center shows stale "Protected" after an app crash. | Deferred to the #92 redesign |
-| B11 | P2 | Quit might leave AWDL down up to 60 s; a pending first enable at quit sent no stop. | In progress |
-| B12, B13 | P3 | Generation guards and launch sent three enables. | In progress |
-| B14 | P3 | Several messages pointed at restarting or the helper test instead of Repair, or warned falsely. | In progress |
-| B15 | P3 | Dashboard Finish Setup still used the unverified registration path. | In progress |
-| B16 | P3 | No sleep or wake handling. | In progress |
-| A-B | P2 | XPC error handlers never signaled, so rejections looked like 2 s timeouts. | In progress |
+| B11 | P2 | Quit might leave AWDL down up to 60 s; a pending first enable at quit sent no stop. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B12, B13 | P3 | Generation guards and launch sent three enables. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B14 | P3 | Several messages pointed at restarting or the helper test instead of Repair, or warned falsely. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B15 | P3 | Dashboard Finish Setup still used the unverified registration path. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| B16 | P3 | No sleep or wake handling. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
+| A-B | P2 | XPC error handlers never signaled, so rejections looked like 2 s timeouts. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
 
 ## Lane E: widget sandbox (#92) and PR #95 (#96)
 
@@ -92,4 +92,13 @@ Decisions for Oliver: D1 initial window size (980×1000 leaves about 40% empty; 
 
 ## Lane D: performance and energy
 
-Pending.
+Idle cost with the Dashboard closed is very low: 0.003% CPU, 0.07 wakeups per second, and a flat 18 MB, rising to 0.03% with Game Mode auto-detect on. The open Dashboard is where the cost is, and it keeps rendering when hidden, minimized, or covered. Measured on an M2 Pro with macOS 27.2 in an isolated fixture; Intel and macOS 13 would be slower and were not measured.
+
+| ID | Sev | Finding | Status |
+|---|---|---|---|
+| D1 | P1 | The chart's x-axis tick dates change every sample, so SwiftUI/Charts retains about five new label views per second: 8 to 13 MB per minute while the Dashboard is open, freed only on close. Wall-clock-aligned ticks kept footprint flat in the fixture. | In progress |
+| D2 | P1 | The Dashboard renders at full cost (about 4.6% CPU at 1 s) while hidden or minimized, the likely case behind a fullscreen game. | In progress |
+| D3 | P2 | The chart rebuilds 720 points and a per-point area mark every sample, about 23 ms, and its downsampling shimmers as the window slides. | In progress |
+| D4 | P2 | The settings window re-measures its whole layout every sample, about 9.7 ms. | In progress (settings batch) |
+| D5 | P2 | About seven synchronous `SMAppService.status` calls per Dashboard render. | In progress |
+| D6–D13 | P3 | Duplicate intervention polls and unconditional publishes, noisy error logging, 10 wakeups per timed-out probe, telemetry on the Targets pane, a Screen Recording check every Game Mode tick, main-thread downsampling, undownsampled timeline marks, and a `route` launch on every Dashboard appearance. | In progress |
