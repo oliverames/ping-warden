@@ -337,11 +337,11 @@
 			files = (
 			);
 			inputPaths = (
-				"$(​SRCROOT)/​PingWarden​Helper​/com​.amesvt​.pingwarden​.helper​.plist",
+				"$(SRCROOT)/PingWardenHelper/com.amesvt.pingwarden.helper.plist",
 			);
 			name = "Copy Helper Plist";
 			outputPaths = (
-				"$(​BUILT​_​PRODUCTS​_​DIR)/$(​CONTENTS​_​FOLDER​_​PATH)/​Library​/​Launch​Daemons​/com​.amesvt​.pingwarden​.helper​.plist",
+				"$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchDaemons/com.amesvt.pingwarden.helper.plist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
