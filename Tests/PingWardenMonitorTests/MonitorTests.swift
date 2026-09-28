@@ -437,6 +437,29 @@ for error in [
     check(NSAlert.messages.count == alerts, "a silent registration failure must not show an alert")
 }
 
+// Another request can finish registration after our initial status check.
+// A documented AlreadyRegistered error must honor the fresh enabled status.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .enabled
+    SMAppService.fixtureRegistrationError = NSError(domain: "SMAppServiceErrorDomain", code: 12)
+    let results = LockedValue<[Bool]>([])
+    let alerts = NSAlert.messages.count
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin()
+    check(results.withValue { $0 } == [true], "an already enabled helper completes registration successfully once")
+    check(monitor.harnessConnection != nil && !monitor.isMonitoringActive,
+          "enabled registration connects but must not claim confirmed protection")
+    check(SMAppService.settingsOpenCalls == 0 && SMAppService.registerCalls == 1,
+          "already enabled registration neither opens Settings nor retries")
+    check(NSAlert.messages.count == alerts && monitor.lastSetupFailureMessage == nil,
+          "already enabled registration must not leave a false setup failure")
+}
+
 // An actual pending approval after a thrown error keeps the existing Settings
 // handoff. Changing status to enabled completes registration exactly once.
 do {

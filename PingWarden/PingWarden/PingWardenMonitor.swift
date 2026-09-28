@@ -566,9 +566,14 @@ class PingWardenMonitor: @unchecked Sendable {
                 log.error("Registration failed: \(error.localizedDescription) (domain: \(error.domain, privacy: .public), code: \(error.code), status: \(self.statusDescription(failureStatus), privacy: .public))")
                 signposter.endInterval("RegisterHelper", state)
 
-                // The registration status identifies a pending approval. Error
-                // domains and localized descriptions also cover other failures.
-                if failureStatus == .requiresApproval {
+                // Registration can finish between the initial status check and
+                // register(). Treat its fresh status like the entry branches.
+                // Error domains and descriptions also cover unrelated failures.
+                if failureStatus == .enabled {
+                    log.info("Helper is enabled after the registration request")
+                    connectXPC()
+                    completion?(true)
+                } else if failureStatus == .requiresApproval {
                     log.info("Registration requires user approval - opening System Settings")
                     SMAppService.openSystemSettingsLoginItems()
                     // Start polling for the user to approve
