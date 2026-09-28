@@ -197,7 +197,7 @@ struct WelcomeView: View {
                     .font(.headline)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Allow Ping Warden in \(SystemSettingsCopy.loginItemsPath), then click Try Again. If it is already allowed, restart your Mac and click Try Again.")
+                Text("Follow the instructions in the setup error, then click Try Again.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
