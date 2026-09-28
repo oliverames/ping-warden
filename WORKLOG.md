@@ -25,7 +25,7 @@
 - Ship a26e6fe (helper recovery) as 4.2.2 after Oliver approves and after the pre-release delta audit. The delta changes helper-registration behavior, though only on explicit Repair or setup when the helper does not answer (since 2026-09-27)
 - Sentry: decide on a one-time delivery test against a separate project, and on `enableUncaughtNSExceptionReporting`. Server side checked clean on 2026-09-27; the last accepted error event was 2026-08-06 (since 2026-09-27)
 
-## 2026-09-27 - Whole-app review and polish (in progress)
+## 2026-09-27 - Whole-app review and polish (fixes complete; signed checks pending)
 
 **Request**: Oliver asked for a review of the code that takes down AWDL and the rest of the app, polish of rough edges, performance, UI, and UX, and closing open GitHub issues.
 
@@ -35,7 +35,7 @@
 
 **Resume point**: If interrupted, re-read the agents' reports (or rerun the lanes), then continue Phase 2 from `docs/2026-09-27-app-review.md`.
 
-**Progress (2026-09-28)**: All five reviews are in; findings and status live in `docs/2026-09-27-app-review.md`. Every lane A to D finding is fixed on main except the deferred A8 ProcessType and B10, which waits for #92. Merged: helper hardening (7aaa069, ed60850), the protection pipeline (7eb2091, 78c00ee, 2ba9c5e), Settings, Welcome, menus, and copy (07347a7, a86ac79, 869bd34), harness waits (c47a473), and the Dashboard and performance batch (52dab46 to c6eb9c1). Follow-ups: the menu shares the intervention poll (83e4b8b), the last three-dot ellipses (609c4e5), and test preference suites now live in a temporary folder instead of adding about 20 empty plists to ~/Library/Preferences per run (afc7a0d). PR #95 has E1 to E8 fixed, was merged with main, and was pushed as a066756; it stays draft for the signed #96 checks. Remaining: issue status comments, Oliver's signed-build checklist, and his decisions listed in the chat summary.
+**Progress (2026-09-28)**: All five reviews are in; findings and status live in `docs/2026-09-27-app-review.md`. Every lane A to D finding is fixed on main except the deferred A8 ProcessType and B10, which waits for #92. Merged: helper hardening (7aaa069, ed60850), the protection pipeline (7eb2091, 78c00ee, 2ba9c5e), Settings, Welcome, menus, and copy (07347a7, a86ac79, 869bd34), harness waits (c47a473), and the Dashboard and performance batch (52dab46 to c6eb9c1). Follow-ups: the menu shares the intervention poll (83e4b8b), the last three-dot ellipses (609c4e5), and test preference suites now live in a temporary folder instead of adding about 20 empty plists to ~/Library/Preferences per run (afc7a0d). PR #95 has E1 to E8 fixed, was merged with main, and was pushed as a066756; it stays draft for the signed #96 checks. Issues on 2026-09-28: #91 closed after an isolated full-window check; #89 and #90 closed with their signed-build and VoiceOver residue moved into one checklist on #78; design review posted on #92 (recommends running the control intents in the app process, pending a signed spike); status posted on #96, and the PR #95 description updated. #64, #93, and #94 are unchanged. Agent worktrees and temporary branches were removed.
 
 **Decision needed**: about 910 empty plists from earlier test runs remain in ~/Library/Preferences, named `com.amesvt.pingwarden.tests.*`, `PingWardenWelcomeTests.*`, `PingWardenCrashReportingTests.*`, and similar. Moving them to the Trash waits for Oliver's go-ahead. The app's own `com.amesvt.pingwarden.plist` and the fixture domains are not part of that set.
 
