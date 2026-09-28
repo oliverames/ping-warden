@@ -143,7 +143,7 @@ private enum LatencyPalette {
 }
 
 private extension View {
-    /// Native content chrome shared by Dashboard and Targets cards.
+    /// Share the system glass material across the dashboard's card surfaces.
     func dashboardCardStyle() -> some View {
         self
             .padding(DashboardLayout.cardPadding)
@@ -155,8 +155,11 @@ private extension View {
 private struct DashboardCardBackground: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: DashboardLayout.cardCornerRadius, style: .continuous)
-        content.background(Color(nsColor: .controlBackgroundColor), in: shape)
-            .overlay(shape.stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+        if #available(macOS 26, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content.background(.regularMaterial, in: shape)
+        }
     }
 }
 
@@ -167,7 +170,15 @@ struct DashboardSettingsContent: View {
     @ObservedObject private var sessionCoordinator = ProtectedSessionCoordinator.shared
 
     var body: some View {
-        cardStack
+        Group {
+            if #available(macOS 26, *) {
+                GlassEffectContainer {
+                    cardStack
+                }
+            } else {
+                cardStack
+            }
+        }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         // A Dashboard left open behind a fullscreen game kept redrawing
