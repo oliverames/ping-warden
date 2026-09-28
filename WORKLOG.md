@@ -1,5 +1,17 @@
 # Ping Warden Worklog
 
+## 2026-09-28 - Product Hunt scheduled, MacMenuBar submitted, NVIDIA approval requested
+
+**What changed:** Product Hunt launch is scheduled for Sep 29 2026 at 12:01 AM PDT (3:01 AM EDT). Live listing copy now differs from the 09-24 prepared docs: tagline "Less Wi-Fi stutter in GeForce NOW and Mac cloud gaming", a 462-character description that leads with the symptom, topics Mac, Open Source and Menu Bar Apps, and four captioned gallery images (hero with menu bar, dashboard chart cropped to exclude a test latency-session card, menu bar states, Game Mode). The MacMenuBar form was filled with three real menu bar captures and submitted (its thanks page appeared). The required reviewer promo field holds a note offering a free license on request, not a code. A direct message asking permission for one General Chat introduction was sent to a listed NVIDIA admin, as the NVIDIA code of conduct requires prior approval for advertising.
+
+**Verification:** Menu captures were taken on a neutral temporary backdrop, cropped to the menu bar and popover. The production app was restored afterward: Not Protected, live metrics off, AWDL up, app not running as originally found. No repository files or app settings changed. The Product Hunt listing was checked in the editor and the product page shows the scheduled banner. Live rendering of the new gallery was not re-checked on launch day.
+
+**Left off at:** The maker first comment (text in the private prepared JSON) posts after launch. A session-only job was set for about 3:04 AM EDT. It only runs if the session stays open, so post manually if it did not. Awaiting the NVIDIA reply and any MacMenuBar confirmation email. Search Console sitemap still reports "Couldn't fetch" (#106).
+
+**Open questions:** Whether to record a short demo video before or after launch. Whether to create a reviewer license code for MacMenuBar if asked. Tracking stays in #93, #105 and #106.
+
+---
+
 ## 2026-09-28 - Search Console ownership verification
 
 Oliver authorized adding pingwarden.app to his chosen Google account. Added the supplied HTML ownership tag to the homepage source and generated site. The tag is public verification metadata. DNS, analytics, crawl policy and app artifacts remain unchanged. Root owns the site and Git changes; agents own their named community submissions.
