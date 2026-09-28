@@ -2,18 +2,22 @@
 
 ## 2026-09-28 - Integrated release readiness and Felix follow-up
 
-**Request**: Commit and merge the pending Control Center work into main, clean up, and run full release gates with particular care for performance, functionality, and existing users. Verify crash reporting defaults on while preserving explicit opt-outs. Investigate the missing dashboard Liquid Glass appearance against Oliver's screenshot. Reply to Felix with thanks and a retest request only after the fix is live. Clarification of publication authorization is pending because the prior release hold was explicit.
+**Request**: Commit and merge the pending Control Center work into main, clean up, and run full release gates with particular care for performance, functionality, and existing users. Verify crash reporting defaults on while preserving explicit opt-outs. Investigate the missing dashboard Liquid Glass appearance against Oliver's screenshot. Reply to Felix with thanks and a retest request only after the fix is live. Oliver authorized publication after passing gates, followed by Felix's reply. The previous publication hold is lifted for this release.
 
-**Plan and ownership**: The coordinator owns all source edits, merges, builds, installed fixture operations, and delivery. Independent agents will review (1) upgrade and helper compatibility and (2) dashboard appearance/performance. No other active chat is working in ping-warden. The existing main checkout is clean at e8d20b1 and has no other worktrees.
+**Plan and ownership**: The coordinator owns all source edits, merges, builds, installed fixture operations, and delivery. Independent agents will review (1) upgrade and helper compatibility and (2) dashboard appearance/performance. No other active chat is working in ping-warden. The checkout began clean at e8d20b1 with no other worktrees. PR #95 is merged locally as 9952104. Candidate version is 4.3.0, build 43000.
 
 **Shared task list**:
-- [ ] Review current PR #95, CI, open gates, Felix's thread, and release runbook.
-- [ ] Merge authorized Control Center work, preserving existing preferences and helper/upgrade compatibility.
+- [x] Review current PR #95, CI, open gates, Felix's thread, and release runbook.
+- [x] Merge authorized Control Center work, preserving existing preferences and helper/upgrade compatibility.
 - [ ] Diagnose and fix the dashboard appearance regression, then measure visible/hidden performance.
 - [ ] Verify crash-report defaults and prior opt-outs, plus release delta and functional gates.
 - [ ] Build and test the integrated signed candidate, including existing-install upgrade paths.
 - [ ] Commit/push and clean up completed branches and fixtures without removing user state.
 - [ ] If publication is authorized and gates pass, release and verify the delivered artifact/feed before replying to Felix.
+
+**Current verification plan**: Build a signed v4.2.1 fixture and the 4.3.0 candidate with the same isolated identity. Preserve fixture license/transition state on relaunch. Test Downloads guidance, an absent launchd job with retained registration, same-path upgrade, legacy and new icon modes, and actual On/Off. Compare visible/hidden dashboard CPU and memory with a pre-glass fixture under matching workload. Coordinator owns UI and installation. Read-only agents own helper/crash/release suites and compatibility review. All fixture data stays separate from production.
+
+**Progress**: Core 240, coordinator 111, presentation 35, crash reporter 38, release tooling 21, and helper 204 checks in each of plain/TSan/ASan+UBSan passed. Monitor and website checks passed. Native signed universal 4.3.0 candidate builds and validates. Same-path signed 4.2.1-to-4.3.0 fixture upgrade preserves the transition deadline and seal, explicit crash opt-out, saved Dock and legacy menu-icon choice, ongoing protection intent, and session JSON bytes. The existing helper still answers across the update without new approval. Liquid Glass is visible in the candidate. A six-minute visible CPU/footprint sample is running; a matching pre-glass baseline is building in scratch. Production app and user preferences remain untouched.
 
 **Resume point**: Re-read this list, current git status, the new agent reports, and `docs/2026-09-28-control-center-verification.md`. The previous test setup has been removed and production is unchanged. Preserve the original production app and preferences until a deliberate upgrade test. Felix's screenshot reports no launchd helper service and first launch from Downloads. Do not call the fix live before verified publication.
 

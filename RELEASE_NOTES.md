@@ -1,3 +1,38 @@
+# Ping Warden 4.3.0
+
+This update improves helper setup and recovery, adds an icon-free Control Center mode, and restores the dashboard's Liquid Glass cards.
+
+## Control Center
+
+- On macOS 26 and later, choose **Settings → Automation → Control Center Only** to hide Ping Warden's menu bar and Dock icons. Open Ping Warden from Applications or Spotlight to reach settings.
+- Existing **Hide Menu Bar Icon** users keep their previous behavior, including the Dock icon, until they choose the new mode. Saved icon preferences survive a temporary fallback when Control Center is unavailable.
+- The Control Center extension now runs in the required sandbox and retains authenticated access to the existing helper. Existing installations do not need a replacement helper permission for this change.
+
+## Setup and reliability
+
+- Setup and Repair confirm that the helper answers before reporting success. Explicit Repair can rebuild a registered helper that never responds.
+- Starting setup from Downloads, Desktop, Documents, or a translocated downloaded copy now explains how to move the app to Applications. Settings and license state remain saved.
+- Protection status, connection recovery, sleep and wake handling, and quitting are more reliable. Turning protection off restores AWDL.
+- Helper enforcement checks the real interface state, bounds retries, and restores AWDL after its last client exits.
+
+## Dashboard and settings
+
+- Liquid Glass cards return on macOS 26 and later, with a material fallback on older systems.
+- Dashboard redraws pause while its window is hidden. History continues recording and catches up when the window returns.
+- Chart updates use bounded samples, and session history no longer accumulates duplicate observers as settings reopen.
+- Setup, repair, license entry, and protection messages are clearer. Crash reports remain on by default when no preference is saved, and existing opt-outs stay off.
+
+## New since 4.0
+
+- Game Mode can detect a recognized frontmost game without Screen Recording permission. Optional Screen Recording access also enables fullscreen-window detection. Automatic activation skips Ethernet and rechecks when the network changes.
+- Latency Sessions record a protected game or call and produce a local recap. Starting a session requires a license or an active transition. The dashboard, diagnostics, and past recaps remain free.
+
+## Updating
+
+Use **Check for Updates**, or download the current DMG and replace the app in Applications. Version 2.0.5 and earlier require a manual download.
+
+Ping Protection, including starting a Latency Session, requires a one-time $15 license or an active transition. Updates preserve eligible existing users' original 90-day transition deadline. The dashboard, diagnostics, and past session recaps remain free. The source remains MIT-licensed.
+
 # Ping Warden 4.2.1
 
 This update brings Targets into line with the other settings pages and fixes several settings, keyboard, and accessibility details.
