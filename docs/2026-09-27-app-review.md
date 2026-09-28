@@ -75,20 +75,20 @@ The UI is native and mostly consistent, and the #90 fixes that could be exercise
 
 | ID | Sev | Finding | Status |
 |---|---|---|---|
-| C1 | P1 | A mistyped license key is reported as "refunded, cancelled, or disabled", because every Gumroad `success:false`, including an unknown key, maps to revoked. | Planned: neutral copy, since Gumroad cannot tell the two apart |
+| C1 | P1 | A mistyped license key is reported as "refunded, cancelled, or disabled", because every Gumroad `success:false`, including an unknown key, maps to revoked. | Fixed in 07347a7 and 869bd34: neutral copy; licensing logic unchanged |
 | C2 | P2 | The Dashboard shows the protection error twice, and VoiceOver calls the first a session error. | Planned, with an inline Repair button in the Ping Protection card |
-| C3 | P2 | The Welcome window clips its license line at the default size and mixes alignments. | Planned |
-| C4 | P2 | The Welcome failure copy points to Advanced settings, which the window cannot reach; its retry button already runs repair. | Planned: "Try Again" |
+| C3 | P2 | The Welcome window clips its license line at the default size and mixes alignments. | Fixed in a86ac79 |
+| C4 | P2 | The Welcome failure copy points to Advanced settings, which the window cannot reach; its retry button already runs repair. | Fixed in a86ac79 |
 | C5 | P2 | Dashboard Finish Setup fails silently and uses a third setup path. | With B15 |
-| C6 | P2 | Repair shows no progress and no success message. | With B5, plus a success message |
-| C7 | P2 | Helper alerts use jargon ("via XPC"), the title "Error", and conflicting advice. | With B14 |
-| C8 | P2 | The empty license field is invisible, and "License verified" never shows. | Planned |
+| C6 | P2 | Repair shows no progress and no success message. | Fixed in 7eb2091 (progress) and 869bd34 (result alerts) |
+| C7 | P2 | Helper alerts use jargon ("via XPC"), the title "Error", and conflicting advice. | Fixed in 7eb2091 and 869bd34 |
+| C8 | P2 | The empty license field is invisible, and "License verified" never shows. | Fixed in 869bd34, as a plain text field per Oliver |
 | C9 | P2 | The one-minute chart axis reads like clock time, the line takes the latest sample's color, and the legend glyphs never appear in the plot. | Planned |
-| C10 | P2 | The application menu lacks Check for Updates (a #90 item). | Planned: SwiftUI CommandGroup |
-| C11 | P2 | Prepare to Remove does not say it deletes the saved license key and the transition marker. | Planned: copy only |
-| C12–C23 | P3 | Repeated license text, wrong "below" in the host error, a clickable-looking status line, the macOS 15 "Login Items & Extensions" name, outdated Gatekeeper instructions, crash-report copy, terminology drift, VoiceOver labels, Dashboard nits, repeated Automation text, About and Help nits, and a repetitive Welcome headline. | Planned |
+| C10 | P2 | The application menu lacks Check for Updates (a #90 item). | Fixed in 869bd34 |
+| C11 | P2 | Prepare to Remove does not say it deletes the saved license key and the transition marker. | Fixed in 869bd34 (copy only) |
+| C12–C23 | P3 | Repeated license text, wrong "below" in the host error, a clickable-looking status line, the macOS 15 "Login Items & Extensions" name, outdated Gatekeeper instructions, crash-report copy, terminology drift, VoiceOver labels, Dashboard nits, repeated Automation text, About and Help nits, and a repetitive Welcome headline. | Settings, menu, Welcome, and alert items fixed in 07347a7, a86ac79, 869bd34; Dashboard and Targets items in progress |
 
-Decisions for Oliver: D1 initial window size (980×1000 leaves about 40% empty; suggest about 900×780, keeping the saved frame); D2 Undo for custom-target deletion (suggest Edit → Undo, no confirmation); D3 whether unlicensed first runs should lead with the helper setup or with Open Dashboard; D4 a plain rather than secure license-key field, which makes paste mistakes visible.
+Oliver decided on 2026-09-27: windows open at about 900×780 (done in 869bd34, saved frames kept), the license field is plain text (done), and unlicensed first runs lead with Open Dashboard (done in a86ac79). Undo for target deletion is in progress. The original questions were: D1 initial window size (980×1000 leaves about 40% empty; suggest about 900×780, keeping the saved frame); D2 Undo for custom-target deletion (suggest Edit → Undo, no confirmation); D3 whether unlicensed first runs should lead with the helper setup or with Open Dashboard; D4 a plain rather than secure license-key field, which makes paste mistakes visible.
 
 ## Lane D: performance and energy
 
@@ -99,6 +99,6 @@ Idle cost with the Dashboard closed is very low: 0.003% CPU, 0.07 wakeups per se
 | D1 | P1 | The chart's x-axis tick dates change every sample, so SwiftUI/Charts retains about five new label views per second: 8 to 13 MB per minute while the Dashboard is open, freed only on close. Wall-clock-aligned ticks kept footprint flat in the fixture. | In progress |
 | D2 | P1 | The Dashboard renders at full cost (about 4.6% CPU at 1 s) while hidden or minimized, the likely case behind a fullscreen game. | In progress |
 | D3 | P2 | The chart rebuilds 720 points and a per-point area mark every sample, about 23 ms, and its downsampling shimmers as the window slides. | In progress |
-| D4 | P2 | The settings window re-measures its whole layout every sample, about 9.7 ms. | In progress (settings batch) |
+| D4 | P2 | The settings window re-measures its whole layout every sample, about 9.7 ms. | Fixed in 869bd34 |
 | D5 | P2 | About seven synchronous `SMAppService.status` calls per Dashboard render. | In progress |
 | D6–D13 | P3 | Duplicate intervention polls and unconditional publishes, noisy error logging, 10 wakeups per timed-out probe, telemetry on the Targets pane, a Screen Recording check every Game Mode tick, main-thread downsampling, undownsampled timeline marks, and a `route` launch on every Dashboard appearance. | In progress |
