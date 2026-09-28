@@ -15,6 +15,117 @@ import publish_gumroad as gumroad
 import update_appcast as appcast
 
 
+class WidgetEntitlementTests(unittest.TestCase):
+    sandbox = "com.apple.security.app-sandbox"
+    groups = "com.apple.security.application-groups"
+    lookup = "com.apple.security.temporary-exception.mach-lookup.global-name"
+
+    def setUp(self):
+        self.valid = {
+            self.sandbox: True,
+            self.groups: ["PV3W52NDZ3.com.amesvt.pingwarden"],
+            self.lookup: ["com.amesvt.pingwarden.xpc"],
+        }
+
+    def validate(self, entitlements):
+        payload = (plistlib.dumps(entitlements).decode()
+                   if not isinstance(entitlements, str) else entitlements)
+        script = Path(__file__).resolve().parent / "release_validation.sh"
+        return subprocess.run(
+            ["bash", "-c", 'source "$1"; validate_widget_entitlements "$2"',
+             "widget-entitlements-test", str(script), payload],
+            capture_output=True, text=True,
+        )
+
+    def test_minimum_permissions_and_source_entitlements_pass(self):
+        for entitlements in [self.valid, plistlib.loads(
+            (Path(__file__).resolve().parents[1] /
+             "PingWarden/PingWardenWidget/PingWardenWidget.entitlements").read_bytes()
+        )]:
+            result = self.validate(entitlements)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_signing_identity_metadata_is_allowed(self):
+        entitlements = dict(self.valid)
+        entitlements["com.apple.application-identifier"] = "PV3W52NDZ3.com.amesvt.pingwarden.widget"
+        entitlements["com.apple.developer.team-identifier"] = "PV3W52NDZ3"
+        self.assertEqual(self.validate(entitlements).returncode, 0)
+
+    def test_missing_disabled_or_wrongly_typed_sandbox_is_rejected(self):
+        for value in [None, False, "true", 1]:
+            with self.subTest(value=value):
+                entitlements = dict(self.valid)
+                if value is None:
+                    del entitlements[self.sandbox]
+                else:
+                    entitlements[self.sandbox] = value
+                self.assertNotEqual(self.validate(entitlements).returncode, 0)
+
+    def test_group_and_helper_permissions_must_be_exact(self):
+        for key in [self.groups, self.lookup]:
+            for value in [None, [], "wrong", ["wrong"], ["*"], self.valid[key] + ["extra"]]:
+                with self.subTest(key=key, value=value):
+                    entitlements = dict(self.valid)
+                    if value is None:
+                        del entitlements[key]
+                    else:
+                        entitlements[key] = value
+                    self.assertNotEqual(self.validate(entitlements).returncode, 0)
+
+    def test_unneeded_permissions_are_rejected(self):
+        for key, value in {
+            "com.apple.security.network.client": True,
+            "com.apple.security.inherit": True,
+            "com.apple.security.get-task-allow": True,
+            "com.apple.security.temporary-exception.files.absolute-path.read-write": ["/"],
+            "com.apple.security.temporary-exception.mach-register.global-name": ["extra"],
+        }.items():
+            with self.subTest(key=key):
+                self.assertNotEqual(self.validate(dict(self.valid, **{key: value})).returncode, 0)
+
+    def test_unreadable_or_non_dictionary_payload_is_rejected(self):
+        for payload in ["", "not a plist", "<plist><dict>", []]:
+            with self.subTest(payload=payload):
+                result = self.validate(payload)
+                self.assertNotEqual(result.returncode, 0)
+
+    def validate_signature(self, arm64, x86_64, failed_arch=""):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = [Path(directory) / arch for arch in ["arm64", "x86_64"]]
+            for path, entitlements in zip(paths, [arm64, x86_64]):
+                path.write_bytes(plistlib.dumps(entitlements))
+            script = Path(__file__).resolve().parent / "release_validation.sh"
+            return subprocess.run(["bash", "-c", '''
+source "$1"
+pw_test_arm64="$2"
+pw_test_x86="$3"
+pw_test_failure="$4"
+codesign() {
+    [ "$3" != "$pw_test_failure" ] || return 1
+    case "$3" in
+        arm64) cat "$pw_test_arm64" ;;
+        x86_64) cat "$pw_test_x86" ;;
+        *) return 1 ;;
+    esac
+}
+validate_widget_signature_entitlements fixture.appex
+''', "widget-signature-test", str(script), *(str(path) for path in paths), failed_arch],
+                capture_output=True, text=True)
+
+    def test_signed_entitlements_are_checked_in_both_architectures(self):
+        result = self.validate_signature(self.valid, self.valid)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        unsandboxed = dict(self.valid, **{self.sandbox: False})
+        for arm64, x86_64 in [(unsandboxed, self.valid), (self.valid, unsandboxed)]:
+            self.assertNotEqual(self.validate_signature(arm64, x86_64).returncode, 0)
+
+    def test_signed_entitlement_extraction_failure_is_rejected(self):
+        for arch in ["arm64", "x86_64"]:
+            result = self.validate_signature(self.valid, self.valid, failed_arch=arch)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("cannot read " + arch, result.stderr)
+
+
 @unittest.skipUnless(sys.platform == "darwin", "release metadata uses macOS PlistBuddy")
 class SentryReleaseTests(unittest.TestCase):
     def release_id(self, version="4.1.10", build="411000", bundle_id="com.amesvt.pingwarden", name="Ping Warden.app"):

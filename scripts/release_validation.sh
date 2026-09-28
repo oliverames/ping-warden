@@ -9,6 +9,7 @@ PING_WARDEN_WIDGET_BUNDLE_ID="com.amesvt.pingwarden.widget"
 PING_WARDEN_HELPER_BUNDLE_ID="com.amesvt.pingwarden.helper"
 PING_WARDEN_TEAM_ID="PV3W52NDZ3"
 PING_WARDEN_APP_GROUP="PV3W52NDZ3.com.amesvt.pingwarden"
+PING_WARDEN_HELPER_MACH_SERVICE="com.amesvt.pingwarden.xpc"
 
 release_validation_error() {
     echo "Error: $*" >&2
@@ -142,10 +143,55 @@ validate_signed_component() {
     esac
 }
 
+# Validate the signed payload, not just the source entitlement file. A widget
+# without App Sandbox is rejected by PlugInKit. The one Mach lookup exception
+# preserves access to existing helper registrations without broadening access.
+validate_widget_entitlements() {
+    printf '%s\n' "$1" | python3 -c '
+import plistlib
+import sys
+
+try:
+    entitlements = plistlib.loads(sys.stdin.buffer.read())
+    if not isinstance(entitlements, dict):
+        raise ValueError("entitlements must be a dictionary")
+    expected = {
+        "com.apple.security.app-sandbox": True,
+        "com.apple.security.application-groups": [sys.argv[1]],
+        "com.apple.security.temporary-exception.mach-lookup.global-name": [sys.argv[2]],
+    }
+    for key, value in expected.items():
+        actual = entitlements.get(key)
+        if type(actual) is not type(value) or actual != value:
+            raise ValueError("missing or unexpected value for " + key)
+    extra = sorted(key for key in entitlements
+                   if key.startswith("com.apple.security.") and key not in expected)
+    if extra:
+        raise ValueError("unexpected security entitlements: " + ", ".join(extra))
+except (ValueError, TypeError, plistlib.InvalidFileException) as error:
+    print("Error: invalid Control Center widget entitlements: " + str(error), file=sys.stderr)
+    sys.exit(1)
+' "$PING_WARDEN_APP_GROUP" "$PING_WARDEN_HELPER_MACH_SERVICE"
+}
+
+validate_widget_signature_entitlements() {
+    local widget_path="$1"
+    local architecture entitlements
+    # Displaying a signature defaults to the host architecture. Verify both
+    # slices so an Intel-only entitlement regression cannot pass on Apple silicon.
+    for architecture in arm64 x86_64; do
+        if ! entitlements="$(codesign -d --arch "$architecture" --entitlements :- "$widget_path" 2>/dev/null)"; then
+            release_validation_error "cannot read $architecture widget entitlements"
+            return 1
+        fi
+        validate_widget_entitlements "$entitlements" || return 1
+    done
+}
+
 validate_distribution_signature() {
     local app_path="$1"
     local info_plist app_executable helper_path widget_path widget_plist widget_executable
-    local app_entitlements widget_entitlements
+    local app_entitlements
 
     if ! codesign --verify --deep --strict --verbose=2 "$app_path"; then
         release_validation_error "code signature validation failed for $app_path"
@@ -168,8 +214,7 @@ validate_distribution_signature() {
     validate_universal_binary "$widget_path/Contents/MacOS/$widget_executable" "Control Center widget" || return 1
 
     app_entitlements="$(codesign -d --entitlements :- "$app_path" 2>/dev/null || true)"
-    widget_entitlements="$(codesign -d --entitlements :- "$widget_path" 2>/dev/null || true)"
-    case "$app_entitlements$widget_entitlements" in
+    case "$app_entitlements" in
         *"com.apple.security.get-task-allow"*)
             release_validation_error "distribution payload contains the get-task-allow entitlement"
             return 1
@@ -182,13 +227,7 @@ validate_distribution_signature() {
             return 1
             ;;
     esac
-    case "$widget_entitlements" in
-        *"$PING_WARDEN_APP_GROUP"*) ;;
-        *)
-            release_validation_error "widget signature is missing App Group $PING_WARDEN_APP_GROUP"
-            return 1
-            ;;
-    esac
+    validate_widget_signature_entitlements "$widget_path" || return 1
 }
 
 validate_app_artifact() {

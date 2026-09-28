@@ -3,10 +3,16 @@
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.app-sandbox</key>
-	<false/>
+	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>PV3W52NDZ3.com.amesvt.pingwarden</string>
+	</array>
+	<!-- Keep the existing helper endpoint so upgrades do not need to
+	     unregister an approved helper. The helper still verifies clients. -->
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>com.amesvt.pingwarden.xpc</string>
 	</array>
 </dict>
 </plist>
