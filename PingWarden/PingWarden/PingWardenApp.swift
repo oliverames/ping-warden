@@ -304,13 +304,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Setup menu bar (unless an icon-hiding mode is on AND the widget is available)
         // Always check if widget is actually available before hiding menu bar
         let widgetAvailable = ControlCenterSupport.isAvailableForCurrentApp()
-        if PingWardenPreferences.shared.controlCenterWidgetEnabled && !widgetAvailable {
-            log.warning("Control Center widget enabled but not available (requires code signing). Resetting to menu bar.")
-            PingWardenPreferences.shared.controlCenterWidgetEnabled = false
-        }
-        // Control Center Only is not reset here: the policy already falls
-        // back to the menu bar icon, and the choice returns if the control
-        // becomes usable again.
+        // Both saved icon-hiding choices survive a temporary fallback.
+        // The policy shows a menu icon until the control becomes usable again.
         if !InterfaceVisibilityPolicy.isMenuBarIconHidden(
             mode: PingWardenPreferences.shared.interfaceVisibilityMode,
             controlCenterAvailable: widgetAvailable
@@ -1723,11 +1718,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         ) {
             removeMenuBar()
         } else {
-            // Reset preference if widget isn't available
-            if PingWardenPreferences.shared.controlCenterWidgetEnabled && !isProperlySignedForControlCenter {
-                log.warning("Control Center widget not available (requires code signing). Reverting to menu bar.")
-                PingWardenPreferences.shared.controlCenterWidgetEnabled = false
-            }
+            // Apply the fallback without overwriting either saved choice.
             if statusItem == nil {
                 setupMenuBar()
             }

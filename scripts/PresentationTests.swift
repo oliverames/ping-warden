@@ -10,6 +10,32 @@ extension Notification.Name {
     var selectedSection: SettingsSection = .general
 }
 
+@MainActor final class PingWardenPreferences {
+    static let shared = PingWardenPreferences()
+    var controlCenterWidgetEnabled = false
+    var controlCenterOnlyEnabled = false
+    var showDockIcon = true
+    var interfaceVisibilityMode: InterfaceVisibilityMode {
+        InterfaceVisibilityPolicy.mode(controlCenterOnlySaved: controlCenterOnlyEnabled,
+                                       legacyHideMenuBarIconSaved: controlCenterWidgetEnabled)
+    }
+}
+
+@MainActor enum ControlCenterSupport {
+    static var available = false
+    static func isAvailableForCurrentApp() -> Bool { available }
+}
+
+@MainActor final class VisibilityHost {
+    var statusItem: Bool?
+    var dockUpdates = 0
+    func setupMenuBar() { statusItem = true }
+    func removeMenuBar() { statusItem = nil }
+    func updateDockIconVisibility() { dockUpdates += 1 }
+    func refresh() { handleControlCenterModeChange() }
+    // INSERT_VISIBILITY_HANDLER
+}
+
 // No AppDelegate startup, NSApplication, preferences, networking, or services.
 @MainActor final class ObserverHost {
     let settingsNavigation = Navigation()
@@ -104,6 +130,22 @@ final class CustomTargetHost {
         try! await Task.sleep(nanoseconds: 25_000_000)
     }
     @MainActor static func main() async {
+        let preferences = PingWardenPreferences.shared
+        for mode in [InterfaceVisibilityMode.hideMenuBarIcon, .controlCenterOnly] {
+            preferences.controlCenterWidgetEnabled = true
+            preferences.controlCenterOnlyEnabled = mode == .controlCenterOnly
+            preferences.showDockIcon = true
+            ControlCenterSupport.available = false
+            let visibility = VisibilityHost()
+            visibility.refresh()
+            check(visibility.statusItem != nil, "unavailable control leaves a menu entry point for \(mode)")
+            check(preferences.interfaceVisibilityMode == mode && preferences.controlCenterWidgetEnabled
+                  && preferences.showDockIcon, "fallback preserves saved choices for \(mode)")
+            ControlCenterSupport.available = true
+            visibility.refresh()
+            check(visibility.statusItem == nil, "saved \(mode) returns when the control becomes available")
+            check(visibility.dockUpdates == 2, "visibility changes always update the Dock policy")
+        }
         // An absolute-path suite keeps its plist in a temporary folder
         // instead of leaving an empty file in ~/Library/Preferences.
         let suite = URL(fileURLWithPath: NSTemporaryDirectory())

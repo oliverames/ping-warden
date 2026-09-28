@@ -40,6 +40,7 @@ def main():
         "EVENTS": ("DashboardViewModel.swift", "private func refreshFilteredTimeline()"),
         "SNAPSHOT": ("DashboardViewModel.swift", "struct PingChartSnapshot {"),
         "KIND": ("DashboardView.swift", "enum Kind"),
+        "VISIBILITY_HANDLER": ("PingWardenApp.swift", "private func handleControlCenterModeChange()"),
     }
     unit = Path(__file__).with_name("PresentationTests.swift").read_text()
     for key, (filename, signature) in seams.items():
@@ -54,6 +55,7 @@ def main():
         subprocess.run(["xcrun", "swiftc", "-parse-as-library", "-swift-version", "5",
                         "-strict-concurrency=complete", "-warnings-as-errors",
                         "-module-cache-path", str(scratch / "ModuleCache"),
+                        str(app / "Core/InterfaceVisibilityPolicy.swift"),
                         str(app / "Core/CustomPingTargetStore.swift"), str(app / "Core/ChartDownsampling.swift"),
                         str(app / "Core/ChartTimeAxis.swift"), str(source), "-o", str(binary)], check=True, timeout=120)
         subprocess.run([str(binary)], check=True, timeout=30)
