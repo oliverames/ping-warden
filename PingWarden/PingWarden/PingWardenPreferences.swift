@@ -24,7 +24,10 @@ final class PingWardenPreferences: @unchecked Sendable {
     private let effectiveMonitoringEnabledKey = "AWDLEffectiveMonitoringEnabled" // Runtime state
     private let protectionPauseUntilKey = "ProtectionPauseUntil" // Epoch seconds of an active pause, absent when none
     private let lastStateKey = "AWDLLastState"
+    /// Hide Menu Bar Icon in 4.2.1 and earlier. Its meaning never changes:
+    /// true hides only the menu bar icon and keeps the Dock icon.
     private let controlCenterEnabledKey = "ControlCenterWidgetEnabled"
+    private let controlCenterOnlyKey = InterfaceVisibilityPolicy.controlCenterOnlyPreferenceKey
     private let gameModeAutoDetectKey = "GameModeAutoDetect"
     private let showDockIconKey = "ShowDockIcon"
     private let showMenuDropdownMetricsKey = "ShowMenuDropdownMetrics"
@@ -152,13 +155,49 @@ final class PingWardenPreferences: @unchecked Sendable {
         }
     }
 
-    /// Whether Control Center widget mode is enabled (hides menu bar icon)
+    /// Hide Menu Bar Icon from 4.2.1 and earlier (hides only the menu bar
+    /// icon). New choices go through `enableControlCenterOnly()` and
+    /// `showMenuBarIcon()`; read `interfaceVisibilityMode` for the result.
     var controlCenterWidgetEnabled: Bool {
         get { defaults.bool(forKey: controlCenterEnabledKey) }
         set {
             defaults.set(newValue, forKey: controlCenterEnabledKey)
             NotificationCenter.default.post(name: .controlCenterModeChanged, object: nil)
         }
+    }
+
+    /// Control Center Only: no menu bar or Dock icon.
+    var controlCenterOnlyEnabled: Bool {
+        defaults.bool(forKey: controlCenterOnlyKey)
+    }
+
+    /// The icons the saved preferences ask for, before checking whether the
+    /// Control Center control can be used on this Mac.
+    var interfaceVisibilityMode: InterfaceVisibilityMode {
+        InterfaceVisibilityPolicy.mode(
+            controlCenterOnlySaved: controlCenterOnlyEnabled,
+            legacyHideMenuBarIconSaved: controlCenterWidgetEnabled
+        )
+    }
+
+    /// Turns on Control Center Only. The legacy value is left as it is, so a
+    /// downgrade to 4.2.1 falls back to whatever the person chose there.
+    func enableControlCenterOnly() {
+        defaults.set(true, forKey: controlCenterOnlyKey)
+        NotificationCenter.default.post(name: .controlCenterModeChanged, object: nil)
+    }
+
+    /// Shows the menu bar icon again, from either icon-hiding mode. Runs only
+    /// when the person asks for the icon back, and writes only the keys that
+    /// are currently on.
+    func showMenuBarIcon() {
+        if defaults.bool(forKey: controlCenterOnlyKey) {
+            defaults.set(false, forKey: controlCenterOnlyKey)
+        }
+        if defaults.bool(forKey: controlCenterEnabledKey) {
+            defaults.set(false, forKey: controlCenterEnabledKey)
+        }
+        NotificationCenter.default.post(name: .controlCenterModeChanged, object: nil)
     }
 
     /// Whether to auto-enable AWDL blocking when Game Mode is active

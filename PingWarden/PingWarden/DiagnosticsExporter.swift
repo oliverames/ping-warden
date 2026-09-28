@@ -141,6 +141,7 @@ enum DiagnosticsExporter {
           monitoring_effective=\(PingWardenPreferences.shared.effectiveMonitoringEnabled)
           game_mode_auto_detect=\(PingWardenPreferences.shared.gameModeAutoDetect)
           control_center_widget=\(PingWardenPreferences.shared.controlCenterWidgetEnabled)
+          control_center_only=\(PingWardenPreferences.shared.controlCenterOnlyEnabled)
           show_dock_icon=\(PingWardenPreferences.shared.showDockIcon)
           last_known_awdl_state=\(PingWardenPreferences.shared.lastKnownState)
 

@@ -121,6 +121,10 @@ private enum PingProtectionIntentHandler {
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = false
+        // Tells the app this launch came from Control Center, so it stays
+        // silent even when the menu bar and Dock icons are both hidden.
+        // Must match InterfaceVisibilityPolicy.controlCenterLaunchArgument.
+        configuration.arguments = ["--launched-by-control-center"]
         let app = try await NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
         guard !app.isTerminated else { throw AWDLError.appLaunchFailed }
     }
