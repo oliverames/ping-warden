@@ -78,3 +78,5 @@ final class NSAlert {
     func runModal() { Self.messages.append(informativeText) }
 }
 extension Notification.Name { static let awdlMonitorStateChanged = Notification.Name("HarnessAWDLChanged") }
+// Only the notification name; the harness never posts app activation.
+enum NSApplication { static let didBecomeActiveNotification = Notification.Name("HarnessAppDidBecomeActive") }

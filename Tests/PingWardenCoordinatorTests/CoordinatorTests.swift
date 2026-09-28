@@ -421,6 +421,7 @@ do {
     check(action == .waitForSetup, "B7: a saved intent waits for Finish Setup when the helper is not approved")
     MainActor.assumeIsolated { resetAll() }
     SMAppService.fixtureStatus = .requiresApproval
+    monitor.refreshHelperStatus()
     PingWardenPreferences.shared.isMonitoringEnabled = true
     MainActor.assumeIsolated { coordinator.noteSetupIncomplete() }
     spin(0.2)

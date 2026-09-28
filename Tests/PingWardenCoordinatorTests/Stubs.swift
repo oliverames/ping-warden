@@ -117,5 +117,7 @@ final class NSAlert {
     func runModal() { Self.messages.append(informativeText) }
 }
 extension Notification.Name { static let awdlMonitorStateChanged = Notification.Name("HarnessAWDLChanged") }
+// Only the notification name; the harness never posts app activation.
+enum NSApplication { static let didBecomeActiveNotification = Notification.Name("HarnessAppDidBecomeActive") }
 /// Replaces `ifconfig awdl0` so no test depends on this Mac's radio.
 enum HarnessInterface { static var flagsLine = "" }

@@ -233,6 +233,20 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Timer for registration timeout (main-thread confined)
     private var registrationTimeoutTimer: Timer?
 
+    /// Last helper registration status read from SMAppService, and when
+    /// (system uptime). Protected by stateLock. Reading the status is a
+    /// synchronous call into the system, and the Dashboard and menu read it
+    /// several times per redraw, so UI reads share this value. Decisions
+    /// that register, repair, or command the helper still read it live.
+    private var _cachedHelperStatus: SMAppService.Status?
+    private var _cachedHelperStatusTime: TimeInterval = 0
+
+    /// Longest a cached status is trusted. Registration changes made in
+    /// System Settings send the app no notification, and returning to the
+    /// app does not always activate it (a menu bar click, for example), so
+    /// the cache also expires on its own.
+    private let helperStatusCacheLifetime: TimeInterval = 2
+
     /// Completion of the in-flight registration poll (main-thread confined).
     /// Held so a superseding poll can still deliver `false` to the previous
     /// caller — dropping it silently would wedge `isRegisteringHelper`.
@@ -244,10 +258,20 @@ class PingWardenMonitor: @unchecked Sendable {
         log.info("PingWardenMonitor v\(version) initializing (SMAppService + XPC)...")
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-        let status = helperService.status
+        let status = refreshHelperStatus()
         log.info("  Helper service status: \(self.statusDescription(status))")
         log.info("  XPC service name: \(self.xpcServiceName)")
         log.info("  Helper plist: \(self.helperPlistName)")
+
+        // Approving or removing the helper in System Settings happens while
+        // Ping Warden is in the background; coming back re-reads it.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            self?.invalidateHelperStatus()
+        }
 
         // If helper is already registered, connect to it
         if status == .enabled {
@@ -279,14 +303,50 @@ class PingWardenMonitor: @unchecked Sendable {
 
     // MARK: - Public API
 
-    /// Check if helper is registered with SMAppService
+    /// Check if helper is registered with SMAppService. Served from a
+    /// short-lived cache; see `_cachedHelperStatus`.
     var isHelperRegistered: Bool {
-        return helperService.status == .enabled
+        registrationStatus == .enabled
     }
 
-    /// Current registration status
+    /// Current registration status, served from a short-lived cache.
     var registrationStatus: SMAppService.Status {
-        return helperService.status
+        let now = ProcessInfo.processInfo.systemUptime
+        stateLock.lock()
+        let cached = _cachedHelperStatus
+        let age = now - _cachedHelperStatusTime
+        stateLock.unlock()
+        if let cached, age < helperStatusCacheLifetime {
+            return cached
+        }
+        return refreshHelperStatus()
+    }
+
+    /// Read the registration status from the system and cache it. Call
+    /// after anything that may have changed the registration.
+    @discardableResult
+    func refreshHelperStatus() -> SMAppService.Status {
+        // Never hold stateLock across the system call.
+        let status = helperService.status
+        let now = ProcessInfo.processInfo.systemUptime
+        stateLock.lock()
+        _cachedHelperStatus = status
+        _cachedHelperStatusTime = now
+        stateLock.unlock()
+        return status
+    }
+
+    /// Whether the helper is registered right now, from a live read. Used
+    /// by decisions that register, repair, or command the helper, which
+    /// must not act on a stale value.
+    private var helperIsEnabledNow: Bool {
+        refreshHelperStatus() == .enabled
+    }
+
+    private func invalidateHelperStatus() {
+        stateLock.lock()
+        _cachedHelperStatus = nil
+        stateLock.unlock()
     }
 
     /// Check if monitoring is currently active (thread-safe)
@@ -392,7 +452,7 @@ class PingWardenMonitor: @unchecked Sendable {
     /// missing connection or a dropped reply leaves the adopted state
     /// unconfirmed and cannot authorize a protection command.
     private func confirmAdoptedStateWithHelper(expectedActive: Bool, operationID: UInt64) {
-        guard isHelperRegistered else { return }
+        guard helperIsEnabledNow else { return }
         if xpcConnection == nil {
             connectXPC()
         }
@@ -474,7 +534,7 @@ class PingWardenMonitor: @unchecked Sendable {
         let signpostID = signposter.makeSignpostID()
         let state = signposter.beginInterval("RegisterHelper", id: signpostID)
 
-        let currentStatus = helperService.status
+        let currentStatus = refreshHelperStatus()
         log.info("Current status: \(self.statusDescription(currentStatus))")
 
         switch currentStatus {
@@ -496,6 +556,7 @@ class PingWardenMonitor: @unchecked Sendable {
             log.info("Registering helper with SMAppService...")
             do {
                 try helperService.register()
+                refreshHelperStatus()
                 log.info("Registration request submitted")
                 // Start polling for approval
                 startPollingForRegistration(presentsErrors: presentsErrors, completion: completion)
@@ -552,7 +613,7 @@ class PingWardenMonitor: @unchecked Sendable {
             }
             return
         }
-        guard isHelperRegistered else {
+        guard helperIsEnabledNow else {
             completion(false)
             return
         }
@@ -630,7 +691,7 @@ class PingWardenMonitor: @unchecked Sendable {
             }
         }
 
-        guard helperService.status == .enabled else {
+        guard helperIsEnabledNow else {
             registerThenConfirm()
             return
         }
@@ -659,6 +720,7 @@ class PingWardenMonitor: @unchecked Sendable {
             Task { @MainActor in
                 do {
                     try await SMAppService.daemon(plistName: plistName).unregister()
+                    self.refreshHelperStatus()
                     log.info("Stale helper registration removed")
                 } catch {
                     // Continue: registering over a stale record can still
@@ -766,7 +828,7 @@ class PingWardenMonitor: @unchecked Sendable {
         log.info("└─────────────────────────────────────────────────────┘")
 
         // Check if helper is registered
-        guard isHelperRegistered else {
+        guard helperIsEnabledNow else {
             log.info("Helper not registered - starting registration flow")
             // Prevent recursive registration
             guard !isRegisteringHelper, !isRepairingHelper else {
@@ -799,7 +861,7 @@ class PingWardenMonitor: @unchecked Sendable {
                     completion?(false)
                     return
                 }
-                if success && self.isHelperRegistered {
+                if success && self.helperIsEnabledNow {
                     // Reset attempts on success
                     self.stateLock.lock()
                     self._registrationAttempts = 0
@@ -1090,7 +1152,7 @@ class PingWardenMonitor: @unchecked Sendable {
         log.info("Performing health check...")
 
         // Check 1: Is helper registered?
-        guard isHelperRegistered else {
+        guard helperIsEnabledNow else {
             log.info("Health check: Helper not registered")
             return (false, "The helper is not set up.")
         }
@@ -1174,8 +1236,10 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Get the AWDL intervention count from the helper
     /// Returns attempts to turn off AWDL, including failed writes.
     func getInterventionCount(completion: @escaping @Sendable (Int?) -> Void) {
-        guard let proxy = getHelperProxy() else {
-            log.warning("Cannot get intervention count: No helper proxy")
+        // Polled every few seconds, so a missing connection is routine here
+        // and is logged at debug level rather than as a warning per poll.
+        guard let proxy = getHelperProxy(logsMissingConnection: false) else {
+            log.debug("Cannot get intervention count: No helper proxy")
             completion(nil)
             return
         }
@@ -1541,6 +1605,7 @@ class PingWardenMonitor: @unchecked Sendable {
     /// `onError` runs on the XPC queue before the connection is torn down,
     /// so a caller waiting on a reply can finish at once instead of timing out.
     private func getHelperProxy(
+        logsMissingConnection: Bool = true,
         onError: (@Sendable (Error) -> Void)? = nil
     ) -> PingWardenHelperProtocol? {
         // Get connection under lock to avoid TOCTOU race
@@ -1549,7 +1614,9 @@ class PingWardenMonitor: @unchecked Sendable {
         stateLock.unlock()
 
         guard let xpc = currentConnection else {
-            log.warning("No XPC connection available")
+            if logsMissingConnection {
+                log.warning("No XPC connection available")
+            }
             return nil
         }
 
@@ -1609,7 +1676,7 @@ class PingWardenMonitor: @unchecked Sendable {
                 return
             }
 
-            let status = self.helperService.status
+            let status = self.refreshHelperStatus()
             log.debug("Polling: status = \(self.statusDescription(status))")
 
             switch status {
@@ -1650,6 +1717,9 @@ class PingWardenMonitor: @unchecked Sendable {
     // MARK: - Helper Methods
 
     private func notifyStateChange() {
+        // Observers usually re-read the registration next, and a state change
+        // is the likeliest moment for it to have changed.
+        invalidateHelperStatus()
         // Snapshot under the registry's own lock, then deliver outside it so
         // observers may freely call back into add/remove during their callback.
         let observers = stateObservers.snapshot()
