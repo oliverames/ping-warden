@@ -41,12 +41,54 @@ jobs:
         uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4
 
   analyze:
-    name: Analyze Swift
+    name: Analyze Swift and Objective-C
     runs-on: macos-26
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Analyze Objective-C helper with Xcode
+        env:
+          PW_HELPER_ANALYSIS_ROOT: ${{ runner.temp }}/PingWardenHelperAnalysis
+        run: |
+          xcodebuild analyze \
+            -project PingWarden/PingWarden.xcodeproj \
+            -target PingWardenHelper \
+            -configuration Release \
+            -sdk macosx \
+            SYMROOT="$PW_HELPER_ANALYSIS_ROOT/products" \
+            OBJROOT="$PW_HELPER_ANALYSIS_ROOT/intermediates" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=NO
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          import plistlib
+
+          root = Path(os.environ["PW_HELPER_ANALYSIS_ROOT"])
+          sources = {p.stem for p in Path("PingWarden/PingWardenHelper").glob("*.m")}
+          if not sources:
+              raise SystemExit("No helper sources found for analysis verification")
+          expected = {(arch, name) for arch in ("arm64", "x86_64") for name in sources}
+          found = set()
+          for report in root.glob("intermediates/**/StaticAnalyzer/**/*.plist"):
+              key = (report.parent.name, report.stem)
+              if key not in expected:
+                  continue
+              if key in found:
+                  raise SystemExit(f"Duplicate helper analysis result: {key}")
+              with report.open("rb") as stream:
+                  result = plistlib.load(stream)
+              diagnostics = result.get("diagnostics") if isinstance(result, dict) else None
+              if not isinstance(diagnostics, list) or diagnostics:
+                  raise SystemExit(f"Helper analysis has findings or invalid results: {report}")
+              found.add(key)
+          if found != expected:
+              raise SystemExit(f"Missing helper analysis results: {sorted(expected - found)}")
+          print(f"Native helper analysis verified {len(found)} source/architecture results with no findings.")
+          PYTHON
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4
