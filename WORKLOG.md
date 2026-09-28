@@ -4,11 +4,10 @@
 
 - Product Hunt waits for new gallery images and a website redesign, with several alternative designs for Oliver to choose from. Not scheduled. No draft or launch exists (since 2026-09-24; [#93](https://github.com/oliverames/ping-warden/issues/93))
 - Decide how to run CI locally instead of on GitHub-hosted runners, which have a usage limit (since 2026-09-24; [#94](https://github.com/oliverames/ping-warden/issues/94))
-- Signed-app acceptance on the installed app after it updates from 4.2.0 to 4.2.1: What's New, the Help release link, preference persistence, no donation buttons, Targets menu pickers, focus after an invalid host, and license-field Return (since 2026-09-14; [#78](https://github.com/oliverames/ping-warden/issues/78), [#90](https://github.com/oliverames/ping-warden/issues/90))
+- Signed checks still open on [#78](https://github.com/oliverames/ping-warden/issues/78): the protection checks (awdl0 re-raise, Off, quit restore, Repair with protection on) need a license route, because the developer Mac has no license. VoiceOver and appearance checks stay with Oliver. The 4.2.0 to 4.2.1 update checks passed on 2026-09-28 (since 2026-09-14)
 - Live-game validation of the frontmost-app engage and disengage handoff and the Ethernet skip. Needs an eligible real-game session and wired hardware; only Wi-Fi was available on 2026-09-21 (since 2026-09-06; [#64](https://github.com/oliverames/ping-warden/issues/64))
-- VoiceOver check of the corrected chart summary. The neutral "timeline events" wording and tests shipped in 4.2.1 (since 2026-09-21; [#89](https://github.com/oliverames/ping-warden/issues/89))
-- Pending-relaunch settings state and accessibility, license Return submission, target URL validation, reminder copy, and content-layer glass on Dashboard and Targets (since 2026-09-21; [#90](https://github.com/oliverames/ping-warden/issues/90))
-- Strict-concurrency warnings in the settings-section notification observer (since 2026-09-21; [#91](https://github.com/oliverames/ping-warden/issues/91))
+- **Live bug, held by Oliver on 2026-09-28**: pkd rejects the shipped unsandboxed widget on macOS 27.2 ("plug-ins must be sandboxed"), so the Ping Protection control can't be added. The recommended fix is option 1, a sandbox with one temporary Mach-lookup exception. Nothing is implemented ([#92](https://github.com/oliverames/ping-warden/issues/92))
+- PR #95 (Control Center Only) is a draft at 6c25b4f. It waits on the #92 fix and the remaining signed checks ([#96](https://github.com/oliverames/ping-warden/issues/96))
 - Exercise the session recorder with the Dashboard open during a Game Mode session to confirm the recap stays on the session's target (since 2026-09-14) (unverified)
 - Confirm the four inferred `transientSystemUIBundleIdentifiers` entries beyond `UserNotificationCenter`; a SecurityAgent password sheet over a game would confirm the most likely one (since 2026-09-12)
 - Re-run `python3 scripts/download_stats.py --snapshot` to measure 4.x acceptance after the upgrade-notice rewrite and announcements. The latest snapshot in `docs/download-history.tsv` is 2026-09-14 (since 2026-09-11)
@@ -22,8 +21,20 @@
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
 - Customer report (2026-09-27, Intel MacBook Pro 2017, macOS 13.7.8): helper registered and allowed but never answers XPC (health check timeout), Welcome skipped. Oliver sent the reply asking for `launchctl print system/com.amesvt.pingwarden.helper` output and a clean reinstall on 2026-09-27. Waiting for the customer's readout and result (since 2026-09-27)
-- Ship a26e6fe (helper recovery) as 4.2.2 after Oliver approves and after the pre-release delta audit. The delta changes helper-registration behavior, though only on explicit Repair or setup when the helper does not answer (since 2026-09-27)
-- Sentry: decide on a one-time delivery test against a separate project, and on `enableUncaughtNSExceptionReporting`. Server side checked clean on 2026-09-27; the last accepted error event was 2026-08-06 (since 2026-09-27)
+- Release the unreleased main work (a26e6fe helper recovery plus the whole-app review fixes) after the delta audit, the signed protection checks, and Oliver's approval (since 2026-09-27; [#99](https://github.com/oliverames/ping-warden/issues/99))
+- Sentry: decide on a one-time delivery test against a separate project, on `enableUncaughtNSExceptionReporting`, and on helper-timeout events (a disclosure change). Server side checked clean on 2026-09-27; the last accepted error event was 2026-08-06 (since 2026-09-27; [#100](https://github.com/oliverames/ping-warden/issues/100))
+
+## 2026-09-28 - Session wrap-up: review fixes merged, #92 escalated
+
+**What changed**: All lane A to D review fixes are on main (latest code commit afc7a0d; docs through d1a209d). The Dashboard batch cut hidden-Dashboard CPU from 5.6% to 0.23% in the fixture and to 0.35% on a signed build, and memory growth stopped. PR #95 is merged with main and fixed (a066756, 6c25b4f). #89, #90, and #91 are closed. #99 (release) and #100 (Sentry) are new. 898 empty test plists are in the Trash, and tests now use temporary-path suites. The #92 spike and the signed-build checks are recorded below and on #78, #92, and #96.
+
+**Decisions made**: PR #95 keeps 4.2.1 Hide Menu Bar Icon users on the old behavior under a new key. A2 stays: Off still raises awdl0. #92 is held. The installed /Applications copy may be overwritten for testing.
+
+**Left off at**: the official 4.2.1 is reinstalled (digest verified) with its test settings removed. Main is clean and pushed. The spike source and `SPIKE-RESULTS.md` live at `~/Developer/Projects/ping-warden-intent-spike` (not under git). The Ping Protection menu bar control Oliver placed is now orphaned, because 4.2.1's widget doesn't load.
+
+**Open questions**: whether to ship option 1 for #92; how to license signed protection checks (a test key, or a license-stubbed test build); release approval (#99); the Sentry decisions (#100); the customer's `launchctl print` readout.
+
+---
 
 ## 2026-09-28 - #92 routing spike (done: option 3 blocked)
 
