@@ -44,15 +44,22 @@ final class SMAppService {
     static var fixtureStatus: Status = .enabled
     // Registration calls reach only this fixture, and only in tests that opt in.
     static var fixtureAllowsRegistration = false
+    static var fixtureRegistrationError: NSError?
+    static var fixtureStatusAfterRegistration: Status = .enabled
+    static var settingsOpenCalls = 0
     static var registerCalls = 0
     static var unregisterCalls = 0
     var status: Status { Self.fixtureStatus }
     static func daemon(plistName: String) -> SMAppService { SMAppService() }
-    static func openSystemSettingsLoginItems() { fatalError("Must never open real system settings") }
+    static func openSystemSettingsLoginItems() {
+        precondition(Self.fixtureAllowsRegistration, "Settings handoff must be explicitly enabled in the fixture")
+        Self.settingsOpenCalls += 1
+    }
     func register() throws {
         precondition(Self.fixtureAllowsRegistration, "Must never register a helper")
         Self.registerCalls += 1
-        Self.fixtureStatus = .enabled
+        Self.fixtureStatus = Self.fixtureStatusAfterRegistration
+        if let error = Self.fixtureRegistrationError { throw error }
     }
     func unregister() async throws {
         precondition(Self.fixtureAllowsRegistration, "Must never unregister a helper")

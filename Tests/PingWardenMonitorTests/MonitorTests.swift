@@ -8,6 +8,9 @@ extension PingWardenMonitor {
         LicenseManager.launchGateAllowsProtection = true
         SMAppService.fixtureStatus = .enabled
         SMAppService.fixtureAllowsRegistration = false
+        SMAppService.fixtureRegistrationError = nil
+        SMAppService.fixtureStatusAfterRegistration = .enabled
+        SMAppService.settingsOpenCalls = 0
         SMAppService.registerCalls = 0
         SMAppService.unregisterCalls = 0
         FakeHelper.autoReplyVersion = nil
@@ -28,6 +31,9 @@ extension PingWardenMonitor {
         _isMonitoring = false
         _desiredProtectionEnabled = false
         _xpcConnection = nil
+    }
+    func harnessEndRegistration() {
+        finishRegistrationPolling(success: false, reason: "fixture cleanup")
     }
     var harnessRetries: Int { _xpcRetryCount }
     var harnessConnection: NSXPCConnection? { _xpcConnection }
@@ -403,6 +409,71 @@ do {
     check(results.withValue { $0 } == [false], "a helper that never answers must not be reported repaired")
     check(SMAppService.unregisterCalls == 1 && SMAppService.registerCalls == 1,
           "repair rebuilds the registration once, not in a loop")
+}
+
+// Registration failures cannot infer pending approval from an error domain,
+// an English description, or EPERM alone. Every platform boundary is inert.
+for error in [
+    NSError(domain: "SMAppServiceErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "Fixture bootstrap failed"]),
+    NSError(domain: "com.apple.ServiceManagement", code: 10, userInfo: [NSLocalizedDescriptionKey: "Fixture invalid plist"]),
+    NSError(domain: "FixtureError", code: 99, userInfo: [NSLocalizedDescriptionKey: "Operation not permitted"]),
+    NSError(domain: NSPOSIXErrorDomain, code: 1, userInfo: [NSLocalizedDescriptionKey: "Fixture EPERM"])
+] {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    SMAppService.fixtureRegistrationError = error
+    let results = LockedValue<[Bool]>([])
+    let alerts = NSAlert.messages.count
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin()
+    check(results.withValue { $0 } == [false], "a failed registration without pending approval completes false once")
+    check(SMAppService.settingsOpenCalls == 0, "error text and domains alone must not open Settings")
+    check(monitor.lastSetupFailureMessage?.contains(error.localizedDescription) == true,
+          "registration failure must retain the actual error for retry guidance")
+    check(NSAlert.messages.count == alerts, "a silent registration failure must not show an alert")
+}
+
+// An actual pending approval after a thrown error keeps the existing Settings
+// handoff. Changing status to enabled completes registration exactly once.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .requiresApproval
+    SMAppService.fixtureRegistrationError = NSError(domain: "FixtureError", code: 99)
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    check(SMAppService.settingsOpenCalls == 1 && results.withValue { $0 }.isEmpty,
+          "actual pending approval must hand off to Settings and wait")
+    SMAppService.fixtureStatus = .enabled
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
+    check(results.withValue { $0 } == [true], "approval must complete registration once")
+    check(!monitor.isMonitoringActive, "registration approval alone must not report protection")
+}
+
+// A submitted request that remains unregistered is a failed registration,
+// with useful retry guidance. It is not evidence that the user denied it.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
+    check(results.withValue { $0 } == [false], "an unregistered service completes false exactly once")
+    check(monitor.lastSetupFailureMessage?.contains("Try setting up Ping Protection again") == true,
+          "an unregistered service must leave neutral actionable retry guidance")
+    check(SMAppService.settingsOpenCalls == 0 && SMAppService.registerCalls == 1,
+          "an unregistered service must neither open Settings nor retry automatically")
 }
 
 print("Monitor checks complete. Failures: \(failures.count)")

@@ -562,27 +562,20 @@ class PingWardenMonitor: @unchecked Sendable {
                 startPollingForRegistration(presentsErrors: presentsErrors, completion: completion)
                 signposter.endInterval("RegisterHelper", state)
             } catch let error as NSError {
-                log.error("Registration failed: \(error.localizedDescription) (code: \(error.code))")
+                let failureStatus = refreshHelperStatus()
+                log.error("Registration failed: \(error.localizedDescription) (domain: \(error.domain, privacy: .public), code: \(error.code), status: \(self.statusDescription(failureStatus), privacy: .public))")
                 signposter.endInterval("RegisterHelper", state)
 
-                // Check if this is "Operation not permitted" - means user needs to approve first
-                // Error domain is NSPOSIXErrorDomain with code 1 (EPERM), or
-                // SMAppService may throw with domain NSCocoaErrorDomain
-                let isPermissionError = error.localizedDescription.contains("Operation not permitted") ||
-                                        error.localizedDescription.contains("not permitted") ||
-                                        error.domain == "SMAppServiceErrorDomain" ||
-                                        error.domain.contains("ServiceManagement") ||
-                                        (error.domain == NSPOSIXErrorDomain && error.code == 1)
-
-                if isPermissionError {
-                    log.info("Registration requires user approval first - opening System Settings")
-                    // Open System Settings to Login Items so user can approve
+                // The registration status identifies a pending approval. Error
+                // domains and localized descriptions also cover other failures.
+                if failureStatus == .requiresApproval {
+                    log.info("Registration requires user approval - opening System Settings")
                     SMAppService.openSystemSettingsLoginItems()
                     // Start polling for the user to approve
                     startPollingForRegistration(presentsErrors: presentsErrors, completion: completion)
                 } else {
                     reportSetupFailureOnMain(
-                        "Ping Warden could not register its helper. \(error.localizedDescription)",
+                        "Ping Warden could not register its helper. Try again. \(error.localizedDescription)",
                         title: "Helper Setup Failed",
                         presentsErrors: presentsErrors
                     )
@@ -639,8 +632,8 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Repair a helper that should be working. A registration that answers
     /// is left alone. A registration that is enabled but silent is rebuilt:
     /// unregister, then register again, which recreates the launchd job that
-    /// Background Task Management still claims exists. Macs that approved the
-    /// helper before re-register without another prompt. Success is reported
+    /// Background Task Management still claims exists. If macOS requires
+    /// approval, registration opens System Settings. Success is reported
     /// only after the helper actually answers. Runs only from an explicit
     /// user action, never automatically. Completes on the main queue.
     ///
@@ -1686,8 +1679,13 @@ class PingWardenMonitor: @unchecked Sendable {
                 self.finishRegistrationPolling(success: true, reason: "approved")
 
             case .notRegistered:
-                log.info("❌ Helper registration denied")
-                self.finishRegistrationPolling(success: false, reason: "denied")
+                log.error("Helper registration did not complete")
+                self.reportSetupFailure(
+                    "Ping Warden could not complete helper registration. Try setting up Ping Protection again.",
+                    title: "Helper Setup Failed",
+                    presentsErrors: self.pendingRegistrationPresentsErrors
+                )
+                self.finishRegistrationPolling(success: false, reason: "not registered")
 
             case .requiresApproval, .notFound:
                 // Keep polling
