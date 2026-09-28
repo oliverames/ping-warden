@@ -521,7 +521,7 @@ class PingWardenMonitor: @unchecked Sendable {
                     startPollingForRegistration(presentsErrors: presentsErrors, completion: completion)
                 } else {
                     reportSetupFailureOnMain(
-                        "The helper could not be registered.\n\nError: \(error.localizedDescription)",
+                        "Ping Warden could not register its helper. \(error.localizedDescription)",
                         title: "Helper Setup Failed",
                         presentsErrors: presentsErrors
                     )
@@ -784,7 +784,7 @@ class PingWardenMonitor: @unchecked Sendable {
 
             if attempts > maxRegistrationAttempts {
                 log.error("Max registration attempts (\(self.maxRegistrationAttempts)) exceeded, giving up")
-                lastSetupFailureMessage = "Helper registration failed after multiple attempts.\n\nOpen Advanced settings and click Repair, or check System Settings → General → Login Items."
+                lastSetupFailureMessage = "Ping Warden could not register its helper after several attempts. Open Settings → Advanced and click Repair, or check \(SystemSettingsCopy.loginItemsPath)."
                 abandonEnable(operationID)
                 completion?(false)
                 return
@@ -1092,7 +1092,7 @@ class PingWardenMonitor: @unchecked Sendable {
         // Check 1: Is helper registered?
         guard isHelperRegistered else {
             log.info("Health check: Helper not registered")
-            return (false, "Helper not registered with system")
+            return (false, "The helper is not set up.")
         }
 
         // Check 2: Can we connect via XPC?
@@ -1117,7 +1117,7 @@ class PingWardenMonitor: @unchecked Sendable {
         })
         guard let statusProxy else {
             log.info("Health check: Cannot connect to helper")
-            return (false, "Cannot connect to helper via XPC")
+            return (false, "No connection to the helper could be made.")
         }
         statusProxy.getAWDLStatus(reply: { status in
             helperStatus.withValue { $0 = status }
@@ -1148,7 +1148,7 @@ class PingWardenMonitor: @unchecked Sendable {
         if !statusAnswered && !versionAnswered {
             let failure = rejection.withValue { $0 } ?? .timedOut
             recordConnectionFailure(failure)
-            return (false, "Helper not responding to XPC calls: \(failure.diagnosticDescription).")
+            return (false, "The helper did not respond: \(failure.diagnosticDescription).")
         }
         helperResponded()
 
@@ -1166,7 +1166,7 @@ class PingWardenMonitor: @unchecked Sendable {
         }
 
         let finalHelperVersion = helperVersion.withValue { $0 }
-        let message = "Helper connected (version \(finalHelperVersion)). \(verdict.summary)"
+        let message = "The helper answered (version \(finalHelperVersion)). \(verdict.summary)"
         log.info("Health check: \(message)")
         return (true, message)
     }
@@ -1595,7 +1595,7 @@ class PingWardenMonitor: @unchecked Sendable {
             guard let self = self else { return }
             log.warning("Registration polling timed out after \(self.registrationTimeoutSeconds)s")
             self.reportSetupFailure(
-                "Registration timed out.\n\nPlease approve the helper in System Settings → General → Login Items and try again.",
+                "Ping Warden did not get approval in time. Allow Ping Warden in \(SystemSettingsCopy.loginItemsPath), then try again.",
                 title: "Helper Approval Timed Out",
                 presentsErrors: self.pendingRegistrationPresentsErrors
             )

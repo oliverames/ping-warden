@@ -188,7 +188,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             return
         }
         lastError = success
-            ? "The license for Ping Protection is no longer valid, so protection turned off. Ping Protection needs a $15 one-time license. Enter a valid key in Settings → License or use Buy a License."
+            ? LicenseCopy.revoked
             : "The license for Ping Protection is no longer valid, and it could not turn off cleanly. Quit Ping Warden to restore wireless sharing."
         objectWillChange.send()
     }
@@ -200,9 +200,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// protection is on, and tells the user why.
     func noteLaunchLicenseGate() {
         preferences.isMonitoringEnabled = false
-        lastError = license.grandfatherWindowExpired
-            ? "The transition period has ended, so Ping Protection stayed off. Ping Protection needs a $15 one-time license to continue. Enter a key in Settings → License or use Buy a License. Donated before? Email \(LicenseManager.donationConversionEmail)."
-            : "Ping Protection stayed off because it requires a $15 one-time license. Enter your key in Settings → License or use Buy a License. Donated before? Email \(LicenseManager.donationConversionEmail)."
+        lastError = LicenseCopy.stayedOffAtLaunch(transitionEnded: license.grandfatherWindowExpired)
         objectWillChange.send()
     }
 
@@ -232,9 +230,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         // persistent toggles, latency sessions, Game Mode, and launch
         // reconciliation all funnel through the two entry points below.
         if enabled, !license.canEnableProtection {
-            lastError = license.grandfatherWindowExpired
-                ? "The transition period has ended. Ping Protection needs a $15 one-time license to continue. Enter a key in Settings → License or use Buy a License. Donated before? Email \(LicenseManager.donationConversionEmail)."
-                : "Ping Protection requires a $15 one-time license. Enter your key in Settings → License or use Buy a License. Donated before? Email \(LicenseManager.donationConversionEmail)."
+            lastError = LicenseCopy.required(transitionEnded: license.grandfatherWindowExpired)
             objectWillChange.send()
             return false
         }
@@ -540,9 +536,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             protectionExperienceLog.info(
                 "Protection session refused for \(String(describing: trigger), privacy: .public): \(refusalReason, privacy: .public)"
             )
-            lastError = license.grandfatherWindowExpired
-                ? "The transition period has ended. Ping Protection needs a $15 one-time license to continue. Enter a key in Settings → License or use Buy a License. Donated before? Email \(LicenseManager.donationConversionEmail)."
-                : "Ping Protection requires a $15 one-time license. Enter your key in Settings → License or use Buy a License. Donated before? Email \(LicenseManager.donationConversionEmail)."
+            lastError = LicenseCopy.required(transitionEnded: license.grandfatherWindowExpired)
             objectWillChange.send()
             return false
         }
