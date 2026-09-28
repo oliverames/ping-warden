@@ -211,17 +211,17 @@ final class InterfaceVisibilityPolicyTests: XCTestCase {
 
     // MARK: - Copy
 
-    func testEveryIconHidingModeExplainsItselfInBothPanes() {
-        XCTAssertNil(InterfaceVisibilityCopy.automationFooter(mode: .menuBarIcon))
+    func testEveryIconHidingModeExplainsItselfInBothSections() {
+        XCTAssertNil(InterfaceVisibilityCopy.interfaceFooter(mode: .menuBarIcon))
         XCTAssertNil(InterfaceVisibilityCopy.generalFooter(mode: .menuBarIcon))
         for mode in [InterfaceVisibilityMode.hideMenuBarIcon, .controlCenterOnly] {
-            XCTAssertNotNil(InterfaceVisibilityCopy.automationFooter(mode: mode))
+            XCTAssertNotNil(InterfaceVisibilityCopy.interfaceFooter(mode: mode))
             XCTAssertNotNil(InterfaceVisibilityCopy.generalFooter(mode: mode))
         }
     }
 
     func testControlCenterOnlyCopyTellsPeopleHowToGetBack() {
-        let footer = InterfaceVisibilityCopy.automationFooter(mode: .controlCenterOnly) ?? ""
+        let footer = InterfaceVisibilityCopy.interfaceFooter(mode: .controlCenterOnly) ?? ""
         XCTAssertTrue(footer.contains("Edit Controls"))
         XCTAssertTrue(footer.contains("Spotlight"))
         XCTAssertTrue(InterfaceVisibilityCopy.confirmationMessage.contains("Spotlight"))
@@ -233,7 +233,7 @@ final class InterfaceVisibilityPolicyTests: XCTestCase {
             InterfaceVisibilityCopy.confirmationMessage,
             InterfaceVisibilityCopy.legacyStatusDetail,
         ] + [InterfaceVisibilityMode.hideMenuBarIcon, .controlCenterOnly].flatMap {
-            [InterfaceVisibilityCopy.automationFooter(mode: $0) ?? "", InterfaceVisibilityCopy.generalFooter(mode: $0) ?? ""]
+            [InterfaceVisibilityCopy.interfaceFooter(mode: $0) ?? "", InterfaceVisibilityCopy.generalFooter(mode: $0) ?? ""]
         }
         for string in strings {
             XCTAssertFalse(string.contains("\u{2014}"), string)

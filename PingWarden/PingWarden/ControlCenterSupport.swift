@@ -57,7 +57,7 @@ enum ControlCenterSupport {
             switch self {
             case .available:
                 // What each mode hides is explained by
-                // InterfaceVisibilityCopy.automationFooter(mode:).
+                // InterfaceVisibilityCopy.interfaceFooter(mode:).
                 return InterfaceVisibilityCopy.addControlInstruction
             case .unsupportedOS:
                 return "Control Center widgets in Ping Warden require macOS 26 or newer."

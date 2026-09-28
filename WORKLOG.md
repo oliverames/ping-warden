@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-09-28 - Move interface controls to General for the next build
+
+**What changed:** Moved the Control Center Only section, confirmation dialog, availability explanation and retained legacy menu-icon choice from Automation to General. General now refreshes availability when the app becomes active. Existing preference keys, protection behavior and icon policies remain intact. App-footer copy no longer directs people to Automation.
+
+**Verification:** Native Xcode build of the production project succeeded with no reported errors. All 28 existing interface-policy tests and all 35 presentation checks passed, with no skipped tests. The first SwiftPM attempt was blocked by sandbox compiler-cache access, then passed with normal cache access. This is a next-build source change, not an installed or published update. The installed 4.3.0 stays unchanged. No new behavior tests were added for this relocation.
+
+**Delivery:** Include this move with the pending license-card follow-up in the next release. Refresh the setup and troubleshooting instructions when that build is published; current live 4.3.0 documentation correctly points to Automation. Discovery submissions continue separately. Unlicensed-state tests continue to use isolated copies.
+
+---
+
 ## 2026-09-28 - Discovery review and sitemap freshness
 
 **What changed**: Corrected the homepage, documentation hub and release-note sitemap dates to reflect the significant September 28 release edits. The public sitemap had still reported September 21. The site already exposes canonical URLs, static guide content, structured data and an open crawl policy. The source generator retains explicit dates so builds stay deterministic. Website verification passed all 13 HTML pages, all 12 sitemap URLs, links and structured JSON, plus both Worker tests with no skips.

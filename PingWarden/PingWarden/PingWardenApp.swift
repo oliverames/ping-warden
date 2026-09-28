@@ -2025,6 +2025,8 @@ struct GeneralSettingsContent: View {
     @State private var showDockIcon = PingWardenPreferences.shared.showDockIcon
     @State private var showMenuDropdownMetrics = PingWardenPreferences.shared.showMenuDropdownMetrics
     @State private var interfaceMode = GeneralSettingsContent.effectiveInterfaceMode()
+    @State private var controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
+    @State private var showingControlCenterConfirm = false
     @State private var settingsErrorMessage: String?
     @State private var isFinishingSetup = false
 
@@ -2252,6 +2254,72 @@ struct GeneralSettingsContent: View {
             }
 
             Section {
+                // Bound to the resolved mode rather than a local copy, so a
+                // cancelled confirmation or a legacy Hide Menu Bar Icon value
+                // is never written back by accident. Turning the toggle on
+                // only asks; the confirmation button saves the choice.
+                Toggle(isOn: Binding(
+                    get: { interfaceMode == .controlCenterOnly || showingControlCenterConfirm },
+                    set: { newValue in
+                        if newValue {
+                            showingControlCenterConfirm = true
+                        } else {
+                            PingWardenPreferences.shared.showMenuBarIcon()
+                        }
+                    }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 8) {
+                            Text(InterfaceVisibilityCopy.controlCenterOnlyTitle)
+                            if !controlCenterAvailability.isAvailable {
+                                StatusBadge(text: controlCenterAvailability.statusText, tint: .unavailable)
+                            }
+                        }
+                        Text(controlCenterAvailability.detailText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityLabel(InterfaceVisibilityCopy.controlCenterOnlyTitle)
+                .accessibilityHint("Uses the Control Center toggle instead of the menu bar and Dock icons")
+                .disabled(!controlCenterAvailability.isAvailable)
+
+                // Someone who chose Hide Menu Bar Icon in 4.2.1 or earlier
+                // keeps it, with its Dock icon, until they pick another
+                // option here.
+                if interfaceMode == .hideMenuBarIcon {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(InterfaceVisibilityCopy.legacyStatusTitle)
+                            Text(InterfaceVisibilityCopy.legacyStatusDetail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 8)
+                        Button(InterfaceVisibilityCopy.showMenuBarIconButton) {
+                            PingWardenPreferences.shared.showMenuBarIcon()
+                        }
+                    }
+                    .accessibilityElement(children: .contain)
+                }
+            } header: {
+                Text("Interface")
+            } footer: {
+                // The reason Control Center is unavailable appears once,
+                // here, beside the Unavailable badge. Otherwise the footer
+                // explains the mode in effect, and collapses when there is
+                // nothing relevant to say.
+                if !controlCenterAvailability.isAvailable {
+                    Text(controlCenterAvailability.footerText)
+                } else if let footer = InterfaceVisibilityCopy.interfaceFooter(mode: interfaceMode) {
+                    Text(footer)
+                } else {
+                    EmptyView()
+                }
+            }
+
+            Section {
                 Label("No Password Prompts", systemImage: "checkmark.shield")
                     .font(.subheadline)
                     .fontWeight(.medium)
@@ -2265,13 +2333,30 @@ struct GeneralSettingsContent: View {
         .settingsScrollEdgeTreatment()
         .onAppear {
             monitorState.startObserving()
-            interfaceMode = Self.effectiveInterfaceMode()
+            refreshInterfaceAvailability()
         }
         .onDisappear {
             monitorState.stopObserving()
         }
         .onReceive(NotificationCenter.default.publisher(for: .controlCenterModeChanged)) { _ in
             interfaceMode = Self.effectiveInterfaceMode()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshInterfaceAvailability()
+        }
+        .confirmationDialog(
+            InterfaceVisibilityCopy.confirmationTitle,
+            isPresented: $showingControlCenterConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(InterfaceVisibilityCopy.confirmationButton) {
+                PingWardenPreferences.shared.enableControlCenterOnly()
+            }
+            // Cancel writes nothing, so a legacy Hide Menu Bar Icon choice
+            // stays exactly as it was.
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(InterfaceVisibilityCopy.confirmationMessage)
         }
         .alert(
             "Setting Could Not Be Changed",
@@ -2284,6 +2369,14 @@ struct GeneralSettingsContent: View {
         } message: {
             Text(settingsErrorMessage ?? "Try again.")
         }
+    }
+
+    private func refreshInterfaceAvailability() {
+        controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
+        interfaceMode = InterfaceVisibilityPolicy.effectiveMode(
+            PingWardenPreferences.shared.interfaceVisibilityMode,
+            controlCenterAvailable: controlCenterAvailability.isAvailable
+        )
     }
 
     private var appVersion: String {
@@ -2539,10 +2632,7 @@ struct LicenseSettingsContent: View {
 
 struct AutomationSettingsContent: View {
     @State private var gameModeAutoDetect = PingWardenPreferences.shared.gameModeAutoDetect
-    @State private var interfaceMode = PingWardenPreferences.shared.interfaceVisibilityMode
-    @State private var controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
     @State private var screenRecordingPermissionGranted = GameModeDetector.hasScreenRecordingPermission()
-    @State private var showingControlCenterConfirm = false
     @State private var showingScreenRecordingPermissionAlert = false
 
     var body: some View {
@@ -2582,72 +2672,6 @@ struct AutomationSettingsContent: View {
                     }
                 }
             }
-
-            Section {
-                // Bound to the resolved mode rather than a local copy, so a
-                // cancelled confirmation or a legacy Hide Menu Bar Icon value
-                // is never written back by accident. Turning the toggle on
-                // only asks; the confirmation button saves the choice.
-                Toggle(isOn: Binding(
-                    get: { effectiveMode == .controlCenterOnly || showingControlCenterConfirm },
-                    set: { newValue in
-                        if newValue {
-                            showingControlCenterConfirm = true
-                        } else {
-                            PingWardenPreferences.shared.showMenuBarIcon()
-                        }
-                    }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 8) {
-                            Text(InterfaceVisibilityCopy.controlCenterOnlyTitle)
-                            if !controlCenterAvailability.isAvailable {
-                                StatusBadge(text: controlCenterAvailability.statusText, tint: .unavailable)
-                            }
-                        }
-                        Text(controlCenterAvailability.detailText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .accessibilityLabel(InterfaceVisibilityCopy.controlCenterOnlyTitle)
-                .accessibilityHint("Uses the Control Center toggle instead of the menu bar and Dock icons")
-                .disabled(!controlCenterAvailability.isAvailable)
-
-                // Someone who chose Hide Menu Bar Icon in 4.2.1 or earlier
-                // keeps it, with its Dock icon, until they pick another
-                // option here.
-                if effectiveMode == .hideMenuBarIcon {
-                    HStack(alignment: .center, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(InterfaceVisibilityCopy.legacyStatusTitle)
-                            Text(InterfaceVisibilityCopy.legacyStatusDetail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 8)
-                        Button(InterfaceVisibilityCopy.showMenuBarIconButton) {
-                            PingWardenPreferences.shared.showMenuBarIcon()
-                        }
-                    }
-                    .accessibilityElement(children: .contain)
-                }
-            } header: {
-                Text("Interface")
-            } footer: {
-                // The reason Control Center is unavailable appears once,
-                // here, beside the Unavailable badge. Otherwise the footer
-                // explains the mode in effect, and collapses when there is
-                // nothing relevant to say.
-                if !controlCenterAvailability.isAvailable {
-                    Text(controlCenterAvailability.footerText)
-                } else if let footer = InterfaceVisibilityCopy.automationFooter(mode: effectiveMode) {
-                    Text(footer)
-                } else {
-                    EmptyView()
-                }
-            }
         }
         .formStyle(.grouped)
         .settingsScrollEdgeTreatment()
@@ -2665,33 +2689,9 @@ struct AutomationSettingsContent: View {
         } message: {
             Text("Game Mode auto-detect already recognizes a game when it is the frontmost app. Allowing Screen Recording lets it also notice a fullscreen game behind other windows. Ping Warden reads only window metadata and never captures or saves screen contents.")
         }
-        .confirmationDialog(
-            InterfaceVisibilityCopy.confirmationTitle,
-            isPresented: $showingControlCenterConfirm,
-            titleVisibility: .visible
-        ) {
-            Button(InterfaceVisibilityCopy.confirmationButton) {
-                PingWardenPreferences.shared.enableControlCenterOnly()
-            }
-            // Cancel writes nothing, so a legacy Hide Menu Bar Icon choice
-            // stays exactly as it was.
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(InterfaceVisibilityCopy.confirmationMessage)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .controlCenterModeChanged)) { _ in
-            interfaceMode = PingWardenPreferences.shared.interfaceVisibilityMode
-        }
-    }
-
-    /// The mode that actually applies on this Mac.
-    private var effectiveMode: InterfaceVisibilityMode {
-        InterfaceVisibilityPolicy.effectiveMode(interfaceMode, controlCenterAvailable: controlCenterAvailability.isAvailable)
     }
 
     private func refreshAvailability() {
-        controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
-        interfaceMode = PingWardenPreferences.shared.interfaceVisibilityMode
         screenRecordingPermissionGranted = GameModeDetector.hasScreenRecordingPermission()
     }
 }

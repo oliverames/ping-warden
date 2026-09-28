@@ -222,8 +222,8 @@ enum InterfaceVisibilityCopy {
     static let legacyStatusDetail = "You chose Hide Menu Bar Icon in an earlier version. Ping Warden keeps its Dock icon so Settings stays one click away."
     static let showMenuBarIconButton = "Show Menu Bar Icon"
 
-    /// The Automation footer for the effective mode, or nil for none.
-    static func automationFooter(mode: InterfaceVisibilityMode) -> String? {
+    /// The Interface section footer for the effective mode, or nil for none.
+    static func interfaceFooter(mode: InterfaceVisibilityMode) -> String? {
         switch mode {
         case .menuBarIcon:
             return nil
@@ -241,9 +241,9 @@ enum InterfaceVisibilityCopy {
         case .menuBarIcon:
             return nil
         case .hideMenuBarIcon:
-            return "The menu bar icon is hidden, so Ping Warden keeps its Dock icon. Change this in Automation."
+            return "The menu bar icon is hidden, so Ping Warden keeps its Dock icon. Show Dock Icon applies again when the menu bar icon is restored."
         case .controlCenterOnly:
-            return "Control Center Only is on in Automation, so Ping Warden has no menu bar or Dock icon. Use the Control Center toggle. \(returnToSettingsInstruction)"
+            return "Control Center Only is on, so Ping Warden has no menu bar or Dock icon. Use the Control Center toggle. \(returnToSettingsInstruction)"
         }
     }
 }
