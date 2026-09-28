@@ -7,10 +7,12 @@ This update improves helper setup and recovery, adds an icon-free Control Center
 - On macOS 26 and later, choose **Settings → Automation → Control Center Only** to hide Ping Warden's menu bar and Dock icons. Open Ping Warden from Applications or Spotlight to reach settings.
 - Existing **Hide Menu Bar Icon** users keep their previous behavior, including the Dock icon, until they choose the new mode. Saved icon preferences survive a temporary fallback when Control Center is unavailable.
 - The Control Center extension now runs in the required sandbox and retains authenticated access to the existing helper. Existing installations do not need a replacement helper permission for this change.
+- Turning on protection from Control Center can start the app quietly, without opening Settings.
 
 ## Setup and reliability
 
 - Setup and Repair confirm that the helper answers before reporting success. Explicit Repair can rebuild a registered helper that never responds.
+- Known limitation: Repair can fail on its first attempt. A later attempt succeeded in testing. If Repair reports an error, protection remains off until the app confirms that it is Protected.
 - Starting setup from Downloads, Desktop, Documents, or a translocated downloaded copy now explains how to move the app to Applications. Settings and license state remain saved.
 - Protection status, connection recovery, sleep and wake handling, and quitting are more reliable. Turning protection off restores AWDL.
 - Helper enforcement checks the real interface state, bounds retries, and restores AWDL after its last client exits.

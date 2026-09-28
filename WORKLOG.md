@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-09-28 - Final quiet-launch correction and publication scope
+
+The Control Center toggle and containing-app launch work in the licensed, signed test fixture. Its cold launch exposed a separate Settings presentation bug: NSWorkspace ignores launch arguments from a sandboxed caller. The widget now leaves a one-use App Group launch hint, and the app consumes it before choosing its launch presentation. Normal Finder reopening remains unrestricted. A failed request removes only its own hint, and abandoned hints expire after 60 seconds. A near-simultaneous independent cold launch can consume the hint, affecting initial window presentation only. No authorization or saved protection preference depends on it.
+
+All 245 core tests pass, including expiry, invalid marker removal, one-use behavior and ownership cleanup. Website generation and checks pass. The universal Release fixture builds without warnings or errors. Signing/notarization and physical quiet-launch acceptance are pending. Root owns source, Git, installation and publication. Independent reviewers confirmed target membership and the bounded presentation behavior.
+
+The extraction guard now resolves only its query's bundled dependencies. The exact corrected query accepts all 49 Swift files in the preceding CI database and correctly rejects the older widget-only database. The new shared launch source raises the final expected count to 50. The next exact-head workflow must verify all 50 and the unchanged required contexts.
+
+Publication is authorized independently of community outreach. The first-attempt Repair limitation observed on this host is disclosed in the release notes and is not holding all verified fixes. Signing, update continuity and the remaining launch check still require verification. Publication, delivered-feed checks, production update, fixture cleanup and the post-publication customer reply remain pending under #99.
+
 ## 2026-09-28 - Current release resume point and analysis coverage
 
 This entry supersedes the earlier resume points below. Version remains 4.3.0, build43000. PR #95 is merged. Dashboard Liquid Glass, explicit preference preservation, fresh crash-report defaults, same-path isolated upgrades, and the recorded performance comparisons are complete. Publication, final recovery acceptance, fixture cleanup, and the post-publication customer reply remain pending under #99. Production app and preference checksums remain unchanged.
