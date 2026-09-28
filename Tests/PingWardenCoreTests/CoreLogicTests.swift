@@ -473,6 +473,23 @@ final class HelperBundleValidatorTests: XCTestCase {
             appBundlePath: installed.path, helperPlistName: plistName, homeDirectory: home.path))
     }
 
+    func testRedirectedProtectedFoldersRequireRelocationThroughEitherPath() throws {
+        let home = fakeBundle!
+        for folder in ["Downloads", "Desktop", "Documents"] {
+            let redirected = home.appendingPathComponent("CloudStorage/\(folder)")
+            let app = redirected.appendingPathComponent("Ping Warden.app")
+            try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
+            let alias = home.appendingPathComponent(folder)
+            try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: redirected)
+
+            for path in [alias.appendingPathComponent("Ping Warden.app").path, app.path] {
+                XCTAssertEqual(HelperBundleValidator.validate(
+                    appBundlePath: path, helperPlistName: plistName, homeDirectory: home.path
+                ), .unsuitableLocation(path: path))
+            }
+        }
+    }
+
     func testSymlinkCannotDisguiseProtectedFolderAndPrefixLookalikeIsAllowed() throws {
         let home = fakeBundle!
         let downloads = home.appendingPathComponent("Downloads")

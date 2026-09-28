@@ -61,7 +61,8 @@ enum HelperBundleValidator {
         let home = URL(fileURLWithPath: homeDirectory).standardizedFileURL.resolvingSymlinksInPath()
         let protectedFolders = ["Downloads", "Desktop", "Documents"]
         if bundleURL.pathComponents.contains("AppTranslocation") || protectedFolders.contains(where: {
-            bundleURL.path.hasPrefix(home.appendingPathComponent($0).path + "/")
+            let folderURL = home.appendingPathComponent($0).standardizedFileURL.resolvingSymlinksInPath()
+            return bundleURL.path.hasPrefix(folderURL.path + "/")
         }) {
             return .unsuitableLocation(path: appBundlePath)
         }
