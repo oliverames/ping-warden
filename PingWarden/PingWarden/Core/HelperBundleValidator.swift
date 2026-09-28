@@ -11,6 +11,7 @@ import Foundation
 
 enum HelperBundleValidator {
     enum ValidationFailure: Equatable {
+        case unsuitableLocation(path: String)
         case binaryMissing(path: String)
         case plistMissing(path: String)
         case binaryNotExecutable(path: String)
@@ -18,6 +19,8 @@ enum HelperBundleValidator {
         /// User-facing message; matches the strings the app previously surfaced.
         var userMessage: String {
             switch self {
+            case .unsuitableLocation:
+                return "Quit Ping Warden, move it to Applications, and open it from there before setting up or repairing Ping Protection. macOS can prevent its background helper from starting in Downloads, Desktop, Documents, or a temporary downloaded-app location. Your settings and license will stay saved."
             case .binaryMissing:
                 return "Helper binary not found in app bundle.\n\nPlease reinstall the app."
             case .plistMissing:
@@ -27,10 +30,16 @@ enum HelperBundleValidator {
             }
         }
 
+        var userTitle: String {
+            if case .unsuitableLocation = self { return "Move Ping Warden to Applications" }
+            return "Ping Warden Needs to Be Reinstalled"
+        }
+
         /// Diagnostic path useful for log lines.
         var path: String {
             switch self {
-            case .binaryMissing(let path),
+            case .unsuitableLocation(let path),
+                 .binaryMissing(let path),
                  .plistMissing(let path),
                  .binaryNotExecutable(let path):
                 return path
@@ -43,8 +52,20 @@ enum HelperBundleValidator {
     static func validate(
         appBundlePath: String,
         helperPlistName: String,
+        homeDirectory: String = NSHomeDirectory(),
         fileManager: FileManager = .default
     ) -> ValidationFailure? {
+        // Daemons cannot prompt for access to these protected user folders.
+        // Resolve symlinks so moving a link does not look like moving the app.
+        let bundleURL = URL(fileURLWithPath: appBundlePath).standardizedFileURL.resolvingSymlinksInPath()
+        let home = URL(fileURLWithPath: homeDirectory).standardizedFileURL.resolvingSymlinksInPath()
+        let protectedFolders = ["Downloads", "Desktop", "Documents"]
+        if bundleURL.pathComponents.contains("AppTranslocation") || protectedFolders.contains(where: {
+            bundleURL.path.hasPrefix(home.appendingPathComponent($0).path + "/")
+        }) {
+            return .unsuitableLocation(path: appBundlePath)
+        }
+
         let helperBinaryPath = "\(appBundlePath)/Contents/MacOS/PingWardenHelper"
         let helperPlistPath = "\(appBundlePath)/Contents/Library/LaunchDaemons/\(helperPlistName)"
 

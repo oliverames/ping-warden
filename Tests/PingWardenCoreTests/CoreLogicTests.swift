@@ -437,6 +437,58 @@ final class HelperBundleValidatorTests: XCTestCase {
             helperPlistName: plistName
         ))
     }
+
+    func testProtectedFoldersAndTranslocationRequireRelocation() {
+        let home = fakeBundle.path
+        for folder in ["Downloads", "Desktop", "Documents"] {
+            let path = "\(home)/\(folder)/Ping Warden.app"
+            XCTAssertEqual(HelperBundleValidator.validate(
+                appBundlePath: path, helperPlistName: plistName, homeDirectory: home
+            ), .unsuitableLocation(path: path))
+        }
+        let path = "/private/var/folders/example/AppTranslocation/id/d/Ping Warden.app"
+        let failure = HelperBundleValidator.validate(
+            appBundlePath: path, helperPlistName: plistName, homeDirectory: home)
+        XCTAssertEqual(failure, .unsuitableLocation(path: path))
+        XCTAssertEqual(failure?.userTitle, "Move Ping Warden to Applications")
+    }
+
+    func testMovingCompleteBundleToApplicationsAllowsSetup() throws {
+        let home = fakeBundle!
+        let downloaded = home.appendingPathComponent("Downloads/Ping Warden.app")
+        let installed = home.appendingPathComponent("Applications/Ping Warden.app")
+        let binary = downloaded.appendingPathComponent("Contents/MacOS/PingWardenHelper")
+        let plist = downloaded.appendingPathComponent("Contents/Library/LaunchDaemons/\(plistName)")
+        for directory in [binary.deletingLastPathComponent(), plist.deletingLastPathComponent(),
+                          installed.deletingLastPathComponent()] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        FileManager.default.createFile(atPath: binary.path, contents: Data(), attributes: [.posixPermissions: 0o755])
+        FileManager.default.createFile(atPath: plist.path, contents: Data())
+        XCTAssertEqual(HelperBundleValidator.validate(
+            appBundlePath: downloaded.path, helperPlistName: plistName, homeDirectory: home.path
+        ), .unsuitableLocation(path: downloaded.path))
+        try FileManager.default.moveItem(at: downloaded, to: installed)
+        XCTAssertNil(HelperBundleValidator.validate(
+            appBundlePath: installed.path, helperPlistName: plistName, homeDirectory: home.path))
+    }
+
+    func testSymlinkCannotDisguiseProtectedFolderAndPrefixLookalikeIsAllowed() throws {
+        let home = fakeBundle!
+        let downloads = home.appendingPathComponent("Downloads")
+        let alias = home.appendingPathComponent("LinkedDownloads")
+        try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: downloads.appendingPathComponent("Ping Warden.app"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: downloads)
+        let path = alias.appendingPathComponent("Ping Warden.app").path
+        XCTAssertEqual(HelperBundleValidator.validate(
+            appBundlePath: path, helperPlistName: plistName, homeDirectory: home.path
+        ), .unsuitableLocation(path: path))
+        let lookalike = home.appendingPathComponent("DownloadsArchive/Ping Warden.app").path
+        XCTAssertEqual(HelperBundleValidator.validate(
+            appBundlePath: lookalike, helperPlistName: plistName, homeDirectory: home.path
+        ), .binaryMissing(path: lookalike + "/Contents/MacOS/PingWardenHelper"))
+    }
 }
 
 final class CustomPingTargetStoreTests: XCTestCase {

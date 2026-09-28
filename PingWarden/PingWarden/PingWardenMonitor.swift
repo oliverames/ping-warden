@@ -524,7 +524,7 @@ class PingWardenMonitor: @unchecked Sendable {
         if let failure = validateHelperBundle() {
             reportSetupFailureOnMain(
                 failure.userMessage,
-                title: "Ping Warden Needs to Be Reinstalled",
+                title: failure.userTitle,
                 presentsErrors: presentsErrors
             )
             completion?(false)
@@ -709,7 +709,7 @@ class PingWardenMonitor: @unchecked Sendable {
             if let failure = self.validateHelperBundle() {
                 self.reportSetupFailure(
                     failure.userMessage,
-                    title: "Ping Warden Needs to Be Reinstalled",
+                    title: failure.userTitle,
                     presentsErrors: presentsErrors
                 )
                 finish(false)
