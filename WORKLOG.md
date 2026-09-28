@@ -35,6 +35,22 @@
 
 **Result**: Routing to the app works, but chronod's connection to the Developer ID app fails with `Operation not permitted` in every app-routed variant (C, E, F, G, sandboxed C, C without get-task-allow). The extension path (variant A) runs `perform()` in the sandboxed widget. Details in `SPIKE-RESULTS.md` beside the spike source and on #92. Cleanup: the spike app and its build copy are in the Trash and unregistered, and the menu bar control is removed. A Control Center tile may remain, because MenuBarAgent's panel can't be clicked or captured; remove it with Control Center → Edit Controls if it shows. Shortcuts access was declined, so no Shortcuts comparison. Next step waits on Oliver: a notarized option 3 retest, or option 2 with its launchd test on this Mac.
 
+**Oliver's decisions (2026-09-28)**: notarize the spike and retest option 3, then move to option 2 if it still fails. Run the #78 and #96 signed-build checks on this Mac with Developer ID builds of main and PR #95, installed over /Applications. VoiceOver, contrast, and root-only awdl0 checks stay with Oliver, and he clicks any Login Items approval.
+
+**Resume point (signed checks)**: build an unsigned Release archive, then `SIGN_ONLY_OUTPUT=<new dir> PingWarden/PingWarden/notarize.sh <version>` signs with release entitlements without uploading. The target must not exist. Record results on #78 and #96.
+
+**Notarized retest (08:32)**: the notarized, stapled spike (Gatekeeper: "Notarized Developer ID") failed the same way. Oliver clicked the control three times, and all three logged EPERM. Option 3 is blocked.
+
+**Signed-check phases** (starting state: /Applications has 4.2.0 (42000), helper registered and allowed, `runs = 0`): (1) Launch 4.2.0 and update to 4.2.1 through Sparkle. Check What's New, the Help release link, preference persistence, and no donation buttons (#78). Turn on 4.2.1's Hide Menu Bar Icon for the #96 upgrade check. (2) Install a signed main build over it and run the release-candidate checks: Off and quit restore awdl0, Repair on a working helper, Dashboard CPU when hidden, and the control's availability. (3) Install a signed PR #95 build and run the #96 checks. (4) Option 2 launchd test: install a build whose helper plist adds an App Group–prefixed MachServices key, then check whether launchd lists the new endpoint without re-registering. Always turn protection off before moving on.
+
+**Signed-check results (2026-09-28)**:
+- #78: the Sparkle update from 4.2.0 to 4.2.1 worked. What's New showed and then stayed dismissed, preferences carried over, and there were no donation buttons.
+- The signed PR build: open Dashboard 2.03% CPU, hidden 0.35%.
+- #96: the legacy upgrade, the Control Center Only toggle (Cancel and confirm), General, and all three launch paths passed. The unlicensed toggle opened no window. The disabled General rows weren't visibly dimmed, fixed as 6c25b4f on the PR branch.
+- **#92 is live**: pkd rejects the shipped widget ("plug-ins must be sandboxed"), so the Ping Protection control can't be added on macOS 27.2. Option 2's new Mach service isn't picked up on update (`parent bundle version` stays 42000). Option 1 (sandbox plus the global-name Mach-lookup exception) loads, and its unlicensed enable and its Off-to-helper paths work. The licensed enable path is untested.
+- Protection checks are blocked because the install is unlicensed.
+- Restored the official 4.2.1 (digest matches) and removed the test settings. The menu bar control Oliver placed is now orphaned. Results are posted on #78, #92, and #96.
+
 ## 2026-09-27 - Whole-app review and polish (fixes complete; signed checks pending)
 
 **Request**: Oliver asked for a review of the code that takes down AWDL and the rest of the app, polish of rough edges, performance, UI, and UX, and closing open GitHub issues.
