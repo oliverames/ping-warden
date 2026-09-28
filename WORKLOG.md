@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-09-28 - Current release resume point and analysis coverage
+
+This entry supersedes the earlier resume points below. Version remains 4.3.0, build43000. PR #95 is merged. Dashboard Liquid Glass, explicit preference preservation, fresh crash-report defaults, same-path isolated upgrades, and the recorded performance comparisons are complete. Publication, final recovery acceptance, fixture cleanup, and the post-publication customer reply remain pending under #99. Production app and preference checksums remain unchanged.
+
+The exact aafe1ea push workflows passed, but inspection found that native CodeQL extracted only the five widget Swift files and missed all 44 main-app files. The confirmed coverage defect is tracked in #102. The analysis-only build now disables explicit modules to address incompatible precompiled modules, and a new guard queries successful extraction for every app and widget Swift source. A successful result upload alone no longer satisfies this gate. The corrected run and query still require exact-head CI verification.
+
+CodeQL does not support Objective-C, so its job is now named accurately and no longer requests C/C++ for the helper. Separate native Xcode analysis processed both helper sources for arm64 and x86_64 with zero diagnostics. Existing helper behavior and sanitizer results remain separate evidence.
+
+The coordinator owns repository edits, installed test apps, Git, and delivery. An independent agent reviews CI evidence. Changes in this commit affect the security-check workflow, its guard, and this log. They do not change release-build settings or the application. Private dated verification records retain live testing and community-outreach state. No experimental helper-lifecycle change is included in shipping source.
+
 ## 2026-09-28 - Integrated release readiness and Felix follow-up
 
 **Request**: Commit and merge the pending Control Center work into main, clean up, and run full release gates with particular care for performance, functionality, and existing users. Verify crash reporting defaults on while preserving explicit opt-outs. Investigate the missing dashboard Liquid Glass appearance against Oliver's screenshot. Reply to Felix with thanks and a retest request only after the fix is live. Oliver authorized publication after passing gates, followed by Felix's reply. The previous publication hold is lifted for this release.

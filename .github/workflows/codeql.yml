@@ -41,7 +41,7 @@ jobs:
         uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4
 
   analyze:
-    name: Analyze Swift and Objective-C
+    name: Analyze Swift
     runs-on: macos-26
 
     steps:
@@ -51,7 +51,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4
         with:
-          languages: swift,c-cpp
+          languages: swift
           queries: security-extended
           build-mode: manual
 
@@ -66,7 +66,14 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            ONLY_ACTIVE_ARCH=NO
+            ONLY_ACTIVE_ARCH=NO \
+            SWIFT_ENABLE_EXPLICIT_MODULES=NO
 
       - name: Perform CodeQL analysis
+        id: native-analysis
         uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4
+
+      - name: Verify successful application and widget Swift extraction
+        env:
+          CODEQL_SWIFT_DATABASE: ${{ fromJSON(steps.native-analysis.outputs.db-locations).swift }}
+        run: python3 scripts/verify_codeql_swift_extraction.py "$CODEQL_SWIFT_DATABASE" .
