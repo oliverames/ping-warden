@@ -2224,10 +2224,13 @@ struct GeneralSettingsContent: View {
                     set: { showDockIcon = $0 }
                 )) {
                     VStack(alignment: .leading, spacing: 2) {
+                        // The custom label doesn't dim with the toggle, so a
+                        // mode-fixed row would otherwise look editable.
                         Text("Show Dock Icon")
+                            .foregroundStyle(dockIconOverride != nil ? .tertiary : .primary)
                         Text("Display app icon in the Dock")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(dockIconOverride != nil ? .tertiary : .secondary)
                     }
                 }
                 .disabled(dockIconOverride != nil)
@@ -2238,9 +2241,10 @@ struct GeneralSettingsContent: View {
                 Toggle(isOn: $showMenuDropdownMetrics) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Show Live Metrics in Menu")
-                            Text("Show current ping and intervention attempts in the menu")
+                            .foregroundStyle(interfaceMode != .menuBarIcon ? .tertiary : .primary)
+                        Text("Show current ping and intervention attempts in the menu")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(interfaceMode != .menuBarIcon ? .tertiary : .secondary)
                     }
                 }
                 .disabled(interfaceMode != .menuBarIcon)
