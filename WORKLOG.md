@@ -1,12 +1,32 @@
 # Ping Warden Worklog
 
+## 2026-09-28 - Codex continuation of Control Center investigation
+
+**Request**: Continue the work Claude could not resolve. The latest transcript and worklog identify #92, widget loading and intent routing, as the remaining technical blocker. Oliver lifted the implementation hold on September 28 by choosing "Resume #92 investigation and implementation". Publication remains on hold.
+
+**Plan and ownership**: The coordinating session owns all edits, builds, and Git operations. A read-only agent will independently review the failed app-intent routing spike and relevant Apple documentation. The coordinator will inspect current extension signing, helper communication, release validation, and live GitHub issue state. No other active Codex chat was found in this repository. Process inspection is restricted by the sandbox.
+
+**Task list**:
+- [x] Confirm the current #92 and #95 state and the exact scope of resumed work. #92 remains open and #95 remains a draft.
+- [x] Reassess the rejected widget and failed routing variants using current source and primary documentation.
+- [x] Implement App Sandbox with one exact helper lookup exception and validate both signed architectures.
+- [x] Record evidence and remaining acceptance checks on #92, #78, #96, and #99. Track B10 separately as #101. Commit the verified fix and fixture evidence on main.
+
+**Resume point**: The implementation (7f87bbb), isolated live tests, cleanup, and issue updates are complete. See `docs/2026-09-28-control-center-verification.md`. The fixture and evidence are committed alongside this entry. Do not publish or merge PR #95. The original routing spike remains outside this repository and was read-only.
+
+**Licensed test approved**: Oliver approved an isolated app with a stubbed license and computer control. The fixture uses `com.amesvt.pingwarden92test`, its own App Group, helper, XPC endpoint, Keychain namespace, and session-history directory. The preparation script removes Keychain operations, licensing requests, Sentry, and Sparkle only in the scratch source. The helper implementation remains unchanged apart from identifiers, so AWDL is a shared hardware surface. Check that the installed app is inactive and AWDL is up before any live toggle, turn protection off afterward, and unregister only the fixture helper during cleanup.
+
+**Build verification**: Native Xcode Debug build and universal Release build succeeded with no reported warnings. The signed Release candidate passes distribution validation in both architectures. PlugInKit accepted the signed candidate after registering its containing app. All 21 release-tool tests and five license-parity tests passed. A separately sandboxed diagnostic using unchanged production seal and widget-gate code accepted a synthetic valid app seal and rejected tampered, expired, and unlicensed fixtures without writing real license state.
+
+**Live verification and cleanup**: The signed sandboxed fixture passed control On/Off, containing-app launch from a quit state, responsive-helper Repair while on, legacy menu-icon hiding, and ordinary quit restoring AWDL. Oliver supplied the decisive menu-bar clicks and confirmed the on-state gray capsule persists away from the pointer. The helper and test control were removed, generated installed data was trashed, and AWDL finished UP. Production app/helper and preference checksums are unchanged. B10 remains separate under [#101](https://github.com/oliverames/ping-warden/issues/101).
+
 ## Open items
 
 - Product Hunt waits for new gallery images and a website redesign, with several alternative designs for Oliver to choose from. Not scheduled. No draft or launch exists (since 2026-09-24; [#93](https://github.com/oliverames/ping-warden/issues/93))
 - Decide how to run CI locally instead of on GitHub-hosted runners, which have a usage limit (since 2026-09-24; [#94](https://github.com/oliverames/ping-warden/issues/94))
-- Signed checks still open on [#78](https://github.com/oliverames/ping-warden/issues/78): the protection checks (awdl0 re-raise, Off, quit restore, Repair with protection on) need a license route, because the developer Mac has no license. VoiceOver and appearance checks stay with Oliver. The 4.2.0 to 4.2.1 update checks passed on 2026-09-28 (since 2026-09-14)
+- Signed checks under [#78](https://github.com/oliverames/ping-warden/issues/78): Off, ordinary quit restore, and responsive-helper Repair while on passed in the approved isolated licensed fixture on 2026-09-28. Forced awdl0 re-raise, VoiceOver, appearance, and live-game checks remain. The 4.2.0 to 4.2.1 update checks passed earlier that day (since 2026-09-14).
 - Live-game validation of the frontmost-app engage and disengage handoff and the Ethernet skip. Needs an eligible real-game session and wired hardware; only Wi-Fi was available on 2026-09-21 (since 2026-09-06; [#64](https://github.com/oliverames/ping-warden/issues/64))
-- **Live bug, held by Oliver on 2026-09-28**: pkd rejects the shipped unsandboxed widget on macOS 27.2 ("plug-ins must be sandboxed"), so the Ping Protection control can't be added. The recommended fix is option 1, a sandbox with one temporary Mach-lookup exception. Nothing is implemented ([#92](https://github.com/oliverames/ping-warden/issues/92))
+- [#92](https://github.com/oliverames/ping-warden/issues/92): Sandbox plus one exact Mach-lookup exception implemented and verified in a signed isolated fixture on macOS 27.2. Oliver lifted the implementation hold. macOS 26 runtime acceptance and approved publication remain. Crash-state display is separate under [#101](https://github.com/oliverames/ping-warden/issues/101).
 - PR #95 (Control Center Only) is a draft at 6c25b4f. It waits on the #92 fix and the remaining signed checks ([#96](https://github.com/oliverames/ping-warden/issues/96))
 - Exercise the session recorder with the Dashboard open during a Game Mode session to confirm the recap stays on the session's target (since 2026-09-14) (unverified)
 - Confirm the four inferred `transientSystemUIBundleIdentifiers` entries beyond `UserNotificationCenter`; a SecurityAgent password sheet over a game would confirm the most likely one (since 2026-09-12)

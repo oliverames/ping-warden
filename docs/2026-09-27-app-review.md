@@ -42,7 +42,7 @@ Generation tokens, the license gate, persistent-protection recovery, and a26e6fe
 | B7 | P2 | Launch opened Login Items with no user action. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
 | B8 | P2 | Automated paths raised modal alerts, some over games, and setup failures stacked duplicates. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
 | B9 | P2 | The saved intent was not retried after the helper recovered. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
-| B10 | P2 | Control Center shows stale "Protected" after an app crash. | Deferred to the #92 redesign |
+| B10 | P2 | Control Center shows stale "Protected" after an app crash. | Tracked separately in [#101](https://github.com/oliverames/ping-warden/issues/101); not fixed by the #92 entitlement change |
 | B11 | P2 | Quit might leave AWDL down up to 60 s; a pending first enable at quit sent no stop. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
 | B12, B13 | P3 | Generation guards and launch sent three enables. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
 | B14 | P3 | Several messages pointed at restarting or the helper test instead of Repair, or warned falsely. | Fixed in 7eb2091 (tests 78c00ee, 2ba9c5e) |
@@ -52,7 +52,7 @@ Generation tokens, the license gate, persistent-protection recovery, and a26e6fe
 
 ## Lane E: widget sandbox (#92) and PR #95 (#96)
 
-**#92 design.** Today the widget runs its control intents in the extension and connects to the helper's global Mach service, which a sandboxed extension cannot look up. Three options were weighed:
+**Original #92 design review (superseded by the September 28 result below).** At review time the widget runs its control intents in the extension and connects to the helper's global Mach service, which a sandboxed extension cannot look up. Three options were weighed:
 
 1. A temporary-exception entitlement for the Mach lookup. Smallest change, but Apple labels it temporary and it fails #92's "App Group only" acceptance.
 2. An App-Group-prefixed second Mach service on the helper. Meets the acceptance, but existing installs depend on launchd picking up a changed plist for an existing registration, which Apple DTS could not confirm.
@@ -63,8 +63,8 @@ Option 3 needed a signed spike. **Result, 2026-09-28 on macOS 27.2: blocked.** c
 **Signed builds on this Mac:**
 - **The shipped widget doesn't load.** pkd rejects 4.2.1's unsandboxed widget ("plug-ins must be sandboxed"), so the control can't be added on macOS 27.2, while Automation still offers the Control Center mode.
 - **Option 2 fails on update.** Its added Mach service isn't picked up for an existing registration: the job's `parent bundle version` stayed 42000 across three app replacements.
-- **Option 1 works so far.** A sandboxed widget with a temporary exception for the global Mach lookup loads. It ran the unlicensed enable path and reached the helper to turn protection off. The licensed enable path is untested.
-- **Recommendation:** ship option 1 in the next release. **Needs Oliver:** accept the temporary exception, since #92's acceptance asked for the App Group only. Evidence is on #92.
+- **Option 1 implemented and live-tested on September 28.** Oliver lifted the hold and approved the isolated licensed fixture. The sandboxed control loads, reads the sealed license cache, enables/disables the helper, and launches its containing app when quit. Repair while on and ordinary quit restore passed. Production state was preserved.
+- **Delivery remains held.** macOS 26 runtime checks and publication remain under #92/#99. The separate crash-state display finding B10 remains under #101. Full evidence and limitations: [September 28 verification](2026-09-28-control-center-verification.md).
 
 **PR #95.** All eight findings below are fixed on the PR branch (5d72ca5, 1a02aaa), which was merged with main at afc7a0d and pushed as a066756 on 2026-09-28. The PR stays a draft until the Developer ID checks in #96 pass. Existing Hide Menu Bar Icon users keep the 4.2.1 behavior, where the menu bar icon is hidden and the Dock icon forced on. The new mode lives under `ControlCenterOnlyEnabled`, and no saved value is rewritten. The original review found these required before merge:
 
