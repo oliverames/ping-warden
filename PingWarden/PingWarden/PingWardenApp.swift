@@ -65,9 +65,16 @@ struct PingWardenApp: App {
                     appDelegate.openAbout()
                 }
             }
+            // Declared here rather than inserted into NSApp.mainMenu, which
+            // SwiftUI rebuilds and so dropped the item.
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    appDelegate.checkForUpdates()
+                }
+            }
             PingWardenHelpCommands(appDelegate: appDelegate)
             CommandGroup(replacing: .appSettings) {
-                Button("Settings...") {
+                Button("Settings…") {
                     appDelegate.openSettings()
                 }
                 .keyboardShortcut(",", modifiers: .command)
@@ -87,9 +94,10 @@ struct PingWardenHelpCommands: Commands {
             Link("Ping Warden Help", destination: LicenseManager.documentationURL)
             Link("Troubleshooting", destination: LicenseManager.troubleshootingURL)
             Link("Ping Warden Website", destination: LicenseManager.websiteURL)
+            Link("Report an Issue…", destination: AboutView.reportIssueURL)
             if let whatsNewVersion = appDelegate.whatsNewVersion {
                 Divider()
-                Button("What's New in \(whatsNewVersion)...") {
+                Button("What's New in \(whatsNewVersion)…") {
                     appDelegate.openWhatsNew()
                 }
             }
@@ -99,7 +107,6 @@ struct PingWardenHelpCommands: Commands {
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate, SPUUpdaterDelegate, ObservableObject {
-    private static let appMenuCheckForUpdatesTag = 2201
     private static let whatsNewMenuItemTag = 180
     // Sparkle feed URL is defined in Info.plist (SUFeedURL) as the single source of truth.
 
@@ -783,8 +790,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         statusMenu?.autoenablesItems = false
 
         // State first, so the menu opens on what the app is doing.
-        let statusMenuItem = NSMenuItem(title: "Status: Checking...", action: nil, keyEquivalent: "")
+        let statusMenuItem = NSMenuItem(title: "Status: Checking…", action: nil, keyEquivalent: "")
         statusMenuItem.tag = 100
+        // A readout, not a command; enabled it looked clickable.
+        statusMenuItem.isEnabled = false
         statusMenu?.addItem(statusMenuItem)
 
         let pingMenuItem = NSMenuItem(title: "Current Ping: --", action: nil, keyEquivalent: "")
@@ -804,13 +813,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         )
         showMetricsItem.tag = 160
         showMetricsItem.target = self
-        showMetricsItem.image = menuSymbol("chart.xyaxis.line")
+        // Open Dashboard keeps the chart symbol it shares with the sidebar.
+        showMetricsItem.image = menuSymbol("speedometer")
         statusMenu?.addItem(showMetricsItem)
 
         statusMenu?.addItem(NSMenuItem.separator())
 
         let dashboardItem = NSMenuItem(
-            title: "Open Dashboard...",
+            title: "Open Dashboard…",
             action: #selector(openDashboard),
             keyEquivalent: ""
         )
@@ -851,7 +861,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         // Settings
         let settingsItem = NSMenuItem(
-            title: "Settings...",
+            title: "Settings…",
             action: #selector(openSettings),
             keyEquivalent: ","
         )
@@ -862,7 +872,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Release notes for the version just installed, offered until opened.
         if let whatsNewVersion {
             let whatsNewItem = NSMenuItem(
-                title: "What's New in \(whatsNewVersion)...",
+                title: "What's New in \(whatsNewVersion)…",
                 action: #selector(openWhatsNew),
                 keyEquivalent: ""
             )
@@ -874,7 +884,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         // Check for Updates (Sparkle)
         let updateItem = NSMenuItem(
-            title: "Check for Updates...",
+            title: "Check for Updates…",
             action: #selector(checkForUpdates),
             keyEquivalent: ""
         )
@@ -900,7 +910,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Shown only while unlicensed; the license pane carries the donation
         // conversion path, so the menu no longer needs a Donate item.
         let licenseItem = NSMenuItem(
-            title: "Buy a License...",
+            title: "Buy a License…",
             action: #selector(openLicenseSettings),
             keyEquivalent: ""
         )
@@ -959,12 +969,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         growSettingsWindowForDashboard()
     }
 
-    /// The dashboard needs about 1,000 points to show every card. A frame
-    /// restored from a short settings session hides the chart, so grow to
-    /// the visible screen height when the dashboard is what was asked for.
+    /// A frame restored from a short settings session can hide the chart,
+    /// so grow to the default height when the dashboard is what was asked
+    /// for. The rest of the dashboard scrolls.
     private func growSettingsWindowForDashboard() {
         guard let window = settingsWindow, let screen = window.screen ?? NSScreen.main else { return }
-        let target: CGFloat = 1000
+        let target: CGFloat = 780
         guard window.frame.height < target else { return }
         let visible = screen.visibleFrame
         var frame = window.frame
@@ -1021,15 +1031,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
         )
         let hostingController = NSHostingController(rootView: settingsView)
+        // The window owns its size: minSize below and the root view's
+        // minimum frame bound it. With the default .standardBounds the
+        // controller re-measured the whole layout on every dashboard sample.
+        hostingController.sizingOptions = []
+        // Fits a laptop screen; the dashboard scrolls. A frame the person
+        // saved under the autosave name below still wins.
+        let defaultSize = NSSize(width: 900, height: 780)
 #if DEBUG
         let usesDebugMinimumSize = ProcessInfo.processInfo.arguments.contains("--settings-min-size")
         let initialSize = usesDebugMinimumSize
             ? NSSize(width: 760, height: 520)
-            : NSSize(width: 980, height: 700)
+            : defaultSize
 #else
         let usesDebugMinimumSize = false
-        // Tall enough for the dashboard's six cards; settings panes fit easily.
-        let initialSize = NSSize(width: 980, height: 1000)
+        let initialSize = defaultSize
 #endif
         hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
 
@@ -1147,7 +1163,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         openSettings()
     }
 
-    @objc private func checkForUpdates() {
+    @objc func checkForUpdates() {
         guard startUpdaterIfNeeded() else {
             presentUpdaterStartFailureAlert()
             return
@@ -1194,48 +1210,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             aboutItem.action = #selector(showAbout)
         }
 
-        if let settingsItem = appMenu.items.first(where: { $0.keyEquivalent == "," || $0.title == "Settings..." }) {
-            settingsItem.title = "Settings..."
+        // Check for Updates is declared as a SwiftUI command, which survives
+        // the menu rebuilds that removed an item inserted here.
+        if let settingsItem = appMenu.items.first(where: { $0.keyEquivalent == "," || $0.title == "Settings…" }) {
+            settingsItem.title = "Settings…"
             settingsItem.target = self
             settingsItem.action = #selector(openSettings)
             settingsItem.keyEquivalent = ","
         } else if let aboutIndex = appMenu.items.firstIndex(where: { $0.title.hasPrefix("About ") }) {
             let settingsItem = NSMenuItem(
-                title: "Settings...",
+                title: "Settings…",
                 action: #selector(openSettings),
                 keyEquivalent: ","
             )
             settingsItem.target = self
             appMenu.insertItem(settingsItem, at: aboutIndex + 1)
         }
-
-        if let existingItem = appMenu.items.first(where: { $0.title == "Check for Updates..." }) {
-            existingItem.target = self
-            existingItem.action = #selector(checkForUpdates)
-            existingItem.tag = Self.appMenuCheckForUpdatesTag
-            return
-        }
-
-        let updateItem = NSMenuItem(
-            title: "Check for Updates...",
-            action: #selector(checkForUpdates),
-            keyEquivalent: ""
-        )
-        updateItem.target = self
-        updateItem.tag = Self.appMenuCheckForUpdatesTag
-
-        if let settingsIndex = appMenu.items.firstIndex(where: { $0.keyEquivalent == "," || $0.title == "Settings..." }) {
-            appMenu.insertItem(updateItem, at: settingsIndex + 1)
-        } else if let aboutIndex = appMenu.items.firstIndex(where: { $0.title.hasPrefix("About ") }) {
-            appMenu.insertItem(updateItem, at: aboutIndex + 1)
-        } else {
-            appMenu.insertItem(updateItem, at: min(1, appMenu.items.count))
-        }
     }
 
     private func presentUpdaterStartFailureAlert() {
         let alert = NSAlert()
-        alert.messageText = "Unable to Check For Updates"
+        alert.messageText = "Unable to Check for Updates"
         let errorText: String
         if let startupError = updaterStartupError as NSError? {
             errorText = "\(startupError.domain) \(startupError.code): \(startupError.localizedDescription)"
@@ -1451,14 +1446,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
     private func presentLicenseDeniedAlert() {
-        let message = protectionExperience.lastError
-            ?? "Ping Protection requires a $15 one-time license."
+        // The coordinator's message already says the same thing, so the
+        // alert states it once rather than appending purchase directions.
         let alert = NSAlert()
         alert.messageText = "Ping Protection Requires a License"
-        alert.informativeText = "\(message)\n\nBuy a $15 one-time license on Gumroad, then enter the key in Settings → License."
+        alert.informativeText = LicenseCopy.required(
+            transitionEnded: LicenseManager.shared.grandfatherWindowExpired
+        )
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Buy a License... · $15")
-        alert.addButton(withTitle: "Open License Settings")
+        alert.addButton(withTitle: "Buy a License…")
+        alert.addButton(withTitle: "Enter License Key…")
         alert.addButton(withTitle: "Cancel")
         switch alert.runModal() {
         case .alertFirstButtonReturn:
@@ -1964,7 +1961,7 @@ struct GeneralSettingsContent: View {
 
                     Spacer(minLength: 16)
 
-                    Button("Check for Updates...", action: onCheckForUpdates)
+                    Button("Check for Updates…", action: onCheckForUpdates)
                         .buttonStyle(.bordered)
                 }
                 .padding(.vertical, 8)
@@ -1995,15 +1992,16 @@ struct GeneralSettingsContent: View {
                         Button {
                             finishSetup()
                         } label: {
-                            if isFinishingSetup {
+                            if setupInProgress {
                                 ProgressView()
                                     .controlSize(.small)
                             } else {
-                                Text("Finish Setup")
+                                Text("Finish Setup…")
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isFinishingSetup)
+                        .disabled(setupInProgress)
+                        .accessibilityLabel("Finish Setup…")
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Ping Protection")
@@ -2020,7 +2018,7 @@ struct GeneralSettingsContent: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                         if error.localizedCaseInsensitiveContains("license") {
-                            Button("Buy a License... · $15") {
+                            Button("Buy a License…") {
                                 NSWorkspace.shared.open(LicenseManager.purchaseURL)
                             }
                             .buttonStyle(.link)
@@ -2059,7 +2057,7 @@ struct GeneralSettingsContent: View {
                                         if success {
                                             monitorState.refresh()
                                         } else {
-                                            settingsErrorMessage = "The helper could not reset the intervention counter. Open Advanced settings, click Repair, and try again."
+                                            settingsErrorMessage = "The helper could not reset the intervention counter. Open Settings → Advanced, click Repair, and try again."
                                         }
                                     }
                                 }
@@ -2162,8 +2160,14 @@ struct GeneralSettingsContent: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
     }
 
+    /// Covers a repair started from Advanced or the welcome window too, so
+    /// a second one cannot unregister the helper the first just rebuilt.
+    private var setupInProgress: Bool {
+        isFinishingSetup || protectionExperience.isRepairingHelper
+    }
+
     private func finishSetup() {
-        guard !isFinishingSetup else { return }
+        guard !setupInProgress else { return }
         isFinishingSetup = true
         PingWardenMonitor.shared.repairHelperRegistration(presentsErrors: false) { success in
             Task { @MainActor in
@@ -2171,15 +2175,15 @@ struct GeneralSettingsContent: View {
                     isFinishingSetup = false
                     settingsErrorMessage = PingWardenMonitor.shared.lastSetupFailureMessage
                         ?? (PingWardenMonitor.shared.isHelperRegistered
-                            ? "The helper was approved but is not responding. Restart your Mac, then open Advanced settings and click Repair."
-                            : "Ping Warden is still waiting for approval in System Settings → General → Login Items.")
+                            ? "The helper was approved but is not responding. Restart your Mac, then open Settings → Advanced and click Repair."
+                            : "Ping Warden is still waiting for approval in \(SystemSettingsCopy.loginItemsPath).")
                     return
                 }
                 let enabled = await protectionExperience.setPersistentProtection(true)
                 isFinishingSetup = false
                 if !enabled {
                     settingsErrorMessage = protectionExperience.lastError
-                        ?? "The helper was approved, but Ping Protection could not turn on. Open Advanced settings and click Repair."
+                        ?? "The helper was approved, but Ping Protection could not turn on. Open Settings → Advanced and click Repair."
                 }
             }
         }
@@ -2224,18 +2228,18 @@ struct LicenseSettingsContent: View {
             } header: {
                 Text("Ping Protection License")
             } footer: {
-                Text("Ping Warden is open source, and everything except enabling Ping Protection is free. A license keeps AWDL blocking available and supports development.")
+                Text("Ping Warden is open source, and everything except enabling Ping Protection is free. A license keeps Ping Protection available and supports development.")
             }
 
             if license.isGrandfathered {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         if let days = license.grandfatherDaysRemaining {
-                            Text("Ping Warden is moving to a paid model for the AWDL blocking feature. As an existing user, this Mac keeps full Ping Protection for \(days) more days, free and with no action needed.")
+                            Text("Ping Warden is moving to a paid model for Ping Protection. As an existing user, this Mac keeps full Ping Protection for \(days) more days, free and with no action needed.")
                                 .font(.caption)
                                 .fixedSize(horizontal: false, vertical: true)
                         } else {
-                            Text("Ping Warden is moving to a paid model for the AWDL blocking feature. As an existing user, this Mac keeps full Ping Protection during a 90-day transition, free and with no action needed.")
+                            Text("Ping Warden is moving to a paid model for Ping Protection. As an existing user, this Mac keeps full Ping Protection during a 90-day transition, free and with no action needed.")
                                 .font(.caption)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -2258,75 +2262,9 @@ struct LicenseSettingsContent: View {
                     Text("Enter a license key below any time during the transition. Nothing changes until it ends.")
                 }
 
-                Section("Enter License Key") {
-                    SecureField("License key", text: $keyField)
-                        .accessibilityLabel("License key")
-                        .onSubmit { submitLicenseKey() }
-
-                    HStack {
-                        Button {
-                            submitLicenseKey()
-                        } label: {
-                            if license.isVerifying {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Text("Verify")
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                        Button("Buy a License...") {
-                            NSWorkspace.shared.open(LicenseManager.purchaseURL)
-                        }
-                    }
-                    Text("$15 once, for the Macs you own. Stays valid offline for 14 days between checks.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if let licenseMessage {
-                        Label(licenseMessage, systemImage: messageIcon)
-                            .font(.caption)
-                            .foregroundStyle(messageIsError ? .red : .secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                keyEntrySection
             } else if !license.canEnableProtection {
-                Section("Enter License Key") {
-                    SecureField("License key", text: $keyField)
-                        .accessibilityLabel("License key")
-                        .onSubmit { submitLicenseKey() }
-
-                    HStack {
-                        Button {
-                            submitLicenseKey()
-                        } label: {
-                            if license.isVerifying {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Text("Verify")
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                        Button("Buy a License...") {
-                            NSWorkspace.shared.open(LicenseManager.purchaseURL)
-                        }
-                    }
-                    Text("$15 once, for the Macs you own. Stays valid offline for 14 days between checks.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if let licenseMessage {
-                        Label(licenseMessage, systemImage: messageIcon)
-                            .font(.caption)
-                            .foregroundStyle(messageIsError ? .red : .secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                keyEntrySection
 
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
@@ -2350,7 +2288,7 @@ struct LicenseSettingsContent: View {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.red)
-                    Button("Buy a License... · $15") {
+                    Button("Buy a License…") {
                         NSWorkspace.shared.open(LicenseManager.purchaseURL)
                     }
                     .buttonStyle(.link)
@@ -2363,6 +2301,12 @@ struct LicenseSettingsContent: View {
     }
 
     private var statusCaption: String {
+        // The entry section disappears once a key verifies, so the status
+        // section is where that confirmation stays visible. LicenseManager
+        // does not expose the verification date, so none is shown.
+        if license.hasValidPaidLicense {
+            return "License verified. Ping Protection is available on this Mac."
+        }
         if license.isGrandfathered {
             return "Full Ping Protection continues free during the transition period."
         }
@@ -2372,10 +2316,60 @@ struct LicenseSettingsContent: View {
         return "Enter a license key to enable Ping Protection."
     }
 
+    /// Plain text rather than a secure field, so a paste that picked up too
+    /// much or too little is visible. The key is still stored in the keychain.
+    private var keyEntrySection: some View {
+        Section("Enter License Key") {
+            // The label sits above a full-width field: beside it, a grouped
+            // form right-aligns the field's text, and a key reads from its start.
+            VStack(alignment: .leading, spacing: 6) {
+                Text("License Key")
+                    .accessibilityHidden(true)
+                TextField("License Key", text: $keyField, prompt: Text("Paste your key from the Gumroad receipt"))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.leading)
+                    .autocorrectionDisabled()
+                    .onSubmit { submitLicenseKey() }
+            }
+
+            HStack {
+                Button {
+                    submitLicenseKey()
+                } label: {
+                    if license.isVerifying {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Verify")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                Button("Buy a License…") {
+                    NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                }
+            }
+            Text("$15 once, for the Macs you own. Stays valid offline for 14 days between checks.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let licenseMessage {
+                Label(licenseMessage, systemImage: messageIcon)
+                    .font(.caption)
+                    .foregroundStyle(messageIsError ? .red : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     private var licenseMessageForLastResult: String {
         switch license.lastVerificationResult {
         case .revoked:
-            return "This license key is not valid (refunded, cancelled, or disabled)."
+            // Gumroad answers the same way for a mistyped key and a refunded
+            // or disabled one, so the copy blames neither.
+            return LicenseCopy.keyNotAccepted
         case .invalidKey:
             return "That key does not look like a Gumroad license key. Check it and try again."
         case .unreachable:
@@ -2451,7 +2445,7 @@ struct AutomationSettingsContent: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 8)
-                        Button("Enable Fullscreen Detection...") {
+                        Button("Enable Fullscreen Detection…") {
                             showingScreenRecordingPermissionAlert = true
                         }
                         .controlSize(.small)
@@ -2549,8 +2543,9 @@ struct AdvancedSettingsContent: View {
     @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
     @State private var showingRepairConfirm = false
     @State private var showingRemovalConfirm = false
-    @State private var showingTestResults = false
-    @State private var testResults = ""
+    /// Titled outcome of the helper test or Repair. Each case has its own
+    /// title, so one alert serves both.
+    @State private var resultAlert: HelperTestReport?
     @State private var diagnosticsResult: DiagnosticsSheetResult?
     @State private var isRunningHelperTest = false
     @State private var isExportingDiagnostics = false
@@ -2570,7 +2565,7 @@ struct AdvancedSettingsContent: View {
                                 StatusBadge(text: "Relaunch Required", tint: .unavailable)
                             }
                         }
-                        Text("On by default unless you have saved a different choice. Anonymous crash reports help fix bugs, without usage data or ping targets. Turning off is immediate; turning on requires a relaunch.")
+                        Text("Sends anonymous crash reports without usage data or ping targets. Turning this off takes effect immediately. Turning it on takes effect after you relaunch Ping Warden.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -2619,7 +2614,7 @@ struct AdvancedSettingsContent: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Test Helper Connection")
-                        Text("Verify the registered helper and signed XPC connection")
+                        Text("Check that the helper is set up and responding")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -2669,7 +2664,7 @@ struct AdvancedSettingsContent: View {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
-                            Text("Repair...")
+                            Text("Repair…")
                         }
                     }
                         .buttonStyle(.bordered)
@@ -2678,7 +2673,7 @@ struct AdvancedSettingsContent: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Repair Helper Connection")
                         Text(protectionExperience.isRepairingHelper
-                            ? "Repairing the helper connection..."
+                            ? "Repairing the helper connection…"
                             : "Reconnect the approved helper without changing your protection preference")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -2686,7 +2681,7 @@ struct AdvancedSettingsContent: View {
                 }
 
                 LabeledContent {
-                    Button("Prepare to Remove...") { showingRemovalConfirm = true }
+                    Button("Prepare to Remove…") { showingRemovalConfirm = true }
                         .buttonStyle(.bordered)
                         .tint(.red)
                 } label: {
@@ -2711,7 +2706,7 @@ struct AdvancedSettingsContent: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Ping Warden will check that the helper answers. If it does not, Ping Warden registers the helper again, which macOS may announce with a Login Items notification. Your protection preference, settings, and session history stay as they are.")
+            Text("Ping Warden will check that the helper answers. If it does not, Ping Warden registers the helper again, which macOS may announce with a Background Items Added notification. Your protection preference, settings, and session history stay as they are.")
         }
         .confirmationDialog(
             "Prepare Ping Warden for Removal?",
@@ -2723,12 +2718,20 @@ struct AdvancedSettingsContent: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This turns off Ping Protection, unregisters the helper and Launch at Login, clears settings, custom servers, and latency session history, reveals the app in Finder, then quits. The app will remain in Applications until you move it to Trash.")
+            // Matches clearLocalDataForRemoval: LicenseManager.resetForRemoval
+            // deletes the saved key and the transition marker as well.
+            Text("This turns off Ping Protection, unregisters the helper and Launch at Login, and deletes your settings, custom ping targets, latency session history, this Mac's saved license key, and its license transition status. Keep your Gumroad receipt to enter the key again. Ping Warden then shows the app in Finder and quits, so you can move it to the Trash.")
         }
-        .alert("Helper Test Results", isPresented: $showingTestResults) {
-            Button("OK") {}
+        .alert(
+            resultAlert?.title ?? "",
+            isPresented: Binding(
+                get: { resultAlert != nil },
+                set: { if !$0 { resultAlert = nil } }
+            )
+        ) {
+            Button("OK") { resultAlert = nil }
         } message: {
-            Text(testResults)
+            Text(resultAlert?.message ?? "")
         }
         .sheet(item: $diagnosticsResult) { result in
             DiagnosticsResultView(result: result.export) {
@@ -2753,17 +2756,15 @@ struct AdvancedSettingsContent: View {
         isRunningHelperTest = true
         DispatchQueue.global(qos: .userInitiated).async {
             let healthCheck = PingWardenMonitor.shared.performHealthCheck()
+            let helperRegistered = PingWardenMonitor.shared.isHelperRegistered
 
             DispatchQueue.main.async {
                 isRunningHelperTest = false
-                if !healthCheck.isHealthy {
-                    self.testResults = "Helper test failed:\n\(healthCheck.message)"
-                    self.showingTestResults = true
-                    return
-                }
-
-                self.testResults = healthCheck.message
-                self.showingTestResults = true
+                resultAlert = HelperTestReport.make(
+                    helperRegistered: helperRegistered,
+                    isHealthy: healthCheck.isHealthy,
+                    message: healthCheck.message
+                )
             }
         }
     }
@@ -2797,14 +2798,26 @@ struct AdvancedSettingsContent: View {
         PingWardenMonitor.shared.repairHelperRegistration(presentsErrors: false) { repaired in
             Task { @MainActor in
                 guard repaired else {
-                    maintenanceErrorMessage = PingWardenMonitor.shared.lastSetupFailureMessage
-                        ?? "The helper still is not responding. Confirm that Ping Warden is allowed in System Settings → General → Login Items, restart your Mac, and then click Repair again."
+                    // A specific cause, such as a damaged app bundle, beats
+                    // the general directions.
+                    resultAlert = HelperTestReport(
+                        title: RepairResultCopy.failureTitle,
+                        message: PingWardenMonitor.shared.lastSetupFailureMessage
+                            ?? RepairResultCopy.failureMessage
+                    )
                     return
                 }
                 let restored = await protectionExperience.setPersistentProtection(shouldRemainEnabled)
-                if !restored {
+                guard restored else {
                     maintenanceErrorMessage = "The helper is responding again, but Ping Warden could not restore your protection preference."
+                    return
                 }
+                resultAlert = HelperTestReport(
+                    title: RepairResultCopy.successTitle,
+                    message: RepairResultCopy.successMessage(
+                        protectionOn: PingWardenMonitor.shared.isMonitoringActive
+                    )
+                )
             }
         }
     }
@@ -2936,7 +2949,7 @@ struct AdvancedSettingsContent: View {
         if restored {
             return "\(cause) Your previous Ping Warden settings were restored, and no local data was erased."
         }
-        return "\(cause) Ping Warden could not fully restore the prior state. Open Advanced settings, click Repair, and review Launch at Login before retrying. No local data was erased."
+        return "\(cause) Ping Warden could not fully restore the prior state. Open Settings → Advanced, click Repair, and review Launch at Login before retrying. No local data was erased."
     }
 
     private func clearLocalDataForRemoval() throws {
@@ -3038,7 +3051,7 @@ struct AboutView: View {
 
                 Spacer(minLength: 28)
 
-                Text("Local network protection and measurement for macOS")
+                Text("Keeps AWDL quiet to reduce Wi‑Fi lag while you cloud game.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -3126,11 +3139,11 @@ struct AboutView: View {
     }
 
     private var aboutIssueLink: some View {
-        Link(
-            "Report an Issue",
-            destination: URL(string: "https://github.com/oliverames/ping-warden/issues/new/choose")!
-        )
+        Link("Report an Issue", destination: Self.reportIssueURL)
     }
+
+    /// Shared with the Help menu so both open the same issue chooser.
+    static let reportIssueURL = URL(string: "https://github.com/oliverames/ping-warden/issues/new/choose")!
 }
 
 // MARK: - Game Mode Detector
@@ -3149,6 +3162,9 @@ final class GameModeDetector: @unchecked Sendable {
         qos: .utility
     )
     private var timer: DispatchSourceTimer?
+    /// Interval the current timer repeats at, so an idle tick replaces the
+    /// timer only when the polling tier actually changes.
+    private var timerInterval: TimeInterval?
     private var isRunning = false
     private var isGameModeActive = false
     private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "GameMode")
@@ -3159,6 +3175,13 @@ final class GameModeDetector: @unchecked Sendable {
     private var appDidTerminateObserver: NSObjectProtocol?
     private var appDidActivateObserver: NSObjectProtocol?
     private var screenParametersObserver: NSObjectProtocol?
+    private var selfDidBecomeActiveObserver: NSObjectProtocol?
+    /// Cached Screen Recording permission, read on `detectionQueue`.
+    /// `CGPreflightScreenCaptureAccess` costs about 13 ms, too much for every
+    /// tick, so it is read at start and again whenever Ping Warden becomes
+    /// active, which is where someone lands after granting it in System
+    /// Settings.
+    private var screenRecordingGranted = false
     private var inactiveSamples = 0
     private var idleStreakTicks = 0
     /// PID of the frontmost app, captured on the main thread from activation
@@ -3194,6 +3217,9 @@ final class GameModeDetector: @unchecked Sendable {
         if let observer = screenParametersObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let observer = selfDidBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     func start() {
@@ -3207,7 +3233,8 @@ final class GameModeDetector: @unchecked Sendable {
 
         // Screen Recording only gates the fullscreen path; the frontmost-app
         // path works without it, so this is a degraded mode rather than a failure.
-        if !Self.hasScreenRecordingPermission() {
+        let screenRecordingGranted = Self.hasScreenRecordingPermission()
+        if !screenRecordingGranted {
             log.warning("Screen Recording permission not granted - fullscreen game detection unavailable, frontmost-app detection still active")
         }
 
@@ -3217,6 +3244,7 @@ final class GameModeDetector: @unchecked Sendable {
         detectionQueue.async { [weak self] in
             guard let self else { return }
             self.isRunning = true
+            self.screenRecordingGranted = screenRecordingGranted
             self.frontmostPID = initialFrontmostPID
             self.startPathMonitor()
             // The first status check is driven by the path monitor's first
@@ -3274,6 +3302,19 @@ final class GameModeDetector: @unchecked Sendable {
                 self?.scheduleGameModeStatusCheck()
             }
         }
+
+        if selfDidBecomeActiveObserver == nil {
+            selfDidBecomeActiveObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                let granted = Self.hasScreenRecordingPermission()
+                self?.detectionQueue.async { [weak self] in
+                    self?.screenRecordingGranted = granted
+                }
+            }
+        }
     }
 
     func stop() {
@@ -3297,10 +3338,16 @@ final class GameModeDetector: @unchecked Sendable {
             screenParametersObserver = nil
         }
 
+        if let observer = selfDidBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(observer)
+            selfDidBecomeActiveObserver = nil
+        }
+
         detectionQueue.sync {
             isRunning = false
             timer?.cancel()
             timer = nil
+            timerInterval = nil
             pathMonitor?.cancel()
             pathMonitor = nil
             pathInterface = .unknown
@@ -3353,6 +3400,7 @@ final class GameModeDetector: @unchecked Sendable {
             isActive: isGameModeActive,
             idleStreakTicks: idleStreakTicks
         )
+        timerInterval = interval
         let newTimer = DispatchSource.makeTimerSource(queue: detectionQueue)
         newTimer.schedule(
             deadline: .now() + interval,
@@ -3398,7 +3446,7 @@ final class GameModeDetector: @unchecked Sendable {
         // The fullscreen scan is pointless without Screen Recording, since the
         // window list then carries no owner info; skip the walk in that case.
         let fullscreenGame = frontmostIsGame ? false
-            : (Self.hasScreenRecordingPermission() && isAnyAppFullscreen())
+            : (screenRecordingGranted && isAnyAppFullscreen())
         let engage = GameModeActivationPolicy.shouldEngage(
             frontmostIsGame: frontmostIsGame,
             fullscreenGamePresent: fullscreenGame,
@@ -3422,9 +3470,16 @@ final class GameModeDetector: @unchecked Sendable {
         guard isGameModeActive else {
             inactiveSamples = 0
             idleStreakTicks += 1
-            // Recreate the repeating timer so a streak crossing the idle
-            // threshold takes effect on the very next tick.
-            scheduleSafetyTimer()
+            // Replace the repeating timer only when the streak crosses into
+            // another tier, so that tier takes effect on the very next tick.
+            // An event-driven check resets the streak and drops back here.
+            let tierInterval = GameModePollingPolicy.interval(
+                isActive: false,
+                idleStreakTicks: idleStreakTicks
+            )
+            if tierInterval != timerInterval {
+                scheduleSafetyTimer()
+            }
             return
         }
 
