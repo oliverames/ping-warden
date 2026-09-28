@@ -25,6 +25,16 @@
 - Ship a26e6fe (helper recovery) as 4.2.2 after Oliver approves and after the pre-release delta audit. The delta changes helper-registration behavior, though only on explicit Repair or setup when the helper does not answer (since 2026-09-27)
 - Sentry: decide on a one-time delivery test against a separate project, and on `enableUncaughtNSExceptionReporting`. Server side checked clean on 2026-09-27; the last accepted error event was 2026-08-06 (since 2026-09-27)
 
+## 2026-09-27 - Whole-app review and polish (in progress)
+
+**Request**: Oliver asked for a review of the code that takes down AWDL and the rest of the app, polish of rough edges, performance, UI, and UX, and closing open GitHub issues.
+
+**Plan**: Phase 1 runs five read-only review agents in parallel, each with a fixed lane: (A) helper daemon and AWDL enforcement, (B) app protection pipeline, XPC, sessions, Game Mode, and widget control path, (C) UI, UX, accessibility, and copy through the isolated fixture, (D) performance and energy, (E) the #92 widget-sandbox redesign plus a review of open PR #95 (#96). Phase 2 consolidates verified findings into `docs/2026-09-27-app-review.md`, then fixes them in batches with disjoint file ownership, with tests and a CI-flag Release build per batch. Phase 3 closes issues with evidence. Items needing a signed installed build, VoiceOver, or a live game (#64, #78, #89, #90 residue, #91 residue, #96 signed checks) are listed for Oliver rather than run against the installed app. #93 and #94 wait on Oliver's decisions. No release without approval.
+
+**Guardrails for every agent**: no edits to the repo in Phase 1; never launch or read preferences of the installed app; never register or unregister the helper; never touch licensing or the keychain; builds only into scratch DerivedData with signing off; UI viewing only through a renamed-bundle isolated fixture.
+
+**Resume point**: If interrupted, re-read the agents' reports (or rerun the lanes), then continue Phase 2 from `docs/2026-09-27-app-review.md`.
+
 ## 2026-09-27 - Helper-timeout recovery
 
 **What changed**: a26e6fe makes Repair, Welcome setup, and Finish Setup confirm that the helper answers, and rebuilds a registered but silent helper (unregister, register) only from those explicit actions. Success requires a helper reply, and a registration is never removed when the bundle could not rebuild it. At launch, a registered helper that stays silent after three attempts shows the Welcome once if it was never presented, otherwise a dashboard message pointing to Repair. Turning protection off skips the helper when nothing requested it and awdl0 reads up. Diagnostics add `location` (category only, no path) and `launchd_job` (whitelisted `launchctl print` fields; exit 113 means no job).
