@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-09-28 - Search Console ownership verification
+
+Oliver authorized adding pingwarden.app to his chosen Google account. Added the supplied HTML ownership tag to the homepage source and generated site. The tag is public verification metadata. DNS, analytics, crawl policy and app artifacts remain unchanged. Root owns the site and Git changes; agents own their named community submissions.
+
+Resume after deployment: verify ownership in the retained Chrome tab, submit the existing sitemap, inspect the homepage and three symptom guides, and record the actual indexing results under #106. The earlier account-choice question below is resolved. Owner licensing and licensed gallery capture remain separate prerequisites for Product Hunt and MacMenuBar.
+
+---
+
 ## 2026-09-28 - Move interface controls to General for the next build
 
 **What changed:** Moved the Control Center Only section, confirmation dialog, availability explanation and retained legacy menu-icon choice from Automation to General. General now refreshes availability when the app becomes active. Existing preference keys, protection behavior and icon policies remain intact. App-footer copy no longer directs people to Automation.
