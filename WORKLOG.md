@@ -21,10 +21,9 @@
 - README mention of the beta channel, deferred until a 2.4.0 build shipped; the README currently does not mention it (since 2026-05-27) (unverified)
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
-- Customer report (2026-09-27, Intel MacBook Pro 2017, macOS 13.7.8): helper registered and allowed but never answers XPC (health check timeout), Welcome skipped. The reply asking for `launchctl print system/com.amesvt.pingwarden.helper` output and a clean reinstall is a Gmail draft in his thread, waiting for Oliver to switch From to oliver@ames.consulting and send (since 2026-09-27)
+- Customer report (2026-09-27, Intel MacBook Pro 2017, macOS 13.7.8): helper registered and allowed but never answers XPC (health check timeout), Welcome skipped. Oliver sent the reply asking for `launchctl print system/com.amesvt.pingwarden.helper` output and a clean reinstall on 2026-09-27. Waiting for the customer's readout and result (since 2026-09-27)
 - Ship a26e6fe (helper recovery) as 4.2.2 after Oliver approves and after the pre-release delta audit. The delta changes helper-registration behavior, though only on explicit Repair or setup when the helper does not answer (since 2026-09-27)
-- Add a "helper test says not responding (timed out)" section to `PingWarden/TROUBLESHOOTING.md` with the Login Items toggle, clean reinstall, and `sfltool resetbtm` steps. Pushing it deploys the public site, so it waits for Oliver (since 2026-09-27)
-- Sentry: confirm server-side acceptance (Stats outcomes, Inbound Filters, Client Keys, Debug Files for the 4.2.1 UUIDs), decide on a one-time delivery test against a separate project, and decide on `enableUncaughtNSExceptionReporting`. No event has reached the project since 2026-06-25 (since 2026-09-27)
+- Sentry: decide on a one-time delivery test against a separate project, and on `enableUncaughtNSExceptionReporting`. Server side checked clean on 2026-09-27; the last accepted error event was 2026-08-06 (since 2026-09-27)
 
 ## 2026-09-27 - Helper-timeout recovery
 
@@ -36,7 +35,11 @@
 
 **Sentry audit (read-only, 2026-09-27)**: Client wiring is correct. The SDK 9.26.0 is statically linked in the shipped binary, the DSN matches the project's only key, release names match `release.sh` (`com.amesvt.pingwarden@4.2.1+42100`), dSYM UUIDs match the binary, and consent defaults on for new and never-chose installs per #85. Zero errors and issues in 90 days; the last event arrived 2026-06-25 on 2.4.3. Reporting was off by default from 3.0.0 through 4.1.9 and on again only from 4.2.0, so zero is plausible but delivery is unproven. Non-fatal errors, including the helper timeout, are never sent. Server-side filters, key rate limits, and outcome stats were not readable through the connector.
 
-**Left off at**: main at a26e6fe plus this worklog commit. No release, no version bump, no site change.
+**Sentry server side (REST API with the vaulted token, read-only, 2026-09-27)**: stats_v2 over 90 days shows 5 accepted error events, one each on 2026-07-24, 07-26, 07-30, 08-01, and 08-06, and no filtered, rate-limited, invalid, or client-discard outcomes. The connector's event search returns none of them, consistent with those events being past the plan's retention window (inferred). The only active inbound filter is `filtered-transaction`, the single client key is active with no rate limit, there are no discard rules, and both 4.2.1 dSYMs (x86_64 `659d396c`, arm64 `143344fb`) are uploaded with debug, symtab, and unwind data. Data scrubbing and IP scrubbing are on.
+
+**Docs**: 74f8716 adds a troubleshooting section for a helper that is approved but never answers, including the note that Prepare to Remove can stop with an error in that state. Oliver approved publishing it.
+
+**Left off at**: main at 74f8716 plus this worklog commit. No release and no version bump.
 
 ## 2026-09-24 - Released 4.2.1
 
