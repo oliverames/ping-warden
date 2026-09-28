@@ -339,6 +339,9 @@ final class LicenseManager: ObservableObject {
                 self.onReverificationSettled?()
             }
         }
+        // A few seconds of slack lets the system coalesce this wakeup with
+        // others; entitlement expiry is not sensitive to that delay.
+        entitlementTimer.tolerance = 6
         RunLoop.main.add(entitlementTimer, forMode: .common)
         self.entitlementTimer = entitlementTimer
         let timer = Timer.scheduledTimer(
