@@ -35,6 +35,10 @@
 
 **Resume point**: If interrupted, re-read the agents' reports (or rerun the lanes), then continue Phase 2 from `docs/2026-09-27-app-review.md`.
 
+**Progress (2026-09-28)**: All five reviews are in; findings and status live in `docs/2026-09-27-app-review.md`. Merged to main: helper hardening (7aaa069, ed60850) and the protection-pipeline batch (7eb2091, 78c00ee, 2ba9c5e) with the new coordinator harness in CI. Two fixers are working in parallel in their own worktrees with disjoint files: Dashboard, chart, Targets, and performance (D1–D13, C2, C9, C13, C19, C20, Undo for target deletion) and Settings, Welcome, menus, and copy (C1–C23 remainder, Welcome parts of B5 and B14, D4, D10). Then PR #95 gets its fixes and a rebase, and stays draft for the signed #96 checks.
+
+**Decisions (Oliver, 2026-09-27)**: PR #95 keeps existing "Hide Menu Bar Icon" users on the old Dock behavior until they opt in, using a new preference key. New windows open at about 900×780, keeping saved frames. The license key field becomes a plain text field. Unlicensed first runs lead with Open Dashboard, with "Set Up Ping Protection" as the secondary action. Undo (no confirmation) for deleting a custom ping target was decided in the session as a routine choice.
+
 ## 2026-09-27 - Helper-timeout recovery
 
 **What changed**: a26e6fe makes Repair, Welcome setup, and Finish Setup confirm that the helper answers, and rebuilds a registered but silent helper (unregister, register) only from those explicit actions. Success requires a helper reply, and a registration is never removed when the bundle could not rebuild it. At launch, a registered helper that stays silent after three attempts shows the Welcome once if it was never presented, otherwise a dashboard message pointing to Repair. Turning protection off skips the helper when nothing requested it and awdl0 reads up. Diagnostics add `location` (category only, no path) and `launchd_job` (whitelisted `launchctl print` fields; exit 113 means no job).
