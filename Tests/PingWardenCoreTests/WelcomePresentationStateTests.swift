@@ -8,7 +8,7 @@ final class WelcomePresentationStateTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        suiteName = "PingWardenWelcomeTests.\(UUID().uuidString)"
+        suiteName = TestDefaultsSuite.name("PingWardenWelcomeTests")
         defaults = UserDefaults(suiteName: suiteName)!
     }
 

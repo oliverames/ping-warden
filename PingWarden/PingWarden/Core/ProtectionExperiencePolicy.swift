@@ -58,7 +58,7 @@ enum ProtectionExperiencePolicy {
 
         var menuTitle: String {
             switch self {
-            case .finishSetup: return "Finish Setup..."
+            case .finishSetup: return "Finish Setup…"
             case .turnOn: return "Turn On Ping Protection"
             case .turnOff: return "Turn Off Ping Protection"
             }
@@ -66,7 +66,7 @@ enum ProtectionExperiencePolicy {
 
         var buttonTitle: String {
             switch self {
-            case .finishSetup: return "Finish Setup..."
+            case .finishSetup: return "Finish Setup…"
             case .turnOn: return "Turn On"
             case .turnOff: return "Turn Off"
             }

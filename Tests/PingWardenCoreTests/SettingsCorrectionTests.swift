@@ -3,7 +3,7 @@ import XCTest
 
 final class SettingsCorrectionTests: XCTestCase {
     func testRejectsURLsAndNonHostInputWithoutTouchingStoredTargets() {
-        let suite = "PingWarden.SettingsCorrectionTests.\(UUID().uuidString)"
+        let suite = TestDefaultsSuite.name("PingWarden.SettingsCorrectionTests")
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = CustomPingTargetStore(userDefaults: defaults)

@@ -99,7 +99,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             return base
         case .enablingProtection:
             return ProtectionExperiencePolicy.MenuPresentation(
-                protectionTitle: "Turning On Ping Protection...",
+                protectionTitle: "Turning On Ping Protection…",
                 protectionActionEnabled: false,
                 pauseTitle: nil,
                 pauseActionEnabled: false,
@@ -107,7 +107,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             )
         case .disablingProtection:
             return ProtectionExperiencePolicy.MenuPresentation(
-                protectionTitle: "Turning Off Ping Protection...",
+                protectionTitle: "Turning Off Ping Protection…",
                 protectionActionEnabled: false,
                 pauseTitle: nil,
                 pauseActionEnabled: false,

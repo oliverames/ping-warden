@@ -41,11 +41,11 @@ enum CustomPingTargetValidationError: Error, Equatable {
     var userMessage: String {
         switch self {
         case .nameEmpty:
-            return "Give the server a name."
+            return "Give the ping target a name."
         case .hostEmpty:
             return "Enter a hostname or IP address."
         case .hostInvalid:
-            return "Enter only a hostname or IP address, without a URL, path, or port. Use the Port field below."
+            return "Enter only a hostname or IP address, such as dns.nextdns.io. Put the port number in the Port field."
         case .hostTooLong:
             return "Hostname is too long (255 characters max)."
         case .portOutOfRange:
@@ -133,6 +133,20 @@ final class CustomPingTargetStore {
         defer { lock.unlock() }
         var targets = loadLocked()
         targets.append(target)
+        saveLocked(targets)
+        return targets
+    }
+
+    /// Puts a target back at a position in the list, clamped to its current
+    /// length, so undoing a removal restores the order the user saw. A target
+    /// whose id is already stored is left alone rather than duplicated.
+    @discardableResult
+    func insert(_ target: CustomPingTarget, at index: Int) -> [CustomPingTarget] {
+        lock.lock()
+        defer { lock.unlock() }
+        var targets = loadLocked()
+        guard !targets.contains(where: { $0.id == target.id }) else { return targets }
+        targets.insert(target, at: min(max(0, index), targets.count))
         saveLocked(targets)
         return targets
     }

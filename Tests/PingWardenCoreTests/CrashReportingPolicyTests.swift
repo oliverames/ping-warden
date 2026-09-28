@@ -7,7 +7,7 @@ final class CrashReportingPolicyTests: XCTestCase {
     private var defaults: UserDefaults!
 
     override func setUp() {
-        suite = "PingWardenCrashReportingTests.\(UUID().uuidString)"
+        suite = TestDefaultsSuite.name("PingWardenCrashReportingTests")
         defaults = UserDefaults(suiteName: suite)!
     }
 

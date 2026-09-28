@@ -421,11 +421,12 @@ do {
     check(action == .waitForSetup, "B7: a saved intent waits for Finish Setup when the helper is not approved")
     MainActor.assumeIsolated { resetAll() }
     SMAppService.fixtureStatus = .requiresApproval
+    monitor.refreshHelperStatus()
     PingWardenPreferences.shared.isMonitoringEnabled = true
     MainActor.assumeIsolated { coordinator.noteSetupIncomplete() }
     spin(0.2)
     check(SMAppService.openSettingsCalls == 0, "B7: launch must not open Login Items")
-    check(MainActor.assumeIsolated { coordinator.menuPresentation().protectionTitle } == "Finish Setup...",
+    check(MainActor.assumeIsolated { coordinator.menuPresentation().protectionTitle } == "Finish Setup…",
           "B7: the menu offers Finish Setup")
     check(MainActor.assumeIsolated { coordinator.lastError } == ProtectionFailureCopy.setupIncomplete,
           "B7: the reason protection is off is shown")

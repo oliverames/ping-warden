@@ -296,9 +296,11 @@ enum TCPProbe {
             guard remainingMs > 0 else {
                 return nil
             }
-            // Short slices make cancellation observable without extending the
-            // single end-to-end deadline shared by DNS and every address.
-            let pollResult = poll(&pollFD, 1, min(remainingMs, 100))
+            let sliceMs = pollSliceMilliseconds(
+                remaining: remainingMs,
+                isCancellable: cancellationToken != nil
+            )
+            let pollResult = poll(&pollFD, 1, sliceMs)
             if pollResult > 0 {
                 break
             }
@@ -317,6 +319,15 @@ enum TCPProbe {
             return nil
         }
         return elapsedMs(since: startTime)
+    }
+
+    /// How long one `poll` call may wait. Short slices make cancellation
+    /// observable without extending the single end-to-end deadline shared by
+    /// DNS and every address. Without a token nothing can cancel, so one wait
+    /// for the whole remainder avoids waking ten times during a probe that
+    /// times out.
+    static func pollSliceMilliseconds(remaining: Int32, isCancellable: Bool) -> Int32 {
+        isCancellable ? min(remaining, 100) : remaining
     }
 
     private static func elapsedMs(since start: DispatchTime) -> Double {

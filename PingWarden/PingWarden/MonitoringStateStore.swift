@@ -16,7 +16,7 @@ final class MonitoringStateStore: ObservableObject {
     nonisolated(unsafe) private var monitoringIntentObserver: NSObjectProtocol?
     nonisolated(unsafe) private var monitoringEffectiveObserver: NSObjectProtocol?
     private var monitorStateObserverToken: UUID?
-    nonisolated(unsafe) private var interventionTimer: Timer?
+    nonisolated(unsafe) private var interventionSubscription: UUID?
     private var isObserving = false
 
     func startObserving() {
@@ -49,14 +49,11 @@ final class MonitoringStateStore: ObservableObject {
             }
         }
 
-        interventionTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.refreshInterventionCount()
-            }
+        interventionSubscription = InterventionCountFeed.shared.subscribe { [weak self] count in
+            self?.applyInterventionCount(count)
         }
 
         refresh()
-        refreshInterventionCount()
     }
 
     func stopObserving() {
@@ -78,16 +75,17 @@ final class MonitoringStateStore: ObservableObject {
             monitorStateObserverToken = nil
         }
 
-        interventionTimer?.invalidate()
-        interventionTimer = nil
+        if let token = interventionSubscription {
+            InterventionCountFeed.shared.unsubscribe(token)
+            interventionSubscription = nil
+        }
     }
 
     deinit {
         // Backstop in case onDisappear -> stopObserving() is ever skipped
-        // (e.g. a future refactor that drops the callback). Observer removal,
-        // registry-token removal, and timer invalidation are all safe off the
-        // main actor; @StateObject deallocation happens on the main thread in
-        // practice.
+        // (e.g. a future refactor that drops the callback). Observer removal
+        // and registry-token removal are safe off the main actor; the feed
+        // is main-actor state, so its unsubscribe hops there.
         if let observer = monitoringIntentObserver {
             DistributedNotificationCenter.default().removeObserver(observer)
         }
@@ -97,26 +95,107 @@ final class MonitoringStateStore: ObservableObject {
         if let token = monitorStateObserverToken {
             PingWardenMonitor.shared.removeStateObserver(token)
         }
-        interventionTimer?.invalidate()
+        if let token = interventionSubscription {
+            Task { @MainActor in
+                InterventionCountFeed.shared.unsubscribe(token)
+            }
+        }
     }
 
     func refresh() {
-        isMonitoring = PingWardenMonitor.shared.isMonitoringActive
-        isHelperRegistered = PingWardenMonitor.shared.isHelperRegistered
-        refreshInterventionCount()
+        let monitoring = PingWardenMonitor.shared.isMonitoringActive
+        if monitoring != isMonitoring {
+            isMonitoring = monitoring
+        }
+        let registered = PingWardenMonitor.shared.isHelperRegistered
+        if registered != isHelperRegistered {
+            isHelperRegistered = registered
+        }
+        if isMonitoring {
+            InterventionCountFeed.shared.refreshNow()
+        } else {
+            applyInterventionCount(0)
+        }
     }
 
-    private func refreshInterventionCount() {
-        guard isMonitoring else {
-            interventionCount = 0
+    private func applyInterventionCount(_ count: Int) {
+        // The count only means something while protection runs, and an
+        // unchanged value must not republish the menu.
+        let shown = isMonitoring ? count : 0
+        if shown != interventionCount {
+            interventionCount = shown
+        }
+    }
+}
+
+/// One poll of the helper's intervention counter, shared by every surface
+/// that shows it. The Dashboard and the menu each ran their own 5-second
+/// timer before, so both asked the helper the same question at once.
+@MainActor
+final class InterventionCountFeed {
+    static let shared = InterventionCountFeed()
+
+    static let pollInterval: TimeInterval = 5
+
+    private var subscribers: [UUID: (Int) -> Void] = [:]
+    private var timer: Timer?
+    /// When the outstanding request started. An XPC error can drop the
+    /// reply entirely, so a request older than two poll intervals no longer
+    /// blocks the next one.
+    private var requestStartedAt: Date?
+
+    private init() {}
+
+    /// Registers a handler for every count the helper reports, and asks for
+    /// a fresh count right away. The handler runs on the main actor.
+    func subscribe(_ handler: @escaping (Int) -> Void) -> UUID {
+        let token = UUID()
+        subscribers[token] = handler
+        startTimerIfNeeded()
+        refreshNow()
+        return token
+    }
+
+    func unsubscribe(_ token: UUID) {
+        subscribers.removeValue(forKey: token)
+        guard subscribers.isEmpty else { return }
+        timer?.invalidate()
+        timer = nil
+    }
+
+    /// Asks the helper for its count now, unless a request is already
+    /// under way; its answer reaches every subscriber.
+    func refreshNow() {
+        guard !subscribers.isEmpty else { return }
+        if let started = requestStartedAt, Date().timeIntervalSince(started) < Self.pollInterval * 2 {
             return
         }
-
+        // Without a registered helper there is nobody to ask, and each
+        // attempt used to log a warning every five seconds.
+        guard PingWardenMonitor.shared.isHelperRegistered else { return }
+        requestStartedAt = Date()
         PingWardenMonitor.shared.getInterventionCount { [weak self] count in
-            guard let self, let count else { return }
             Task { @MainActor in
-                self.interventionCount = count
+                guard let self else { return }
+                self.requestStartedAt = nil
+                guard let count else { return }
+                for handler in self.subscribers.values {
+                    handler(count)
+                }
             }
         }
+    }
+
+    private func startTimerIfNeeded() {
+        guard timer == nil else { return }
+        let timer = Timer(timeInterval: Self.pollInterval, repeats: true) { _ in
+            Task { @MainActor in
+                InterventionCountFeed.shared.refreshNow()
+            }
+        }
+        // The count is informational, so let the system batch this wakeup.
+        timer.tolerance = Self.pollInterval * 0.1
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 }

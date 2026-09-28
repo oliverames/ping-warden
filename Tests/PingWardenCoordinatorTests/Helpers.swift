@@ -137,6 +137,9 @@ func settle() {
     SMAppService.fixtureAllowsRegistration = false
     SMAppService.statusAfterRegister = .enabled
     SMAppService.onUnregister = nil
+    // The fixture status changed behind the monitor's back, as a change in
+    // System Settings would; the app re-reads it on activation.
+    monitor.refreshHelperStatus()
     SMAppService.registerCalls = 0
     SMAppService.unregisterCalls = 0
     SMAppService.openSettingsCalls = 0

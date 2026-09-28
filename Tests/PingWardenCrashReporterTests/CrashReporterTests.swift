@@ -5,7 +5,10 @@ import Sentry
 
 final class PingWardenPreferences {
     static let shared = PingWardenPreferences()
-    private let suiteName = "com.amesvt.pingwarden.tests.crash-reporter.\(UUID().uuidString)"
+    // An absolute-path suite keeps its plist in a temporary folder
+    // instead of leaving an empty file in ~/Library/Preferences.
+    private let suiteName = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("com.amesvt.pingwarden.tests.crash-reporter.\(UUID().uuidString)").path
     private let defaults: UserDefaults
 
     private init() {

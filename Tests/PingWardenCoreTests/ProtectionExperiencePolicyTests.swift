@@ -179,7 +179,7 @@ final class ProtectionExperiencePolicyTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.statusTitle, "Status: Not Set Up")
-        XCTAssertEqual(presentation.protectionTitle, "Finish Setup...")
+        XCTAssertEqual(presentation.protectionTitle, "Finish Setup…")
         XCTAssertTrue(presentation.protectionActionEnabled)
         XCTAssertNil(presentation.pauseTitle)
     }
