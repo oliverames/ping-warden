@@ -51,6 +51,8 @@
 - Protection checks are blocked because the install is unlicensed.
 - Restored the official 4.2.1 (digest matches) and removed the test settings. The menu bar control Oliver placed is now orphaned. Results are posted on #78, #92, and #96.
 
+**Decisions (Oliver, 2026-09-28)**: hold #92 for now. Option 1 is the documented recommendation, and nothing is implemented. Oliver has no Ping Warden license on his Mac, since he's the developer. So the signed protection checks (awdl0 enforcement, Off, quit, and Repair with protection on) need either a key he issues himself or a separately signed test build with a stubbed license gate and its own helper identity. Building that test build is new infrastructure and waits for his go-ahead.
+
 ## 2026-09-27 - Whole-app review and polish (fixes complete; signed checks pending)
 
 **Request**: Oliver asked for a review of the code that takes down AWDL and the rest of the app, polish of rough edges, performance, UI, and UX, and closing open GitHub issues.
