@@ -16,6 +16,12 @@ enum ProtectionExperiencePolicy {
         var sessionTrigger: ProtectedSessionTrigger?
         var pauseUntil: Date?
         var licenseAllowsProtection: Bool
+        /// The monitor holds a protection request, confirmed or reconnecting.
+        var protectionRequested: Bool
+        /// A protection command is waiting on the helper's reply.
+        var commandInFlight: Bool
+        /// False once the helper has gone unanswered, until it replies again.
+        var helperResponding: Bool
 
         init(
             helperAvailable: Bool,
@@ -24,7 +30,10 @@ enum ProtectionExperiencePolicy {
             sessionPhase: ProtectionSessionPhase,
             sessionTrigger: ProtectedSessionTrigger?,
             pauseUntil: Date?,
-            licenseAllowsProtection: Bool = true
+            licenseAllowsProtection: Bool = true,
+            protectionRequested: Bool = false,
+            commandInFlight: Bool = false,
+            helperResponding: Bool = true
         ) {
             self.helperAvailable = helperAvailable
             self.persistentProtectionEnabled = persistentProtectionEnabled
@@ -33,6 +42,34 @@ enum ProtectionExperiencePolicy {
             self.sessionTrigger = sessionTrigger
             self.pauseUntil = pauseUntil
             self.licenseAllowsProtection = licenseAllowsProtection
+            self.protectionRequested = protectionRequested
+            self.commandInFlight = commandInFlight
+            self.helperResponding = helperResponding
+        }
+    }
+
+    /// What the one protection toggle does. The menu item, the Dashboard
+    /// button, and their titles all derive from this, so a control can
+    /// never be labeled "Turn Off" while it turns protection on.
+    enum ToggleAction: Equatable, Sendable {
+        case finishSetup
+        case turnOn
+        case turnOff
+
+        var menuTitle: String {
+            switch self {
+            case .finishSetup: return "Finish Setup..."
+            case .turnOn: return "Turn On Ping Protection"
+            case .turnOff: return "Turn Off Ping Protection"
+            }
+        }
+
+        var buttonTitle: String {
+            switch self {
+            case .finishSetup: return "Finish Setup..."
+            case .turnOn: return "Turn On"
+            case .turnOff: return "Turn Off"
+            }
         }
     }
 
@@ -71,6 +108,37 @@ enum ProtectionExperiencePolicy {
         return state.persistentProtectionEnabled || sessionRequiresProtection(state.sessionPhase)
     }
 
+    /// What launch does with a saved intent before the normal reconcile.
+    enum LaunchIntentAction: Equatable, Sendable {
+        /// Nothing beyond the reconcile, which runs once the helper is known.
+        case none
+        /// The entitlement is gone, so the saved intent is cleared.
+        case clearIntentForLicense
+        /// No approved helper yet. The intent waits for Finish Setup;
+        /// enabling would open Login Items with no action from the person.
+        case waitForSetup
+    }
+
+    static func launchIntentAction(
+        persistentProtectionEnabled: Bool,
+        licenseAllowsProtection: Bool,
+        helperRegistered: Bool
+    ) -> LaunchIntentAction {
+        guard persistentProtectionEnabled else { return .none }
+        guard licenseAllowsProtection else { return .clearIntentForLicense }
+        return helperRegistered ? .none : .waitForSetup
+    }
+
+    /// Protection is on, being restored, or wanted: the toggle turns it off.
+    /// Otherwise, including during a pause, the toggle turns it on.
+    static func toggleAction(for state: State, now: Date) -> ToggleAction {
+        guard state.helperAvailable else { return .finishSetup }
+        let protectionOnOrPending = state.effectiveProtectionEnabled
+            || state.protectionRequested
+            || shouldEnableProtection(for: state, now: now)
+        return protectionOnOrPending ? .turnOff : .turnOn
+    }
+
     static func presentation(for state: State, now: Date) -> MenuPresentation {
         let paused = isPaused(state, now: now)
         let desiredProtection = shouldEnableProtection(for: state, now: now)
@@ -78,14 +146,7 @@ enum ProtectionExperiencePolicy {
         let isTransitioningSession = state.sessionPhase == .starting
             || state.sessionPhase == .stopping
 
-        let protectionTitle: String
-        if !state.helperAvailable {
-            protectionTitle = "Finish Setup..."
-        } else if protectionOnOrPending {
-            protectionTitle = "Turn Off Ping Protection"
-        } else {
-            protectionTitle = "Turn On Ping Protection"
-        }
+        let protectionTitle = toggleAction(for: state, now: now).menuTitle
 
         let pauseTitle: String?
         if paused {
@@ -139,10 +200,21 @@ enum ProtectionExperiencePolicy {
             break
         }
 
+        // "Turning On" and "Turning Off" describe a command awaiting the
+        // helper. Without one, a mismatch is reported as it stands so a
+        // silent helper cannot leave the menu promising progress forever.
         if desiredProtection && !state.effectiveProtectionEnabled {
-            return "Status: Turning On Protection"
+            if state.commandInFlight {
+                return "Status: Turning On Protection"
+            }
+            if state.protectionRequested {
+                return "Status: Reconnecting to Helper"
+            }
+            return state.helperResponding
+                ? "Status: Not Protected"
+                : "Status: Not Protected, Helper Not Responding"
         }
-        if !desiredProtection && state.effectiveProtectionEnabled {
+        if !desiredProtection && state.effectiveProtectionEnabled && state.commandInFlight {
             return "Status: Turning Off Protection"
         }
         return state.effectiveProtectionEnabled

@@ -24,6 +24,39 @@
 - README mention of the beta channel, deferred until a 2.4.0 build shipped; the README currently does not mention it (since 2026-05-27) (unverified)
 - Rotate the Sentry User Auth Token that transited chat history, and consider an Org Auth Token if CI/CD use begins (since 2026-05-18) (unverified)
 - Helper-daemon crash reporting, deferred until main-app crashes reveal cross-process incidents the XPC logs miss (since 2026-05-18)
+- Customer report (2026-09-27, Intel MacBook Pro 2017, macOS 13.7.8): helper registered and allowed but never answers XPC (health check timeout), Welcome skipped. Oliver sent the reply asking for `launchctl print system/com.amesvt.pingwarden.helper` output and a clean reinstall on 2026-09-27. Waiting for the customer's readout and result (since 2026-09-27)
+- Ship a26e6fe (helper recovery) as 4.2.2 after Oliver approves and after the pre-release delta audit. The delta changes helper-registration behavior, though only on explicit Repair or setup when the helper does not answer (since 2026-09-27)
+- Sentry: decide on a one-time delivery test against a separate project, and on `enableUncaughtNSExceptionReporting`. Server side checked clean on 2026-09-27; the last accepted error event was 2026-08-06 (since 2026-09-27)
+
+## 2026-09-27 - Whole-app review and polish (in progress)
+
+**Request**: Oliver asked for a review of the code that takes down AWDL and the rest of the app, polish of rough edges, performance, UI, and UX, and closing open GitHub issues.
+
+**Plan**: Phase 1 runs five read-only review agents in parallel, each with a fixed lane: (A) helper daemon and AWDL enforcement, (B) app protection pipeline, XPC, sessions, Game Mode, and widget control path, (C) UI, UX, accessibility, and copy through the isolated fixture, (D) performance and energy, (E) the #92 widget-sandbox redesign plus a review of open PR #95 (#96). Phase 2 consolidates verified findings into `docs/2026-09-27-app-review.md`, then fixes them in batches with disjoint file ownership, with tests and a CI-flag Release build per batch. Phase 3 closes issues with evidence. Items needing a signed installed build, VoiceOver, or a live game (#64, #78, #89, #90 residue, #91 residue, #96 signed checks) are listed for Oliver rather than run against the installed app. #93 and #94 wait on Oliver's decisions. No release without approval.
+
+**Guardrails for every agent**: no edits to the repo in Phase 1; never launch or read preferences of the installed app; never register or unregister the helper; never touch licensing or the keychain; builds only into scratch DerivedData with signing off; UI viewing only through a renamed-bundle isolated fixture.
+
+**Resume point**: If interrupted, re-read the agents' reports (or rerun the lanes), then continue Phase 2 from `docs/2026-09-27-app-review.md`.
+
+**Progress (2026-09-28)**: All five reviews are in; findings and status live in `docs/2026-09-27-app-review.md`. Merged to main: helper hardening (7aaa069, ed60850) and the protection-pipeline batch (7eb2091, 78c00ee, 2ba9c5e) with the new coordinator harness in CI. Two fixers are working in parallel in their own worktrees with disjoint files: Dashboard, chart, Targets, and performance (D1–D13, C2, C9, C13, C19, C20, Undo for target deletion) and Settings, Welcome, menus, and copy (C1–C23 remainder, Welcome parts of B5 and B14, D4, D10). Then PR #95 gets its fixes and a rebase, and stays draft for the signed #96 checks.
+
+**Decisions (Oliver, 2026-09-27)**: PR #95 keeps existing "Hide Menu Bar Icon" users on the old Dock behavior until they opt in, using a new preference key. New windows open at about 900×780, keeping saved frames. The license key field becomes a plain text field. Unlicensed first runs lead with Open Dashboard, with "Set Up Ping Protection" as the secondary action. Undo (no confirmation) for deleting a custom ping target was decided in the session as a routine choice.
+
+## 2026-09-27 - Helper-timeout recovery
+
+**What changed**: a26e6fe makes Repair, Welcome setup, and Finish Setup confirm that the helper answers, and rebuilds a registered but silent helper (unregister, register) only from those explicit actions. Success requires a helper reply, and a registration is never removed when the bundle could not rebuild it. At launch, a registered helper that stays silent after three attempts shows the Welcome once if it was never presented, otherwise a dashboard message pointing to Repair. Turning protection off skips the helper when nothing requested it and awdl0 reads up. Diagnostics add `location` (category only, no path) and `launchd_job` (whitelisted `launchctl print` fields; exit 113 means no job).
+
+**Evidence**: The 4.2.1 app, helper, and widget are universal (x86_64 and arm64) with minos 13.0, and the helper signing identifier and team are unchanged since 2.2.2. Before the fix, `registerHelper` returned success on `.enabled` without a helper reply, so Repair could not rebuild a stale Background Task Management record, and a first enable that timed out left `lastKnownState` "unknown", so turning off called the silent helper and failed. The customer's Login Items shows the background item enabled.
+
+**Verification**: Release build (CI flags) succeeded with no warnings on either main or the change. 164 core tests (11 new), the monitor harness (5 new repair and probe checks, each mutation-tested to fail against a broken implementation), 162 helper checks, 38 crash-reporter checks, release-tool tests, and 26 presentation checks passed. Not verified: a real Ventura or Intel run, and a real unregister-then-register cycle on any Mac. The repair path is covered only by the in-memory harness.
+
+**Sentry audit (read-only, 2026-09-27)**: Client wiring is correct. The SDK 9.26.0 is statically linked in the shipped binary, the DSN matches the project's only key, release names match `release.sh` (`com.amesvt.pingwarden@4.2.1+42100`), dSYM UUIDs match the binary, and consent defaults on for new and never-chose installs per #85. Zero errors and issues in 90 days; the last event arrived 2026-06-25 on 2.4.3. Reporting was off by default from 3.0.0 through 4.1.9 and on again only from 4.2.0, so zero is plausible but delivery is unproven. Non-fatal errors, including the helper timeout, are never sent. Server-side filters, key rate limits, and outcome stats were not readable through the connector.
+
+**Sentry server side (REST API with the vaulted token, read-only, 2026-09-27)**: stats_v2 over 90 days shows 5 accepted error events, one each on 2026-07-24, 07-26, 07-30, 08-01, and 08-06, and no filtered, rate-limited, invalid, or client-discard outcomes. The connector's event search returns none of them, consistent with those events being past the plan's retention window (inferred). The only active inbound filter is `filtered-transaction`, the single client key is active with no rate limit, there are no discard rules, and both 4.2.1 dSYMs (x86_64 `659d396c`, arm64 `143344fb`) are uploaded with debug, symtab, and unwind data. Data scrubbing and IP scrubbing are on.
+
+**Docs**: 74f8716 adds a troubleshooting section for a helper that is approved but never answers, including the note that Prepare to Remove can stop with an error in that state. Oliver approved publishing it.
+
+**Left off at**: main at 74f8716 plus this worklog commit. No release and no version bump.
 
 ## 2026-09-25 - Control Center toggle in marketing
 

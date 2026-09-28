@@ -18,7 +18,7 @@
 #import "../Common/HelperProtocol.h"
 #import "PingWardenMonitor.h"
 
-#define LOG OS_LOG_DEFAULT
+#define LOG PingWardenHelperLog()
 // Fallback only — the live version is read from the embedded Info.plist by
 // helperVersionString(). Kept current so the fallback is never stale.
 #define HELPER_VERSION @"4.2.1"
@@ -83,11 +83,14 @@ static uid_t consoleUserID(void) {
 
 #pragma mark - Code Signing Helpers
 
-/// Check if this binary is properly code signed (not ad-hoc)
+/// Check if this binary is properly code signed (not ad-hoc). Every
+/// failure is logged with its status, because a helper that refuses to serve
+/// otherwise looks exactly like one launchd never started.
 static BOOL isProperlyCodeSigned(void) {
     SecCodeRef code = NULL;
     OSStatus status = SecCodeCopySelf(kSecCSDefaultFlags, &code);
     if (status != errSecSuccess || !code) {
+        os_log_fault(LOG, "SecCodeCopySelf failed: %d", (int)status);
         return NO;
     }
 
@@ -98,11 +101,18 @@ static BOOL isProperlyCodeSigned(void) {
     status = SecRequirementCreateWithString((__bridge CFStringRef)reqString,
                                             kSecCSDefaultFlags, &requirement);
     if (status != errSecSuccess || !requirement) {
+        os_log_fault(LOG, "SecRequirementCreateWithString failed: %d", (int)status);
         CFRelease(code);
         return NO;
     }
 
-    status = SecCodeCheckValidity(code, kSecCSDefaultFlags, requirement);
+    CFErrorRef error = NULL;
+    status = SecCodeCheckValidityWithErrors(code, kSecCSDefaultFlags, requirement, &error);
+    if (status != errSecSuccess) {
+        NSString *detail = error ? CFBridgingRelease(CFErrorCopyDescription(error)) : @"no detail";
+        os_log_fault(LOG, "Helper signature check failed: %d (%{public}@)", (int)status, detail);
+    }
+    if (error) CFRelease(error);
     CFRelease(code);
     CFRelease(requirement);
 
@@ -186,7 +196,11 @@ static BOOL isProperlyCodeSigned(void) {
 }
 
 - (void)scheduleExit {
-    os_log(LOG, "All XPC connections closed, scheduling exit in %.1f seconds", EXIT_GRACE_PERIOD_SECONDS);
+    [self scheduleExitWithReason:@"All XPC connections closed"];
+}
+
+- (void)scheduleExitWithReason:(NSString *)reason {
+    os_log(LOG, "%{public}@, scheduling exit in %.1f seconds", reason, EXIT_GRACE_PERIOD_SECONDS);
 
     // Cancel any existing timer
     [self cancelExitTimer];
@@ -218,17 +232,12 @@ static BOOL isProperlyCodeSigned(void) {
 
             // Return to main queue for the actual exit logic
             dispatch_async(dispatch_get_main_queue(), ^{
-                os_log(LOG, "Grace period expired, restoring AWDL and exiting");
+                os_log(LOG, "Grace period expired, releasing AWDL and exiting");
 
-                // Restore AWDL to enabled state before exiting. The pipe
-                // write is best-effort; the direct ioctl below guarantees
-                // the interface is not left down even if the poll thread
-                // is already dead or the pipe write failed.
-                if (![strongSelf.monitor setAwdlEnabled:YES]) {
-                    os_log_error(LOG, "setAwdlEnabled:YES failed on exit path - falling back to direct restore");
-                }
+                // Stop blocking, then raise awdl0 only if this helper lowered
+                // it. The direct ioctl works even if the poll thread is dead.
                 [strongSelf.monitor invalidate];
-                [strongSelf.monitor restoreInterfaceUpDirectly];
+                [strongSelf.monitor restoreInterfaceIfLowered];
 
                 // Give a moment for cleanup, then exit
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
@@ -345,13 +354,10 @@ static dispatch_source_t setupSignalHandler(PingWardenService *service) {
         dispatch_source_set_event_handler(signalSource, ^{
             os_log(LOG, "Received SIGTERM via dispatch, performing graceful shutdown");
             if (service && service.monitor) {
-                if (![service.monitor setAwdlEnabled:YES]) {
-                    os_log_error(LOG, "setAwdlEnabled:YES failed during SIGTERM - falling back to direct restore");
-                }
+                // Stop blocking, then raise awdl0 only if this helper
+                // lowered it, even if the poll thread was already dead.
                 [service.monitor invalidate];
-                // Guarantee awdl0 is not left down even if the pipe write
-                // failed or the poll thread was already dead.
-                [service.monitor restoreInterfaceUpDirectly];
+                [service.monitor restoreInterfaceIfLowered];
             }
             os_log(LOG, "PingWardenHelper exiting due to SIGTERM");
             // Give a moment for cleanup
@@ -366,6 +372,45 @@ static dispatch_source_t setupSignalHandler(PingWardenService *service) {
     return signalSource;
 }
 
+#pragma mark - Refusing Service
+
+/// Stands in when the helper cannot serve safely. Exiting before check-in
+/// leaves a client's message queued while launchd respawns the helper under
+/// throttling, which looks exactly like a helper launchd never started.
+/// Checking in and rejecting every connection gives clients an immediate
+/// error instead, and the exit code keeps the failure visible in
+/// `launchctl print`.
+@interface PingWardenRefusingDelegate : NSObject <NSXPCListenerDelegate>
+@property (copy) NSString *reason;
+@end
+
+@implementation PingWardenRefusingDelegate
+
+- (BOOL)listener:(NSXPCListener *)listener shouldAcceptNewConnection:(NSXPCConnection *)conn {
+    os_log_error(LOG, "Rejecting XPC connection from PID %d: %{public}@", conn.processIdentifier, self.reason);
+    return NO;
+}
+
+@end
+
+static PingWardenRefusingDelegate *gRefusingDelegate = nil;
+
+static void runRefusingService(NSXPCListener *listener, NSString *reason) __attribute__((noreturn));
+static void runRefusingService(NSXPCListener *listener, NSString *reason) {
+    os_log_fault(LOG, "Refusing to serve: %{public}@", reason);
+    gRefusingDelegate = [PingWardenRefusingDelegate new];
+    gRefusingDelegate.reason = reason;
+    gListener = listener;
+    listener.delegate = gRefusingDelegate;
+    [listener activate];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(EXIT_GRACE_PERIOD_SECONDS * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        os_log(LOG, "PingWardenHelper exiting after refusing to serve");
+        exit(EXIT_FAILURE);
+    });
+    dispatch_main();
+}
+
 #pragma mark - Main
 
 int main(int argc, const char * argv[]) {
@@ -378,13 +423,6 @@ int main(int argc, const char * argv[]) {
         connectionCountQueue = dispatch_queue_create("com.amesvt.pingwarden.helper.connectionCount",
                                                      DISPATCH_QUEUE_SERIAL);
 
-        // Initialize the service
-        PingWardenService *service = [PingWardenService new];
-        if (!service) {
-            os_log_error(LOG, "Failed to create PingWardenService, exiting");
-            return EXIT_FAILURE;
-        }
-
         // Create XPC listener for our Mach service
         // The service name must match the MachServices key in the plist
         NSXPCListener *listener = [[NSXPCListener alloc] initWithMachServiceName:@"com.amesvt.pingwarden.xpc"];
@@ -395,26 +433,31 @@ int main(int argc, const char * argv[]) {
             return EXIT_FAILURE;
         }
 
-        // For production builds, enforce code signing requirement
-        // This prevents unauthorized processes from connecting to the helper
-        // Allow connections from both the main app and the widget
-        if (isSigned) {
-            NSString *requirement = [NSString stringWithFormat:
-                @"anchor apple generic "
-                @"and (identifier \"com.amesvt.pingwarden\" or identifier \"com.amesvt.pingwarden.widget\") "
-                @"and certificate leaf[subject.OU] = \"%@\"", TEAM_ID];
+        // A root daemon must never downgrade to UID-only authorization,
+        // including in development. Xcode development builds signed by the
+        // same Team ID satisfy the requirement below.
+        if (!isSigned) {
+            runRefusingService(listener, @"helper code signature validation failed");
+        }
+
+        // Admit only this team's app and widget. The console-user check in
+        // shouldAcceptNewConnection narrows callers further.
+        NSString *requirement = [NSString stringWithFormat:
+            @"anchor apple generic "
+            @"and (identifier \"com.amesvt.pingwarden\" or identifier \"com.amesvt.pingwarden.widget\") "
+            @"and certificate leaf[subject.OU] = \"%@\"", TEAM_ID];
+        if (@available(macOS 13.0, *)) {
+            listener.connectionCodeSigningRequirement = requirement;
             os_log(LOG, "Enforcing code signing requirement for XPC connections (app and widget)");
-            // Note: setConnectionCodeSigningRequirement is available in macOS 13+
-            // For older versions, manual validation would be needed in shouldAcceptNewConnection
-            if (@available(macOS 13.0, *)) {
-                listener.connectionCodeSigningRequirement = requirement;
-            }
         } else {
-            // A root daemon must never downgrade to UID-only authorization,
-            // including in development. Xcode development builds signed by the
-            // same Team ID satisfy the requirement above.
-            os_log_error(LOG, "Refusing to serve: helper code signature validation failed");
-            return EXIT_FAILURE;
+            runRefusingService(listener, @"connection signing requirements are unavailable");
+        }
+
+        // Initialize the service. Monitor setup also restores awdl0 if an
+        // earlier helper died while holding it down.
+        PingWardenService *service = [PingWardenService new];
+        if (!service) {
+            runRefusingService(listener, @"the AWDL monitor could not initialize");
         }
 
         // Anchor the service and listener in immortal globals (see the
@@ -423,12 +466,8 @@ int main(int argc, const char * argv[]) {
         gService = service;
         gListener = listener;
 
-        listener.delegate = service;
-        [listener activate];
-
-        os_log(LOG, "XPC listener activated on com.amesvt.pingwarden.xpc");
-
-        // Set up signal handler for graceful shutdown (async-signal-safe via dispatch)
+        // Handle SIGTERM before serving, so a stop request cannot arrive
+        // between activation and handler installation.
         // The dispatch source is retained by GCD internally, so we don't need to keep a reference
         dispatch_source_t signalSource = setupSignalHandler(service);
         if (!signalSource) {
@@ -436,12 +475,20 @@ int main(int argc, const char * argv[]) {
         }
         (void)signalSource;  // Suppress unused variable warning - dispatch retains internally
 
+        listener.delegate = service;
+        [listener activate];
+
+        os_log(LOG, "XPC listener activated on com.amesvt.pingwarden.xpc");
+
+        // A peer the signing requirement rejects never reaches the delegate,
+        // so no connection would ever schedule the idle exit and the helper
+        // would stay resident. Arm it now; the first accepted connection
+        // cancels it.
+        [service scheduleExitWithReason:@"Helper started"];
+
         os_log(LOG, "Entering run loop");
 
         // Enter the main run loop - we'll exit when all connections are closed
         dispatch_main();
-
-        os_log(LOG, "PingWardenHelper main() exiting");
     }
-    return EXIT_SUCCESS;
 }

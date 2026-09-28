@@ -31,6 +31,26 @@ Use the app's removal flow before deleting the application. It stops Ping Protec
 
 If the app cannot open far enough to run its uninstall flow, do not delete LaunchDaemon files or shared containers by hand. [Open a bug report](https://github.com/oliverames/ping-warden/issues/new?template=bug_report.md) so the helper can be recovered without leaving AWDL in the wrong state.
 
+## The helper test says the helper is not responding
+
+The helper test reports "Helper not responding to XPC calls (timed out)" while Ping Warden is still allowed under **Allow in the Background**. macOS keeps the helper's approval but does not start the helper, so every request from the app times out. In this state **Prepare to Remove** can stop with an error, because it first asks the silent helper to confirm that Ping Protection is off. Use these steps instead.
+
+1. Quit Ping Warden.
+2. Open **System Settings > General > Login Items & Extensions** and turn off Ping Warden under **Allow in the Background**.
+3. Move `/Applications/Ping Warden.app` to the Trash and empty the Trash.
+4. Restart the Mac.
+5. Download a fresh DMG from the [latest release](https://github.com/oliverames/ping-warden/releases/latest), drag Ping Warden to Applications, and eject the disk image before you open the app.
+6. Open Ping Warden from Applications, complete setup, and approve the helper when macOS asks.
+7. Run **Settings > Advanced > Run Test**.
+
+If the test still fails, reset the macOS background item records, restart the Mac, and repeat steps 5 through 7:
+
+```bash
+sfltool resetbtm
+```
+
+This resets background item approvals for every app on the Mac, so other apps may ask for approval again. If the helper still does not respond, follow **Collect useful diagnostics** below and include the snapshot in a bug report.
+
 ## Ping Protection is active, but latency still spikes
 
 Ping Warden addresses AWDL-related interruptions. Internet congestion, a busy router, VPN software, Location Services scans, and the remote service itself can also affect latency.

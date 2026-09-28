@@ -1256,11 +1256,11 @@ struct InterventionsCard: View {
                 Text("Ping Protection")
                     .font(.headline)
                 Spacer()
-                Button(protectionActionTitle) {
+                Button(protectionExperience.toggleAction().buttonTitle) {
                     changeProtectionState()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(protectionExperience.isBusy)
+                .disabled(protectionExperience.isBusy || protectionExperience.isRepairingHelper)
             }
 
             if let error = protectionExperience.lastError {
@@ -1299,29 +1299,27 @@ struct InterventionsCard: View {
         .dashboardCardStyle()
     }
 
-    private var protectionActionTitle: String {
-        let monitor = PingWardenMonitor.shared
-        guard monitor.isHelperRegistered else { return "Finish Setup..." }
-        return monitor.isMonitoringRequested || monitor.isMonitoringActive
-            ? "Turn Off"
-            : "Turn On"
-    }
-
+    /// Shares the menu's toggle decision, so the button's title and its
+    /// action always agree.
     private func changeProtectionState() {
-        let monitor = PingWardenMonitor.shared
-        guard monitor.isHelperRegistered else {
-            monitor.registerHelper { success in
+        switch protectionExperience.toggleAction() {
+        case .finishSetup:
+            // Repair registers a new helper, and also rebuilds one that is
+            // approved but silent; registering alone could not fix that.
+            PingWardenMonitor.shared.repairHelperRegistration { success in
                 guard success else { return }
                 Task { @MainActor in
                     await protectionExperience.setPersistentProtection(true)
                 }
             }
-            return
-        }
-
-        let shouldEnable = !monitor.isMonitoringRequested && !monitor.isMonitoringActive
-        Task {
-            await protectionExperience.setPersistentProtection(shouldEnable)
+        case .turnOn:
+            Task {
+                await protectionExperience.setPersistentProtection(true)
+            }
+        case .turnOff:
+            Task {
+                await protectionExperience.setPersistentProtection(false)
+            }
         }
     }
 

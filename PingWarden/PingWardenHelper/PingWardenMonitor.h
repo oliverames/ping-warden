@@ -10,13 +10,18 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <os/log.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
+/// Shared log handle for the helper, under the app's subsystem so one
+/// `log show` predicate covers both processes.
+os_log_t PingWardenHelperLog(void);
+
 /// Monitors and controls the AWDL (awdl0) network interface.
-/// Uses an AF_ROUTE socket for event-driven interface monitoring.
-/// When awdlEnabled is NO, any attempt by the system to bring awdl0 UP
-/// is countered by requesting that it return DOWN.
+/// While awdlEnabled is NO, the monitor keeps awdl0 down: every AF_ROUTE
+/// wakeup and a periodic timeout re-read the interface's actual flags, so a
+/// route message the kernel dropped cannot leave awdl0 up.
 @interface PingWardenMonitor : NSObject
 
 /// When YES, AWDL is allowed to be up (normal operation).
@@ -27,16 +32,19 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Set the AWDL enabled state. Returns YES only after the interface flags
 /// confirm the change, NO if the operation fails or the monitor has stopped.
+/// Allowing AWDL works even if the poll thread has died; blocking needs it.
 - (BOOL)setAwdlEnabled:(BOOL)enabled;
 
 /// Stop the monitoring thread and cleanup all resources.
 /// Should be called before the helper exits.
 - (void)invalidate;
 
-/// Bring awdl0 back UP with a direct ioctl on the calling thread.
-/// Exit-path safety net: works even if the poll thread is dead or the
-/// control pipe is gone. Call only after `invalidate`.
-- (void)restoreInterfaceUpDirectly;
+/// Exit-path safety net: bring awdl0 back UP with a direct ioctl on the
+/// calling thread, but only if this helper (or an earlier instance that
+/// died without restoring it) lowered the interface. An interface that
+/// macOS or another tool took down is left alone. Call only after
+/// `invalidate`.
+- (void)restoreInterfaceIfLowered;
 
 /// Get the total number of attempts to turn off AWDL, including failed writes.
 /// This counter persists for the lifetime of the helper process

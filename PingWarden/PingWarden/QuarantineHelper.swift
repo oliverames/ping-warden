@@ -71,12 +71,10 @@ struct QuarantineHelper {
     private static func presentQuarantineHelpAlert() {
         do {
             let alert = NSAlert()
-            alert.messageText = "First Time Setup"
-            alert.informativeText = """
-            macOS could not verify this copy of Ping Warden. Download the current signed and notarized release from the official GitHub Releases page.
-
-            If you built this copy yourself, open it from Finder using Control-click, then choose Open and review the system prompt. Ping Warden will never ask you to remove quarantine attributes in Terminal.
-            """
+            alert.messageText = GatekeeperCopy.title
+            alert.informativeText = GatekeeperCopy.message(
+                osMajorVersion: ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+            )
             alert.alertStyle = .warning
             alert.addButton(withTitle: "Open Releases")
             alert.addButton(withTitle: "Cancel")

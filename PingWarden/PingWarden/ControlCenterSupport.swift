@@ -47,16 +47,14 @@ enum ControlCenterSupport {
             }
         }
 
+        /// Describes the setting. The reason it is unavailable appears once,
+        /// in `footerText`, beside the Unavailable badge.
         var detailText: String {
             switch self {
             case .available:
                 return "Use the Control Center toggle instead of the menu bar and Dock icons"
-            case .unsupportedOS:
-                return "Requires macOS 26 or newer"
-            case .missingWidgetExtension:
-                return "Widget extension is missing from the app bundle"
-            case .unsignedOrUntrusted:
-                return "Requires Developer ID-signed app"
+            case .unsupportedOS, .missingWidgetExtension, .unsignedOrUntrusted:
+                return "Use the Control Center toggle instead of the menu bar and Dock icons"
             }
         }
 

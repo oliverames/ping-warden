@@ -6,7 +6,16 @@ extension PingWardenMonitor {
         PingWardenPreferences.shared.lastKnownState = "unknown"
         PingWardenPreferences.shared.protectionPauseUntil = nil
         LicenseManager.launchGateAllowsProtection = true
+        SMAppService.fixtureStatus = .enabled
+        SMAppService.fixtureAllowsRegistration = false
+        SMAppService.registerCalls = 0
+        SMAppService.unregisterCalls = 0
+        FakeHelper.autoReplyVersion = nil
         return PingWardenMonitor(harness: ())
+    }
+    func harnessFastReplies() {
+        helperReplyTimeout = 0.2
+        helperRetryDelay = 0.05
     }
     func harnessConnectRequested() -> NSXPCConnection {
         isMonitoring = true
@@ -137,6 +146,9 @@ do {
     defer { monitor.harnessDispose() }
     let initial = confirmed(monitor)
     let baseline = NSXPCConnection.instances.count
+    let alerts = NSAlert.messages.count
+    let reported = LockedValue<[String]>([])
+    monitor.automatedErrorHandler = { message in reported.withValue { $0.append(message) } }
     initial.interruptionHandler?()
     spin()
     for delay in [1.05, 2.05, 4.05] {
@@ -150,7 +162,12 @@ do {
           "exhausted retries must leave honest stopped state")
     check(monitor.harnessRetries == 4 && NSXPCConnection.instances.count == baseline + 3,
           "dead helper produces exactly three replacement attempts")
-    check(NSAlert.messages.last?.contains("Lost connection") == true, "exhaustion reports recoverable user error")
+    spin()
+    check(reported.withValue { $0 }.count == 1 && reported.withValue { $0 }.first?.contains("Lost connection") == true,
+          "exhaustion reports recoverable user error")
+    check(reported.withValue { $0 }.first?.contains("click Repair") == true,
+          "exhaustion points to Repair, not to restarting the app")
+    check(NSAlert.messages.count == alerts, "automated reconnect exhaustion must never raise an alert")
 }
 
 // Rechecking a confirmed positive state cannot transiently end a session.
@@ -268,6 +285,124 @@ do {
     spin(5.1)
     check(results.withValue { $0 } == [false], "interrupted first activation completion must be false exactly once")
     check(!monitor.isMonitoringActive, "delayed activation success must not mark interrupted connection protected")
+}
+
+// Repair fixtures. The monitor validates the app bundle before it rebuilds a
+// registration; for this command-line harness Bundle.main is the temporary
+// build directory, so the fixture bundle lives there and nowhere else.
+func setFixtureHelperBundle(installed: Bool) {
+    let contents = URL(fileURLWithPath: Bundle.main.bundlePath).appendingPathComponent("Contents")
+    let fileManager = FileManager.default
+    guard installed else {
+        try? fileManager.removeItem(at: contents)
+        return
+    }
+    try! fileManager.createDirectory(at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+    try! fileManager.createDirectory(at: contents.appendingPathComponent("Library/LaunchDaemons"), withIntermediateDirectories: true)
+    fileManager.createFile(
+        atPath: contents.appendingPathComponent("MacOS/PingWardenHelper").path,
+        contents: Data(),
+        attributes: [.posixPermissions: 0o755]
+    )
+    fileManager.createFile(
+        atPath: contents.appendingPathComponent("Library/LaunchDaemons/com.amesvt.pingwarden.helper.plist").path,
+        contents: Data()
+    )
+}
+func spin(until condition: () -> Bool, timeout: Double) {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !condition() && Date() < deadline { spin(0.01) }
+}
+
+// Repair leaves an answering helper's registration alone and reports success
+// only once the helper has replied.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessFastReplies()
+    let results = LockedValue<[Bool]>([])
+    monitor.repairHelperRegistration { value in results.withValue { $0.append(value) } }
+    spin()
+    check(results.withValue { $0 }.isEmpty, "repair must wait for the helper's reply")
+    NSXPCConnection.instances.last!.helper.versions.removeFirst()("fixture-helper")
+    spin()
+    check(results.withValue { $0 } == [true], "an answering helper repairs as success exactly once")
+    check(SMAppService.unregisterCalls == 0 && SMAppService.registerCalls == 0,
+          "an answering helper's registration must never be rebuilt")
+}
+
+// The launch probe asks over the existing connection. Replacing it would drop
+// a protection command in flight and let its timeout turn protection off.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessFastReplies()
+    let connection = confirmed(monitor)
+    let instances = NSXPCConnection.instances.count
+    let results = LockedValue<[Bool]>([])
+    monitor.confirmHelperResponds { value in results.withValue { $0.append(value) } }
+    spin()
+    check(NSXPCConnection.instances.count == instances && monitor.harnessConnection === connection,
+          "the helper probe must reuse the live connection")
+    check(!connection.helper.versions.isEmpty, "the probe must ask over the live connection")
+    if !connection.helper.versions.isEmpty { connection.helper.versions.removeFirst()("fixture-helper") }
+    spin()
+    check(results.withValue { $0 } == [true], "the probe reports the helper's reply once")
+    check(monitor.isMonitoringActive && !connection.didInvalidate,
+          "probing must leave confirmed protection and its connection intact")
+}
+
+// A silent helper is not torn down when the bundle could not register it again.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessFastReplies()
+    setFixtureHelperBundle(installed: false)
+    let alerts = NSAlert.messages.count
+    let results = LockedValue<[Bool]>([])
+    monitor.repairHelperRegistration { value in results.withValue { $0.append(value) } }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 3)
+    spin()
+    check(results.withValue { $0 } == [false], "repair without a valid bundle must fail once")
+    check(SMAppService.unregisterCalls == 0, "a registration that cannot be rebuilt must be left in place")
+    check(NSAlert.messages.count == alerts + 1 && NSAlert.messages.last?.contains("reinstall") == true,
+          "a missing helper bundle tells the user to reinstall")
+}
+
+// A registered but silent helper is unregistered, registered again, and
+// reported repaired only after the rebuilt helper answers.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    monitor.harnessFastReplies()
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    let results = LockedValue<[Bool]>([])
+    monitor.repairHelperRegistration { value in results.withValue { $0.append(value) } }
+    spin(until: { SMAppService.registerCalls == 1 }, timeout: 3)
+    check(SMAppService.unregisterCalls == 1 && SMAppService.registerCalls == 1,
+          "a silent helper's registration must be rebuilt once")
+    check(results.withValue { $0 }.isEmpty, "a rebuilt registration still needs a reply before success")
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 4)
+    spin()
+    check(results.withValue { $0 } == [true], "the rebuilt helper's reply completes repair exactly once")
+}
+
+// A helper that stays silent after its registration is rebuilt fails repair.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    monitor.harnessFastReplies()
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    let results = LockedValue<[Bool]>([])
+    monitor.repairHelperRegistration { value in results.withValue { $0.append(value) } }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 5)
+    spin()
+    check(results.withValue { $0 } == [false], "a helper that never answers must not be reported repaired")
+    check(SMAppService.unregisterCalls == 1 && SMAppService.registerCalls == 1,
+          "repair rebuilds the registration once, not in a loop")
 }
 
 print("Monitor checks complete. Failures: \(failures.count)")
