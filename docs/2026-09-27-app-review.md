@@ -71,7 +71,24 @@ Recommended: E2 (Settings may open at every login after session restore) and E5 
 
 ## Lane C: UI, UX, and accessibility
 
-Pending.
+The UI is native and mostly consistent, and the #90 fixes that could be exercised in the isolated fixture work (content cards without glass, license-field Return, focus after an invalid host, final-reminder copy). The problems are mostly error surfaces and copy. Screens were checked in a renamed-bundle, unsigned fixture on macOS 27.2 in light and dark, at default and minimum sizes. The installed app never ran.
+
+| ID | Sev | Finding | Status |
+|---|---|---|---|
+| C1 | P1 | A mistyped license key is reported as "refunded, cancelled, or disabled", because every Gumroad `success:false`, including an unknown key, maps to revoked. | Planned: neutral copy, since Gumroad cannot tell the two apart |
+| C2 | P2 | The Dashboard shows the protection error twice, and VoiceOver calls the first a session error. | Planned, with an inline Repair button in the Ping Protection card |
+| C3 | P2 | The Welcome window clips its license line at the default size and mixes alignments. | Planned |
+| C4 | P2 | The Welcome failure copy points to Advanced settings, which the window cannot reach; its retry button already runs repair. | Planned: "Try Again" |
+| C5 | P2 | Dashboard Finish Setup fails silently and uses a third setup path. | With B15 |
+| C6 | P2 | Repair shows no progress and no success message. | With B5, plus a success message |
+| C7 | P2 | Helper alerts use jargon ("via XPC"), the title "Error", and conflicting advice. | With B14 |
+| C8 | P2 | The empty license field is invisible, and "License verified" never shows. | Planned |
+| C9 | P2 | The one-minute chart axis reads like clock time, the line takes the latest sample's color, and the legend glyphs never appear in the plot. | Planned |
+| C10 | P2 | The application menu lacks Check for Updates (a #90 item). | Planned: SwiftUI CommandGroup |
+| C11 | P2 | Prepare to Remove does not say it deletes the saved license key and the transition marker. | Planned: copy only |
+| C12–C23 | P3 | Repeated license text, wrong "below" in the host error, a clickable-looking status line, the macOS 15 "Login Items & Extensions" name, outdated Gatekeeper instructions, crash-report copy, terminology drift, VoiceOver labels, Dashboard nits, repeated Automation text, About and Help nits, and a repetitive Welcome headline. | Planned |
+
+Decisions for Oliver: D1 initial window size (980×1000 leaves about 40% empty; suggest about 900×780, keeping the saved frame); D2 Undo for custom-target deletion (suggest Edit → Undo, no confirmation); D3 whether unlicensed first runs should lead with the helper setup or with Open Dashboard; D4 a plain rather than secure license-key field, which makes paste mistakes visible.
 
 ## Lane D: performance and energy
 
