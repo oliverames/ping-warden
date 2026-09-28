@@ -1475,7 +1475,7 @@ struct InterventionsCard: View {
             Task { @MainActor in
                 guard repaired else {
                     repairError = PingWardenMonitor.shared.lastSetupFailureMessage
-                        ?? "The helper still is not responding. Confirm that Ping Warden is allowed in System Settings → General → Login Items, restart your Mac, and then click Repair again."
+                        ?? RepairResultCopy.failureMessage
                     return
                 }
                 let restored = await protectionExperience.setPersistentProtection(shouldRemainEnabled)
