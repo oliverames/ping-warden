@@ -36,21 +36,26 @@ enum PingMonitor {
     }
 }
 
+// INSERT_SNAPSHOT
+
 final class ChartModel {
     var selectedTimeframe = 1
     var timelineEvents: [LatencyTimelineEvent] = []
+    var filteredTimelineEvents: [LatencyTimelineEvent] = []
     var pingHistory: [PingMonitor.PingResult] = []
-    var filteredProbeHistory: [PingMonitor.PingResult] = []
-    var filteredHistory: [PingMonitor.PingResult] = []
-    private static let maxChartPoints = 720
-    func refresh() { refreshFilteredHistory() }
+    var snapshot = PingChartSnapshot.make(history: [], events: [], timeframeMinutes: 1, now: Date())
+    // Mirrors DashboardViewModel.refreshPresentation: the timeline filter
+    // and the chart snapshot are both rebuilt by production code.
+    func refresh() {
+        refreshFilteredTimeline()
+        snapshot = PingChartSnapshot.make(
+            history: pingHistory, events: timelineEvents, timeframeMinutes: selectedTimeframe, now: Date())
+    }
     // INSERT_EVENTS
-    // INSERT_REFRESH
-    // INSERT_DOWNSAMPLE
 }
 
 struct ChartHost {
-    let viewModel: ChartModel
+    let chart: ChartModel
     var summary: String { chartAccessibilityValue }
     // INSERT_SUMMARY
     // INSERT_TIMEFRAME
@@ -163,25 +168,31 @@ final class CustomTargetHost {
         check(host.openedSections.last == .advanced, "subsequent request switches pane before opening")
 
         let model = ChartModel()
-        let chart = ChartHost(viewModel: model)
+        let chart = ChartHost(chart: model)
         check(chart.summary == "No samples in the last 1 minute.", "empty chart summary")
         let now = Date()
         model.pingHistory = [.init(timestamp: now, latencyMs: 150, success: true)]
         model.refresh()
         model.timelineEvents = [.init(timestamp: now, kind: .latencySpike(latencyMs: 150))]
+        model.refresh()
         check(chart.summary.contains("with 1 timeline event in this window"), "spike-only chart has neutral singular event wording")
         check(!chart.summary.contains("protection"), "latency spike does not imply protection")
         model.timelineEvents = [.init(timestamp: now, kind: .awdlIntervention(delta: 8))]
+        model.refresh()
         check(chart.summary.contains("with 1 timeline event in this window"), "aggregated intervention is one timeline entry, not eight")
         model.timelineEvents.append(.init(timestamp: now, kind: .latencySpike(latencyMs: 150)))
+        model.refresh()
         check(chart.summary.contains("with 2 timeline events in this window"), "mixed events use neutral plural wording")
         model.timelineEvents.append(.init(timestamp: now.addingTimeInterval(-120), kind: .latencySpike(latencyMs: 200)))
-        model.pingHistory.append(.init(timestamp: now.addingTimeInterval(-120), latencyMs: 999, success: true))
+        // History is chronological in production, so the older sample goes first.
+        model.pingHistory.insert(.init(timestamp: now.addingTimeInterval(-120), latencyMs: 999, success: true), at: 0)
         model.refresh()
-        check(model.filteredTimelineEvents.count == 2 && model.filteredProbeHistory.count == 1,
+        check(model.filteredTimelineEvents.count == 2 && model.snapshot.summary.probeCount == 1,
               "production filtering excludes old events and probes")
+        check(model.snapshot.summary.eventCount == 2, "chart summary counts only in-window events")
         check(chart.summary.contains("peak 150, with 2 timeline events"), "old spike does not affect current summary")
         model.timelineEvents = [.init(timestamp: now.addingTimeInterval(-120), kind: .awdlIntervention(delta: 12))]
+        model.refresh()
         check(!chart.summary.contains("timeline event"), "out-of-window-only events omit event phrase")
         model.pingHistory.append(.init(timestamp: now, latencyMs: 0, success: false))
         model.refresh()

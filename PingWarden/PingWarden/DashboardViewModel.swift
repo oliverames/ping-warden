@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import Network
 import SwiftUI
 
 @MainActor
@@ -24,11 +25,17 @@ class DashboardViewModel: ObservableObject {
 
     private(set) var pingHistory: [PingMonitor.PingResult] = []
     /// One publication per completed probe, after statistics, history, and
-    /// chart data have all been updated. This avoids three broad SwiftUI
-    /// invalidation passes for the same network sample.
+    /// the timeline have all been updated. This avoids several broad SwiftUI
+    /// invalidation passes for the same network sample. The chart publishes
+    /// separately, through `chart`, and less often.
     @Published private(set) var telemetryRevision: UInt64 = 0
-    @Published private(set) var timelineEvents: [LatencyTimelineEvent] = []
-    @Published var interventionCount: Int = 0
+    /// Every recorded event. Not published: appending one while the window
+    /// is hidden must not redraw anything; the next revision carries it.
+    private(set) var timelineEvents: [LatencyTimelineEvent] = []
+    /// Events inside the selected timeframe, computed once per update
+    /// instead of on every read during a redraw.
+    private(set) var filteredTimelineEvents: [LatencyTimelineEvent] = []
+    @Published private(set) var interventionCount: Int = 0
     @Published private(set) var baselineLatencyResults: [String: Double] = [:]
     @Published private(set) var isAutoSelectingTarget: Bool = false
     @Published private(set) var autoSelectionError: String?
@@ -38,7 +45,7 @@ class DashboardViewModel: ObservableObject {
                 selectedTimeframe = 15
                 return
             }
-            refreshFilteredHistory()
+            refreshPresentation(forceChart: true)
         }
     }
     @Published private(set) var targets: [PingTarget] = []
@@ -87,10 +94,24 @@ class DashboardViewModel: ObservableObject {
     private(set) var latestProbeSucceeded: Bool?
     private(set) var hasSuccessfulProbe = false
 
+    /// Chart data, published at about one bucket's width rather than once
+    /// per sample. See `refreshChartIfDue(force:)`.
+    let chart = PingChartModel(timeframeMinutes: 15)
+
     private let pingMonitor = PingMonitor.shared
     private let telemetryConsumerID = UUID()
     private var telemetryObserverToken: UUID?
-    nonisolated(unsafe) private var interventionTimer: Timer?
+    nonisolated(unsafe) private var interventionSubscription: UUID?
+    /// Whether this instance drives the shared probe. The Targets pane
+    /// shows no live telemetry, so it starts without it.
+    private var includesTelemetry = true
+    /// Skips redraw work while the Dashboard window cannot be seen.
+    private var visibilityGate = DeferredRefreshGate()
+    private var lastChartRefresh: Date?
+    /// The undo manager that holds removal actions targeting this model.
+    /// Undo keeps an unowned reference to its target, so the actions are
+    /// cleared before this model goes away.
+    private weak var removalUndoManager: UndoManager?
     private var gfnRefreshTask: Task<Void, Never>?
     private var baselineSelectionTask: Task<Void, Never>?
     private var isStarted = false
@@ -111,71 +132,47 @@ class DashboardViewModel: ObservableObject {
         targets.first { $0.id == selectedTargetID }
     }
 
-    /// Filtered + downsampled ping history for the chart, memoized per
-    /// update. The chart body reads this several times per render; as a
-    /// computed property that meant 5+ O(n) filters over ~3900 samples every
-    /// second, and Swift Charts degrades sharply past ~1000 marks — burning
-    /// CPU exactly during the gaming sessions the app exists to protect.
-    private(set) var filteredHistory: [PingMonitor.PingResult] = []
-    /// The same bounded window including failed probes. The chart uses this to
-    /// split its line into successful runs and draw explicit failure markers.
-    private(set) var filteredProbeHistory: [PingMonitor.PingResult] = []
+    /// Recomputes what the cards draw and publishes one revision. The
+    /// chart rebuilds only when due, or when `forceChart` says its inputs
+    /// changed shape (a new timeframe or target, or a return to view).
+    private func refreshPresentation(forceChart: Bool) {
+        refreshFilteredTimeline()
+        refreshChartIfDue(force: forceChart)
+        telemetryRevision &+= 1
+    }
 
-    private static let maxChartPoints = 720
-
-    private func refreshFilteredHistory() {
+    private func refreshFilteredTimeline() {
         let cutoff = Date().addingTimeInterval(-TimeInterval(selectedTimeframe * 60))
-        let windowed = pingHistory.filter { $0.timestamp > cutoff }
-        filteredProbeHistory = Self.downsample(windowed, maxCount: Self.maxChartPoints)
-        filteredHistory = filteredProbeHistory.filter(\.success)
+        filteredTimelineEvents = timelineEvents.filter { $0.timestamp > cutoff }
     }
 
-    /// Uniform-stride downsampling that favors latency spikes (>=100 ms) and
-    /// always keeps the newest sample, so thinning the line preserves the
-    /// events the chart exists to show without drawing an unbounded number of
-    /// marks during a sustained outage.
-    private static func downsample(_ points: [PingMonitor.PingResult], maxCount: Int) -> [PingMonitor.PingResult] {
-        guard maxCount > 1 else { return points.last.map { [$0] } ?? [] }
-        guard points.count > maxCount else { return points }
-        let strideLength = Double(points.count) / Double(maxCount)
-        var kept: [PingMonitor.PingResult] = []
-        kept.reserveCapacity(maxCount + 16)
-        var nextIndex = 0.0
-        for (index, point) in points.enumerated() {
-            let onStride = Double(index) >= nextIndex
-            if onStride || point.latencyMs >= 100 || index == points.count - 1 {
-                kept.append(point)
-                if onStride {
-                    nextIndex += strideLength
-                }
-            }
+    /// Rebuilding the chart for every sample cost about 23 ms at an hour of
+    /// history, and each bucket only changes as it fills, so the chart
+    /// refreshes at about one bucket's width: every sample for short
+    /// timeframes, every ten seconds for an hour. The stat cards above it
+    /// still update with every sample.
+    private func refreshChartIfDue(force: Bool) {
+        let now = Date()
+        let bucket = ChartDownsampling.bucketSeconds(forTimeframeMinutes: selectedTimeframe)
+        guard force || ChartDownsampling.isRefreshDue(now: now, lastRefresh: lastChartRefresh, bucketSeconds: bucket) else {
+            return
         }
-        guard kept.count > maxCount else { return kept }
-
-        // A prolonged series of timeouts or spikes can make every point look
-        // important. Apply a second uniform pass so the chart's performance
-        // bound remains real, while still retaining the newest point.
-        let boundedStride = Double(kept.count - 1) / Double(maxCount - 1)
-        var bounded: [PingMonitor.PingResult] = []
-        bounded.reserveCapacity(maxCount)
-        for index in 0..<(maxCount - 1) {
-            bounded.append(kept[Int((Double(index) * boundedStride).rounded(.down))])
-        }
-        if let newest = kept.last {
-            bounded.append(newest)
-        }
-        return bounded
+        lastChartRefresh = now
+        chart.update(PingChartSnapshot.make(
+            history: pingHistory,
+            events: timelineEvents,
+            timeframeMinutes: selectedTimeframe,
+            now: now
+        ))
     }
 
-    var filteredTimelineEvents: [LatencyTimelineEvent] {
-        let cutoff = Date().addingTimeInterval(-TimeInterval(selectedTimeframe * 60))
-        return timelineEvents.filter { $0.timestamp > cutoff }
-    }
-
-    var maxPingInView: Double {
-        let max = filteredHistory.map(\.latencyMs).max() ?? 0
-        // Add some headroom and ensure minimum scale
-        return Swift.max(100, max * 1.1)
+    /// Tells the model whether its window can be seen. Samples keep
+    /// arriving while hidden so history and session recaps stay complete;
+    /// only the redraw is skipped, and it catches up once on return.
+    func setPresentationVisible(_ visible: Bool) {
+        if visibilityGate.setVisible(visible) {
+            refreshPresentation(forceChart: true)
+        }
     }
 
     init() {
@@ -232,9 +229,42 @@ class DashboardViewModel: ObservableObject {
         return nil
     }
 
-    func removeCustomTarget(id: UUID) {
+    /// Removes a custom target and, when given an undo manager, registers
+    /// Edit > Undo Remove Target so a mistaken click is recoverable without a
+    /// confirmation dialog.
+    func removeCustomTarget(id: UUID, undoManager: UndoManager? = nil) {
+        guard let index = customTargets.firstIndex(where: { $0.id == id }) else { return }
+        let removed = customTargets[index]
+        let removedTargetID = Self.toPingTargets([removed]).first?.id
+        let wasSelected = removedTargetID == selectedTargetID
         customTargets = customTargetStore.remove(id: id)
         rebuildTargets()
+
+        guard let undoManager else { return }
+        removalUndoManager = undoManager
+        undoManager.registerUndo(withTarget: self) { model in
+            model.restoreCustomTarget(removed, at: index, reselect: wasSelected, undoManager: undoManager)
+        }
+        undoManager.setActionName("Remove Target")
+    }
+
+    /// Undo for `removeCustomTarget`: puts the target back where it was and
+    /// reselects it if it was selected, then registers the redo.
+    private func restoreCustomTarget(
+        _ target: CustomPingTarget,
+        at index: Int,
+        reselect: Bool,
+        undoManager: UndoManager
+    ) {
+        customTargets = customTargetStore.insert(target, at: index)
+        rebuildTargets()
+        if reselect, let id = Self.toPingTargets([target]).first?.id, targets.contains(where: { $0.id == id }) {
+            selectedTargetID = id
+        }
+        undoManager.registerUndo(withTarget: self) { model in
+            model.removeCustomTarget(id: target.id, undoManager: undoManager)
+        }
+        undoManager.setActionName("Remove Target")
     }
 
     private static func toPingTargets(_ customs: [CustomPingTarget]) -> [PingTarget] {
@@ -248,19 +278,31 @@ class DashboardViewModel: ObservableObject {
         }
     }
 
-    func start() {
+    /// Starts the model. `includesTelemetry: false` is for the Targets pane,
+    /// which edits targets but shows no live latency, so it neither drives
+    /// the shared probe nor polls the helper.
+    func start(includesTelemetry: Bool = true) {
         guard !isStarted else { return }
         isStarted = true
+        self.includesTelemetry = includesTelemetry
 
-        // Resolve local gateway off main thread to avoid blocking UI
+        // Resolve the local gateway off the main thread; the cache runs
+        // /usr/sbin/route only after the network path changes.
         Task.detached(priority: .utility) {
-            let gateway = NetworkGatewayResolver.defaultGatewayAddress()
+            let gateway = GatewayAddressCache.shared.address()
             guard let gateway else { return }
             await MainActor.run { [weak self] in
                 guard let self, self.isStarted else { return }
                 self.rebuildTargets(localGateway: gateway)
             }
         }
+
+        // Populate GeForce NOW zones up front so they're already in the picker
+        // when the user opens it. (Previously a Picker .onTapGesture tried to
+        // do this on open, but Pickers swallow the tap so it rarely fired.)
+        refreshGeForceNOWTargets(force: false)
+
+        guard includesTelemetry else { return }
 
         // One shared monitor feeds both the dashboard and menu metrics. The
         // callback arrives on main with statistics already computed off-main.
@@ -271,18 +313,10 @@ class DashboardViewModel: ObservableObject {
         }
 
         startMonitoring(clearHistory: false)
+        refreshPresentation(forceChart: true)
 
-        // Populate GeForce NOW zones up front so they're already in the picker
-        // when the user opens it. (Previously a Picker .onTapGesture tried to
-        // do this on open, but Pickers swallow the tap so it rarely fired.)
-        refreshGeForceNOWTargets(force: false)
-
-        // Start intervention counter updates
-        updateInterventionCount()
-        interventionTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.updateInterventionCount()
-            }
+        interventionSubscription = InterventionCountFeed.shared.subscribe { [weak self] count in
+            self?.handleInterventionCount(count)
         }
     }
 
@@ -293,8 +327,14 @@ class DashboardViewModel: ObservableObject {
             self.telemetryObserverToken = nil
         }
         pingMonitor.stop(consumerID: telemetryConsumerID)
-        interventionTimer?.invalidate()
-        interventionTimer = nil
+        if let interventionSubscription {
+            InterventionCountFeed.shared.unsubscribe(interventionSubscription)
+            self.interventionSubscription = nil
+        }
+        removalUndoManager?.removeAllActions(withTarget: self)
+        removalUndoManager = nil
+        visibilityGate.reset()
+        lastChartRefresh = nil
         gfnRefreshTask?.cancel()
         gfnRefreshTask = nil
         baselineSelectionTask?.cancel()
@@ -308,10 +348,18 @@ class DashboardViewModel: ObservableObject {
     }
 
     deinit {
-        // Backstop in case onDisappear -> stop() is ever skipped. Timer
-        // invalidation and Task cancellation are safe off the main actor;
-        // @StateObject deallocation happens on the main thread in practice.
-        interventionTimer?.invalidate()
+        // Backstop in case onDisappear -> stop() is ever skipped. Task
+        // cancellation is safe off the main actor; the feed is main-actor
+        // state, so its unsubscribe hops there. @StateObject deallocation
+        // happens on the main thread in practice.
+        if let interventionSubscription {
+            Task { @MainActor in
+                InterventionCountFeed.shared.unsubscribe(interventionSubscription)
+            }
+        }
+        // Undo actions targeting this model are cleared in stop(), which
+        // onDisappear always runs; UndoManager is main-actor API and cannot
+        // be called from here.
         gfnRefreshTask?.cancel()
         baselineSelectionTask?.cancel()
         if let telemetryObserverToken {
@@ -321,7 +369,7 @@ class DashboardViewModel: ObservableObject {
     }
 
     private func restartMonitoring() {
-        guard isStarted else { return }
+        guard isStarted, includesTelemetry else { return }
         startMonitoring(clearHistory: true)
     }
 
@@ -340,8 +388,9 @@ class DashboardViewModel: ObservableObject {
             pingHistory.removeAll()
             latestProbeSucceeded = nil
             hasSuccessfulProbe = false
-            refreshFilteredHistory()
-            telemetryRevision &+= 1
+            if visibilityGate.noteChange() {
+                refreshPresentation(forceChart: true)
+            }
         }
     }
 
@@ -349,9 +398,7 @@ class DashboardViewModel: ObservableObject {
         stats = snapshot.statistics
         pingHistory = snapshot.history
         latestProbeSucceeded = snapshot.latestResult.success
-        hasSuccessfulProbe = snapshot.history.contains(where: \.success)
-        refreshFilteredHistory()
-        telemetryRevision &+= 1
+        hasSuccessfulProbe = snapshot.latestResult.success || snapshot.history.contains(where: \.success)
 
         let result = snapshot.latestResult
         if result.success {
@@ -360,29 +407,32 @@ class DashboardViewModel: ObservableObject {
                 appendTimelineEvent(.init(timestamp: result.timestamp, kind: .latencySpike(latencyMs: result.latencyMs)))
             }
         }
+
+        if visibilityGate.noteChange() {
+            refreshPresentation(forceChart: false)
+        }
     }
 
-    private func updateInterventionCount() {
-        PingWardenMonitor.shared.getInterventionCount { [weak self] count in
-            Task { @MainActor in
-                guard let self, let count else { return }
+    private func handleInterventionCount(_ count: Int) {
+        if !hasInitializedInterventionBaseline {
+            previousInterventionCount = count
+            hasInitializedInterventionBaseline = true
+            if interventionCount != count {
+                interventionCount = count
+            }
+            return
+        }
 
-                if !self.hasInitializedInterventionBaseline {
-                    self.previousInterventionCount = count
-                    self.interventionCount = count
-                    self.hasInitializedInterventionBaseline = true
-                    return
-                }
-
-                if count > self.previousInterventionCount {
-                    let delta = count - self.previousInterventionCount
-                    self.appendTimelineEvent(.init(timestamp: Date(), kind: .awdlIntervention(delta: delta)))
-                }
-
-                self.previousInterventionCount = count
-                self.interventionCount = count
+        guard count != previousInterventionCount else { return }
+        if count > previousInterventionCount {
+            let delta = count - previousInterventionCount
+            appendTimelineEvent(.init(timestamp: Date(), kind: .awdlIntervention(delta: delta)))
+            if visibilityGate.noteChange() {
+                refreshFilteredTimeline()
             }
         }
+        previousInterventionCount = count
+        interventionCount = count
     }
 
     func refreshGeForceNOWTargetsOnDemand() {
@@ -775,5 +825,205 @@ class DashboardViewModel: ObservableObject {
         // Drop one high and one low sample to reduce transient spikes.
         let trimmed = sorted.dropFirst().dropLast()
         return trimmed.reduce(0, +) / Double(trimmed.count)
+    }
+}
+
+// MARK: - Chart data
+
+/// Everything the Dashboard chart draws, built in one pass so the chart's
+/// body only reads stored values.
+struct PingChartSnapshot {
+    /// One uninterrupted run of successful probes. Swift Charts connects
+    /// every mark in a series, so each run is its own series and a failed
+    /// probe leaves an honest gap. The id is the run's first timestamp,
+    /// which stays the same while that run is on screen.
+    struct Segment: Identifiable {
+        let id: Date
+        let points: [PingMonitor.PingResult]
+    }
+
+    /// Totals over the raw samples in the window, not the thinned chart
+    /// points, so VoiceOver reports true sample counts.
+    struct Summary: Equatable {
+        var probeCount = 0
+        var successCount = 0
+        var currentMs = 0.0
+        var averageMs = 0.0
+        var peakMs = 0.0
+        var eventCount = 0
+    }
+
+    static let spikeThresholdMs = 100.0
+
+    var timeframeMinutes: Int
+    var windowStart: Date
+    var windowEnd: Date
+    var tickDates: [Date] = []
+    var segments: [Segment] = []
+    var spikePoints: [PingMonitor.PingResult] = []
+    var failedPoints: [PingMonitor.PingResult] = []
+    var latestPoint: PingMonitor.PingResult?
+    /// Bucketed probes, successes and failures, for the VoiceOver chart
+    /// descriptor.
+    var probePoints: [PingMonitor.PingResult] = []
+    /// Timeline events thinned to one rule per kind per few buckets.
+    var events: [LatencyTimelineEvent] = []
+    var yUpperBound = 125.0
+    var summary = Summary()
+    var hasAnyHistory = false
+
+    var isEmpty: Bool { probePoints.isEmpty }
+
+    static func make(
+        history: [PingMonitor.PingResult],
+        events: [LatencyTimelineEvent],
+        timeframeMinutes: Int,
+        now: Date
+    ) -> PingChartSnapshot {
+        let windowStart = now.addingTimeInterval(-TimeInterval(timeframeMinutes * 60))
+        var snapshot = PingChartSnapshot(timeframeMinutes: timeframeMinutes, windowStart: windowStart, windowEnd: now)
+        snapshot.hasAnyHistory = !history.isEmpty
+        snapshot.tickDates = ChartTimeAxis.tickDates(
+            windowStart: windowStart,
+            windowEnd: now,
+            timeframeMinutes: timeframeMinutes
+        )
+
+        // History is appended in time order, so the window starts at a
+        // binary-searched index instead of a filter over every sample.
+        let start = ChartDownsampling.firstIndex(in: history, after: windowStart, timestamp: \.timestamp)
+        let window = history[start...]
+
+        var successCount = 0
+        var total = 0.0
+        var peak = 0.0
+        var current: Double?
+        for probe in window where probe.success {
+            successCount += 1
+            total += probe.latencyMs
+            peak = max(peak, probe.latencyMs)
+            current = probe.latencyMs
+        }
+        let windowEvents = events.filter { $0.timestamp > windowStart }
+        snapshot.summary = Summary(
+            probeCount: window.count,
+            successCount: successCount,
+            currentMs: current ?? 0,
+            averageMs: successCount > 0 ? total / Double(successCount) : 0,
+            peakMs: peak,
+            eventCount: windowEvents.count
+        )
+
+        let bucket = ChartDownsampling.bucketSeconds(forTimeframeMinutes: timeframeMinutes)
+        let points = ChartDownsampling.bucketed(
+            window,
+            bucketSeconds: bucket,
+            timestamp: \.timestamp,
+            latencyMs: \.latencyMs,
+            success: \.success
+        )
+        snapshot.probePoints = points
+
+        var segments: [Segment] = []
+        var run: [PingMonitor.PingResult] = []
+        for point in points {
+            if point.success {
+                run.append(point)
+            } else if let first = run.first {
+                segments.append(Segment(id: first.timestamp, points: run))
+                run = []
+            }
+        }
+        if let first = run.first {
+            segments.append(Segment(id: first.timestamp, points: run))
+        }
+        snapshot.segments = segments
+        snapshot.spikePoints = points.filter { $0.success && $0.latencyMs >= spikeThresholdMs }
+        snapshot.failedPoints = points.filter { !$0.success }
+        snapshot.latestPoint = points.last.flatMap { $0.success ? $0 : nil }
+        snapshot.events = ChartDownsampling.mergedEvents(
+            windowEvents,
+            minimumSpacing: bucket * 4,
+            timestamp: \.timestamp,
+            kind: { event -> Int in
+                if case .latencySpike = event.kind { return 0 }
+                return 1
+            }
+        )
+
+        // Headroom above the tallest point, rounded to a 25 ms gridline.
+        let padded = max(125, max(100, peak * 1.1) * 1.15)
+        snapshot.yUpperBound = (padded / 25).rounded(.up) * 25
+        return snapshot
+    }
+}
+
+/// Publishes chart data on its own, so a new sample that does not change
+/// the chart does not make Swift Charts diff every mark again.
+@MainActor
+final class PingChartModel: ObservableObject {
+    @Published private(set) var snapshot: PingChartSnapshot
+
+    init(timeframeMinutes: Int) {
+        let now = Date()
+        snapshot = PingChartSnapshot.make(history: [], events: [], timeframeMinutes: timeframeMinutes, now: now)
+    }
+
+    func update(_ snapshot: PingChartSnapshot) {
+        self.snapshot = snapshot
+    }
+}
+
+// MARK: - Gateway cache
+
+/// The default gateway, cached until the network path changes. Each
+/// Dashboard or Targets appearance used to launch /usr/sbin/route.
+final class GatewayAddressCache: @unchecked Sendable {
+    static let shared = GatewayAddressCache()
+
+    private let lock = NSLock()
+    private var cachedAddress: String?
+    private var hasCachedAddress = false
+    /// Bumped on every path change, so a lookup that raced a change is
+    /// not stored as current.
+    private var generation: UInt64 = 0
+    private let pathMonitor = NWPathMonitor()
+
+    private init() {
+        pathMonitor.pathUpdateHandler = { [weak self] _ in
+            self?.invalidate()
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "com.amesvt.pingwarden.gatewaycache", qos: .utility))
+    }
+
+    /// Blocks while `route` runs on a cache miss, so call it off the main
+    /// thread.
+    func address() -> String? {
+        lock.lock()
+        if hasCachedAddress {
+            let address = cachedAddress
+            lock.unlock()
+            return address
+        }
+        let lookupGeneration = generation
+        lock.unlock()
+
+        let address = NetworkGatewayResolver.defaultGatewayAddress()
+
+        lock.lock()
+        if generation == lookupGeneration {
+            cachedAddress = address
+            hasCachedAddress = true
+        }
+        lock.unlock()
+        return address
+    }
+
+    private func invalidate() {
+        lock.lock()
+        generation &+= 1
+        hasCachedAddress = false
+        cachedAddress = nil
+        lock.unlock()
     }
 }

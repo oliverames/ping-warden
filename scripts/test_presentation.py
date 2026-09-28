@@ -37,9 +37,8 @@ def main():
         "SECTION": ("PingWardenApp.swift", "enum SettingsSection: String, CaseIterable, Identifiable"),
         "SUMMARY": ("DashboardView.swift", "private var chartAccessibilityValue: String"),
         "TIMEFRAME": ("DashboardView.swift", "private func timeframeLabel(for minutes: Int)"),
-        "EVENTS": ("DashboardViewModel.swift", "var filteredTimelineEvents: [LatencyTimelineEvent]"),
-        "REFRESH": ("DashboardViewModel.swift", "private func refreshFilteredHistory()"),
-        "DOWNSAMPLE": ("DashboardViewModel.swift", "private static func downsample("),
+        "EVENTS": ("DashboardViewModel.swift", "private func refreshFilteredTimeline()"),
+        "SNAPSHOT": ("DashboardViewModel.swift", "struct PingChartSnapshot {"),
         "KIND": ("DashboardView.swift", "enum Kind"),
     }
     unit = Path(__file__).with_name("PresentationTests.swift").read_text()
@@ -55,7 +54,8 @@ def main():
         subprocess.run(["xcrun", "swiftc", "-parse-as-library", "-swift-version", "5",
                         "-strict-concurrency=complete", "-warnings-as-errors",
                         "-module-cache-path", str(scratch / "ModuleCache"),
-                        str(app / "Core/CustomPingTargetStore.swift"), str(source), "-o", str(binary)], check=True, timeout=120)
+                        str(app / "Core/CustomPingTargetStore.swift"), str(app / "Core/ChartDownsampling.swift"),
+                        str(app / "Core/ChartTimeAxis.swift"), str(source), "-o", str(binary)], check=True, timeout=120)
         subprocess.run([str(binary)], check=True, timeout=30)
 
 
