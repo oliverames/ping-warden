@@ -25,6 +25,16 @@
 - Ship a26e6fe (helper recovery) as 4.2.2 after Oliver approves and after the pre-release delta audit. The delta changes helper-registration behavior, though only on explicit Repair or setup when the helper does not answer (since 2026-09-27)
 - Sentry: decide on a one-time delivery test against a separate project, and on `enableUncaughtNSExceptionReporting`. Server side checked clean on 2026-09-27; the last accepted error event was 2026-08-06 (since 2026-09-27)
 
+## 2026-09-28 - #92 routing spike (done: option 3 blocked)
+
+**Request**: Oliver approved the #92 spike on this Mac with computer control, and said on 2026-09-28 that he doesn't use the installed app, so it may be overwritten. He also chose to keep Off forcing awdl0 up (A2) and approved trashing the old test plists (898 moved to the Trash).
+
+**Plan**: (1) A minimal Developer ID–signed spike app with its own bundle IDs (`com.amesvt.pwintentspike`, App Group `PV3W52NDZ3.com.amesvt.pwintentspike`) and a sandboxed control widget whose shared SetValueIntent logs which process runs `perform()`. Variants: `.background` only, `supportedModes` with `.foreground(.dynamic)`, and that plus `allowedExecutionTargets = .main` (macOS 27). Test with the app quit and running, and check for activation or windows. This Mac runs macOS 27.2, so macOS 26 routing can only be approximated. (2) If routing works, implement option 3 in Ping Warden on a branch, following lane E's file plan (`docs/2026-09-27-app-review.md`, lane E; full notes in the session scratchpad), and verify a signed build installed over /Applications. No release.
+
+**Resume point**: spike sources under `~/Developer/Projects/ping-warden-intent-spike` (scratch, not committed to ping-warden). Remove the spike app and its control from Control Center when done.
+
+**Result**: Routing to the app works, but chronod's connection to the Developer ID app fails with `Operation not permitted` in every app-routed variant (C, E, F, G, sandboxed C, C without get-task-allow). The extension path (variant A) runs `perform()` in the sandboxed widget. Details in `SPIKE-RESULTS.md` beside the spike source and on #92. Cleanup: the spike app and its build copy are in the Trash and unregistered, and the menu bar control is removed. A Control Center tile may remain, because MenuBarAgent's panel can't be clicked or captured; remove it with Control Center → Edit Controls if it shows. Shortcuts access was declined, so no Shortcuts comparison. Next step waits on Oliver: a notarized option 3 retest, or option 2 with its launchd test on this Mac.
+
 ## 2026-09-27 - Whole-app review and polish (fixes complete; signed checks pending)
 
 **Request**: Oliver asked for a review of the code that takes down AWDL and the rest of the app, polish of rough edges, performance, UI, and UX, and closing open GitHub issues.
