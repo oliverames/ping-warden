@@ -1,5 +1,17 @@
 # Ping Warden Worklog
 
+## 2026-09-28 - Discovery review and sitemap freshness
+
+**What changed**: Corrected the homepage, documentation hub and release-note sitemap dates to reflect the significant September 28 release edits. The public sitemap had still reported September 21. The site already exposes canonical URLs, static guide content, structured data and an open crawl policy. The source generator retains explicit dates so builds stay deterministic. Website verification passed all 13 HTML pages, all 12 sitemap URLs, links and structured JSON, plus both Worker tests with no skips.
+
+**Decisions made**: Oliver authorized Chrome and Google Search Console work to improve SEO. Root owns site edits and Search Console interactions. The public marketplace listing already has symptom-focused copy and tags. No ranking or traffic improvement is established by these checks. Crawl policy, analytics preferences, pricing and app release artifacts remain unchanged.
+
+**Left off at**: Commit and deploy the small sitemap correction, then verify the public file. Search Console property/account setup is awaiting Oliver's account choice before verification. The private dated discovery review retains the observed account and evidence. Prior community outreach remains tracked in [#105](https://github.com/oliverames/ping-warden/issues/105); new directory and creator opportunities are recommendations only.
+
+**Open questions**: Which account should own the Search Console property, and which discovery channels should receive a concrete submission? The earlier dashboard follow-up's Build Verification and CodeQL have now passed for both `01975fa` and `f9c6ac8`; delivery remains [#104](https://github.com/oliverames/ping-warden/issues/104). Other release/manual follow-ups below remain open.
+
+---
+
 ## 2026-09-28 - Published 4.3.0 and unlicensed dashboard follow-up
 
 Version 4.3.0 is published from `2b5d02e`; signed feed copies are committed as `26d6958`. Public GitHub and Gumroad downloads match the frozen notarized artifact. Stable, beta and legacy feeds retain all 35 historical entries and verify with the previous release's signing key. The website and release notes are live. Exact-source CI passed all seven jobs and 63 steps, including all 50 Swift source extractions. Oliver updated the production app himself. Its installed version, signature, notarization and retained session history are verified. Saved choices are unchanged apart from normal update/window/cache metadata. The isolated test helper and app have been removed.

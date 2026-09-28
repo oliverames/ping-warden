@@ -17,7 +17,7 @@ const pages = [
   { source: 'Site/guides/geforce-now-mac-stutter.md', slug: 'geforce-now-mac-stutter', updated: '2026-09-21', title: 'Why GeForce NOW Stutters on a MacBook', description: 'AWDL can contribute to GeForce NOW stutter on a Mac. Compare latency with the interface on and off, explore free options, and understand the sharing tradeoff.' },
   { source: 'Site/guides/awdl0-ping-spikes.md', slug: 'awdl0-ping-spikes', updated: '2026-09-25', title: 'Mac Wi-Fi Ping Spikes and the awdl0 Fix', description: "Investigate whether awdl0 contributes to Mac Wi-Fi ping spikes. Compare measurements, understand why the interface returns, and learn the sharing tradeoff." },
   { source: 'Site/guides/airdrop-wifi-lag.md', slug: 'airdrop-wifi-lag', updated: '2026-09-21', title: 'Is AirDrop Causing Your Wi-Fi Lag?', description: 'AirDrop is not moving files in the background, but the interface behind it can interrupt calls and remote sessions. Here is how to test it in a minute.' },
-  { source: 'RELEASE_NOTES.md', slug: 'releases', updated: '2026-09-21', title: 'Release Notes', description: 'Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.' },
+  { source: 'RELEASE_NOTES.md', slug: 'releases', updated: '2026-09-28', title: 'Release Notes', description: 'Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.' },
   { source: 'SECURITY.md', slug: 'security', updated: '2026-07-12', title: 'Security and Reporting', description: 'Learn which Ping Warden releases receive security support and how to report a vulnerability privately.' }
 ];
 const bySource = new Map(pages.map(p => [p.source, `/docs/${p.slug}`]));
@@ -54,7 +54,7 @@ function link(href, source) {
 // `updated` is maintained by hand so the generated sitemap stays stable.
 // Deriving it from git commit dates would change the moment a source file
 // is committed, which breaks the CI check that committed pages match the build.
-const siteUpdated = '2026-09-21';
+const siteUpdated = '2026-09-28';
 const urls = [{ loc: '/', lastmod: siteUpdated }, { loc: '/docs/', lastmod: siteUpdated }];
 await mkdir(resolve(output, 'docs'), { recursive: true });
 // Keep the website screenshot identical to the user-supplied version 4 capture.
