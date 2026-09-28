@@ -60,7 +60,7 @@ Generation tokens, the license gate, persistent-protection recovery, and a26e6fe
 
 Option 3 needs a signed spike to confirm macOS 26 routing before any shipped change. **Needs Oliver.**
 
-**PR #95.** It compiles alone and merged with main, and its tests pass. Required before merge:
+**PR #95.** All eight findings below are fixed on the PR branch (5d72ca5, 1a02aaa), which was merged with main at afc7a0d and pushed as a066756 on 2026-09-28. The PR stays a draft until the Developer ID checks in #96 pass. Existing Hide Menu Bar Icon users keep the 4.2.1 behavior, where the menu bar icon is hidden and the Dock icon forced on. The new mode lives under `ControlCenterOnlyEnabled`, and no saved value is rewritten. The original review found these required before merge:
 
 - E1 (P1): the update silently removes the Dock icon for existing "Hide Menu Bar Icon" users, whose Dock icon the old code forced on. Keep them on the old behavior until they opt in, using a new preference key.
 - E3 (P2): the naive conflict resolution with a26e6fe stacks Settings, the Welcome, and the license notice at launch.
@@ -76,19 +76,19 @@ The UI is native and mostly consistent, and the #90 fixes that could be exercise
 | ID | Sev | Finding | Status |
 |---|---|---|---|
 | C1 | P1 | A mistyped license key is reported as "refunded, cancelled, or disabled", because every Gumroad `success:false`, including an unknown key, maps to revoked. | Fixed in 07347a7 and 869bd34: neutral copy; licensing logic unchanged |
-| C2 | P2 | The Dashboard shows the protection error twice, and VoiceOver calls the first a session error. | Planned, with an inline Repair button in the Ping Protection card |
+| C2 | P2 | The Dashboard shows the protection error twice, and VoiceOver calls the first a session error. | Fixed in 2aa7f25 and c6eb9c1: shown once, in the Ping Protection card, with an inline Repair button |
 | C3 | P2 | The Welcome window clips its license line at the default size and mixes alignments. | Fixed in a86ac79 |
 | C4 | P2 | The Welcome failure copy points to Advanced settings, which the window cannot reach; its retry button already runs repair. | Fixed in a86ac79 |
-| C5 | P2 | Dashboard Finish Setup fails silently and uses a third setup path. | With B15 |
+| C5 | P2 | Dashboard Finish Setup fails silently and uses a third setup path. | Fixed with B15 in 7eb2091 |
 | C6 | P2 | Repair shows no progress and no success message. | Fixed in 7eb2091 (progress) and 869bd34 (result alerts) |
 | C7 | P2 | Helper alerts use jargon ("via XPC"), the title "Error", and conflicting advice. | Fixed in 7eb2091 and 869bd34 |
 | C8 | P2 | The empty license field is invisible, and "License verified" never shows. | Fixed in 869bd34, as a plain text field per Oliver |
-| C9 | P2 | The one-minute chart axis reads like clock time, the line takes the latest sample's color, and the legend glyphs never appear in the plot. | Planned |
+| C9 | P2 | The one-minute chart axis reads like clock time, the line takes the latest sample's color, and the legend glyphs never appear in the plot. | Fixed in 2aa7f25 |
 | C10 | P2 | The application menu lacks Check for Updates (a #90 item). | Fixed in 869bd34 |
 | C11 | P2 | Prepare to Remove does not say it deletes the saved license key and the transition marker. | Fixed in 869bd34 (copy only) |
-| C12–C23 | P3 | Repeated license text, wrong "below" in the host error, a clickable-looking status line, the macOS 15 "Login Items & Extensions" name, outdated Gatekeeper instructions, crash-report copy, terminology drift, VoiceOver labels, Dashboard nits, repeated Automation text, About and Help nits, and a repetitive Welcome headline. | Settings, menu, Welcome, and alert items fixed in 07347a7, a86ac79, 869bd34; Dashboard and Targets items in progress |
+| C12–C23 | P3 | Repeated license text, wrong "below" in the host error, a clickable-looking status line, the macOS 15 "Login Items & Extensions" name, outdated Gatekeeper instructions, crash-report copy, terminology drift, VoiceOver labels, Dashboard nits, repeated Automation text, About and Help nits, and a repetitive Welcome headline. | Fixed: Settings, menu, Welcome, and alerts in 07347a7, a86ac79, 869bd34; Dashboard and Targets in 52dab46, 2aa7f25, c6eb9c1; remaining three-dot ellipses in 609c4e5 |
 
-Oliver decided on 2026-09-27: windows open at about 900×780 (done in 869bd34, saved frames kept), the license field is plain text (done), and unlicensed first runs lead with Open Dashboard (done in a86ac79). Undo for target deletion is in progress. The original questions were: D1 initial window size (980×1000 leaves about 40% empty; suggest about 900×780, keeping the saved frame); D2 Undo for custom-target deletion (suggest Edit → Undo, no confirmation); D3 whether unlicensed first runs should lead with the helper setup or with Open Dashboard; D4 a plain rather than secure license-key field, which makes paste mistakes visible.
+Oliver decided on 2026-09-27: windows open at about 900×780 (done in 869bd34, saved frames kept), the license field is plain text (done), and unlicensed first runs lead with Open Dashboard (done in a86ac79). Undo for target deletion is done (Edit → Undo Remove Target, 52dab46 and 2aa7f25). The original questions were: D1 initial window size (980×1000 leaves about 40% empty; suggest about 900×780, keeping the saved frame); D2 Undo for custom-target deletion (suggest Edit → Undo, no confirmation); D3 whether unlicensed first runs should lead with the helper setup or with Open Dashboard; D4 a plain rather than secure license-key field, which makes paste mistakes visible.
 
 ## Lane D: performance and energy
 
@@ -96,9 +96,21 @@ Idle cost with the Dashboard closed is very low: 0.003% CPU, 0.07 wakeups per se
 
 | ID | Sev | Finding | Status |
 |---|---|---|---|
-| D1 | P1 | The chart's x-axis tick dates change every sample, so SwiftUI/Charts retains about five new label views per second: 8 to 13 MB per minute while the Dashboard is open, freed only on close. Wall-clock-aligned ticks kept footprint flat in the fixture. | In progress |
-| D2 | P1 | The Dashboard renders at full cost (about 4.6% CPU at 1 s) while hidden or minimized, the likely case behind a fullscreen game. | In progress |
-| D3 | P2 | The chart rebuilds 720 points and a per-point area mark every sample, about 23 ms, and its downsampling shimmers as the window slides. | In progress |
+| D1 | P1 | The chart's x-axis tick dates change every sample, so SwiftUI/Charts retains about five new label views per second: 8 to 13 MB per minute while the Dashboard is open, freed only on close. Wall-clock-aligned ticks kept footprint flat in the fixture. | Fixed in 2aa7f25 |
+| D2 | P1 | The Dashboard renders at full cost (about 4.6% CPU at 1 s) while hidden or minimized, the likely case behind a fullscreen game. | Fixed in 2aa7f25: redraws wait while hidden and catch up once |
+| D3 | P2 | The chart rebuilds 720 points and a per-point area mark every sample, about 23 ms, and its downsampling shimmers as the window slides. | Fixed in 52dab46 and 2aa7f25: at most 360 time-aligned buckets, rebuilt about once per bucket |
 | D4 | P2 | The settings window re-measures its whole layout every sample, about 9.7 ms. | Fixed in 869bd34 |
-| D5 | P2 | About seven synchronous `SMAppService.status` calls per Dashboard render. | In progress |
-| D6–D13 | P3 | Duplicate intervention polls and unconditional publishes, noisy error logging, 10 wakeups per timed-out probe, telemetry on the Targets pane, a Screen Recording check every Game Mode tick, main-thread downsampling, undownsampled timeline marks, and a `route` launch on every Dashboard appearance. | In progress |
+| D5 | P2 | About seven synchronous `SMAppService.status` calls per Dashboard render. | Fixed in e6ed6e3: a cached value, invalidated on changes and after 2 s |
+| D6–D13 | P3 | Duplicate intervention polls and unconditional publishes, noisy error logging, 10 wakeups per timed-out probe, telemetry on the Targets pane, a Screen Recording check every Game Mode tick, main-thread downsampling, undownsampled timeline marks, and a `route` launch on every Dashboard appearance. | Fixed in 57bad02, 83e4b8b, e6ed6e3, 76eac95, 52dab46, 2aa7f25, and 869bd34 (Game Mode permission check). Chart bucketing still runs on the main thread, now about once per bucket instead of every sample |
+
+Before and after in the same fixture on 2026-09-28, with a 1-second probe interval (footprint is the memory macOS charges to the process):
+
+| Case | Before | After |
+|---|---|---|
+| Footprint over 6 minutes, 1-hour range | 95 → 143 MB | 68 → 76 MB |
+| Footprint over 6 minutes, 1-minute range | 66 → 107 MB | 65 to 70 MB, flat |
+| Visible, 1-hour range | 5.9% CPU, 162 mW | 2.6% CPU, 62 mW |
+| Hidden | 5.6% CPU, 174 mW, 12.9 wakeups/s | 0.23% CPU, 4.6 mW, 1.3 wakeups/s |
+| Minimized | 5.6% CPU, 172 mW | 0.22% CPU, 4.8 mW |
+
+A later 10.5-minute run after the fix stayed between 62 and 73 MB with no upward trend.
