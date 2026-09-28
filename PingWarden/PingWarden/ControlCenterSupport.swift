@@ -50,18 +50,15 @@ enum ControlCenterSupport {
         /// Describes the setting. The reason it is unavailable appears once,
         /// in `footerText`, beside the Unavailable badge.
         var detailText: String {
-            switch self {
-            case .available:
-                return "Use the Control Center toggle instead of the menu bar and Dock icons"
-            case .unsupportedOS, .missingWidgetExtension, .unsignedOrUntrusted:
-                return "Use the Control Center toggle instead of the menu bar and Dock icons"
-            }
+            InterfaceVisibilityCopy.controlCenterOnlyDetail
         }
 
         var footerText: String {
             switch self {
             case .available:
-                return "Add the Ping Protection control from Control Center → Edit Controls. This setting only hides the menu bar icon."
+                // What each mode hides is explained by
+                // InterfaceVisibilityCopy.automationFooter(mode:).
+                return InterfaceVisibilityCopy.addControlInstruction
             case .unsupportedOS:
                 return "Control Center widgets in Ping Warden require macOS 26 or newer."
             case .missingWidgetExtension:
@@ -76,7 +73,17 @@ enum ControlCenterSupport {
         availabilityForCurrentApp().isAvailable
     }
 
+    /// The signature check costs tens of milliseconds and runs on the main
+    /// thread from window-close and Settings paths. Neither the OS version
+    /// nor the running bundle's signature changes while the process runs;
+    /// an update replaces the bundle and relaunches.
+    private static let cachedAvailability = evaluateAvailability()
+
     static func availabilityForCurrentApp() -> Availability {
+        cachedAvailability
+    }
+
+    private static func evaluateAvailability() -> Availability {
         guard #available(macOS 26.0, *) else {
             return .unsupportedOS
         }

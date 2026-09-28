@@ -141,6 +141,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private let protectionExperience = ProtectionExperienceCoordinator.shared
     private let settingsNavigation = SettingsNavigationModel()
     private var isTerminating = false
+    /// Why this process started. Read once at launch; a later source can
+    /// mark it through `recordLaunchReason(_:)` before Settings is decided.
+    private var launchReasonState = LaunchReasonState(signals: LaunchSignals())
+    /// Holds the launch Settings decision until the welcome and license
+    /// notice decisions have both run.
+    private var launchPresentationGate = LaunchPresentationGate()
+    /// Written just before Sparkle relaunches the app, read and cleared at
+    /// the next launch. Lives in the app's own defaults, not the App Group.
+    nonisolated private static let updateRelaunchMarkerKey = "UpdaterRelaunchRequestedAt"
     /// Version whose release notes are on offer; nil once opened or when
     /// nothing is new. Published so the SwiftUI Help menu tracks it.
     @Published private(set) var whatsNewVersion: String?
@@ -148,14 +157,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         log.info("Ping Warden launching...")
 
-        // Read while the launch Apple event is still current. A login-item
-        // or Control Center launch should not open Settings even when both
-        // icons are hidden; a launch the person started should.
+        // Read while the launch Apple event is still current. A launch the
+        // person started opens Settings when Control Center Only hides both
+        // icons; login, session restore, update relaunch, and Control Center
+        // launches stay silent.
+        //
+        // Session restore: "Reopen windows when logging back in" relaunches
+        // apps without keyAELaunchedAsLogInItem, so launchIsDefault is the
+        // signal for it. NSApp.disableRelaunchOnLogin() would also stop that
+        // relaunch, but someone who never turned on Launch at Login may rely
+        // on it to bring Ping Warden back after a restart, and removing a
+        // route that keeps protection running would be a silent regression.
         let launchEvent = NSAppleEventManager.shared().currentAppleEvent
-        let launchedAsLoginItem = launchEvent?.eventID == kAEOpenApplication
-            && launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
-        let launchedByControlCenter = ProcessInfo.processInfo.arguments
-            .contains(InterfaceVisibilityPolicy.controlCenterLaunchArgument)
+        launchReasonState = LaunchReasonState(signals: LaunchSignals(
+            launchedAsLoginItem: launchEvent?.eventID == kAEOpenApplication
+                && launchEvent?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem,
+            launchIsDefault: notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool ?? true,
+            arguments: ProcessInfo.processInfo.arguments,
+            relaunchedByUpdater: consumeUpdateRelaunchMarker()
+        ))
+        log.info("Launch reason: \(String(describing: self.launchReasonState.reason), privacy: .public)")
 
         sessionCoordinator.onSessionStateChanged = { [weak self] in
             self?.updateQuickActionMenuItems()
@@ -215,11 +236,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             protectionExperience.noteSetupIncomplete()
         }
 
-        // Check on launch and while the app is in use. The persisted timestamp
-        // prevents relaunches or missed weeks from producing repeated prompts.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.presentDueLicenseNotice(allowBackground: true)
-        }
 #if DEBUG
         let debugWindowPrefix = "--show-window="
         let debugWindowTarget = ProcessInfo.processInfo.arguments
@@ -228,6 +244,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 #else
         let debugWindowTarget: String? = nil
 #endif
+        // Check on launch and while the app is in use. The persisted timestamp
+        // prevents relaunches or missed weeks from producing repeated prompts.
+        // This first check also settles the launch Settings decision.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self else { return }
+            self.presentDueLicenseNotice(allowBackground: true)
+            if debugWindowTarget == nil {
+                self.settleLaunchPresentation(.licenseNotice)
+            }
+        }
 
         // Initialize Sparkle updater and start explicitly so failures can be logged clearly.
         updaterController = SPUStandardUpdaterController(
@@ -274,14 +300,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // an update; the What's New item only exists while there is one.
         prepareWhatsNewOffer()
 
-        // Setup menu bar (unless Control Center mode is enabled AND widget is available)
+        // Setup menu bar (unless an icon-hiding mode is on AND the widget is available)
         // Always check if widget is actually available before hiding menu bar
         let widgetAvailable = ControlCenterSupport.isAvailableForCurrentApp()
         if PingWardenPreferences.shared.controlCenterWidgetEnabled && !widgetAvailable {
             log.warning("Control Center widget enabled but not available (requires code signing). Resetting to menu bar.")
             PingWardenPreferences.shared.controlCenterWidgetEnabled = false
         }
-        if !PingWardenPreferences.shared.controlCenterWidgetEnabled || !widgetAvailable {
+        // Control Center Only is not reset here: the policy already falls
+        // back to the menu bar icon, and the choice returns if the control
+        // becomes usable again.
+        if !InterfaceVisibilityPolicy.isMenuBarIconHidden(
+            mode: PingWardenPreferences.shared.interfaceVisibilityMode,
+            controlCenterAvailable: widgetAvailable
+        ) {
             setupMenuBar()
         }
 
@@ -291,16 +323,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             log.info("Helper setup is incomplete")
             if debugWindowTarget == nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    guard self.welcomePresentation.shouldPresentAutomatically(
+                    if self.welcomePresentation.shouldPresentAutomatically(
                         helperIsRegistered: PingWardenMonitor.shared.isHelperRegistered
-                    ) else {
-                        self.openSettingsIfNoVisibleEntryPoint(
-                            launchedAsLoginItem: launchedAsLoginItem,
-                            launchedByControlCenter: launchedByControlCenter
-                        )
-                        return
+                    ) {
+                        self.showWelcomeWindow()
                     }
-                    self.showWelcomeWindow()
+                    self.settleLaunchPresentation(.welcome)
                 }
             }
         } else {
@@ -314,22 +342,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             // makes every request time out while the app looks set up and
             // skips the introduction. Only report here; rebuilding the
             // registration waits for the person to choose setup or Repair.
+            //
+            // The launch Settings decision waits for this probe, so Settings
+            // never opens and then has the welcome window land on top of it.
             monitor.confirmHelperResponds { [weak self] responds in
                 Task { @MainActor in
-                    guard let self, !responds else { return }
-                    log.warning("Helper is registered but did not answer at launch")
-                    self.protectionExperience.noteHelperNotResponding()
-                    guard debugWindowTarget == nil,
-                          self.welcomePresentation.shouldPresentAutomatically(helperIsRegistered: false) else { return }
-                    self.showWelcomeWindow()
-                }
-            }
-            if debugWindowTarget == nil {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.openSettingsIfNoVisibleEntryPoint(
-                        launchedAsLoginItem: launchedAsLoginItem,
-                        launchedByControlCenter: launchedByControlCenter
-                    )
+                    guard let self else { return }
+                    if !responds {
+                        log.warning("Helper is registered but did not answer at launch")
+                        self.protectionExperience.noteHelperNotResponding()
+                    }
+                    guard debugWindowTarget == nil else { return }
+                    if !responds, self.welcomePresentation.shouldPresentAutomatically(helperIsRegistered: false) {
+                        self.showWelcomeWindow()
+                    }
+                    self.settleLaunchPresentation(.welcome)
                 }
             }
         }
@@ -517,16 +544,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let welcomeVisible = welcomeWindow?.isVisible ?? false
         let licenseNoticeVisible = licenseNoticeWindow?.isVisible ?? false
 
-        // Control Center mode hides the Dock icon too. Opening the app from
-        // Finder, Spotlight, or Launchpad reaches Settings through
-        // applicationShouldHandleReopen, or through
+        // Hide Menu Bar Icon (4.2.1 and earlier) keeps the Dock icon on, the
+        // old lockout guard, without rewriting the saved Show Dock Icon
+        // choice. Control Center Only hides the Dock icon too; opening the
+        // app from Finder, Spotlight, or Launchpad then reaches Settings
+        // through applicationShouldHandleReopen, or through
         // openSettingsIfNoVisibleEntryPoint on a fresh launch.
         let dockIconShown = InterfaceVisibilityPolicy.isDockIconShown(
+            mode: PingWardenPreferences.shared.interfaceVisibilityMode,
             showDockIconPreference: PingWardenPreferences.shared.showDockIcon,
-            menuBarIconHidden: InterfaceVisibilityPolicy.isMenuBarIconHidden(
-                controlCenterModeEnabled: PingWardenPreferences.shared.controlCenterWidgetEnabled,
-                controlCenterAvailable: ControlCenterSupport.isAvailableForCurrentApp()
-            )
+            controlCenterAvailable: ControlCenterSupport.isAvailableForCurrentApp()
         )
 
         if dockIconShown || settingsVisible || aboutVisible || welcomeVisible || licenseNoticeVisible {
@@ -973,22 +1000,46 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         stopMenuMetricsMonitoring()
     }
 
-    /// Control Center mode leaves no menu bar or Dock icon, so a launch the
-    /// person started would otherwise show nothing at all.
-    private func openSettingsIfNoVisibleEntryPoint(launchedAsLoginItem: Bool, launchedByControlCenter: Bool) {
+    /// Marks this launch with a reason learned after
+    /// `applicationDidFinishLaunching`. Takes effect only before the launch
+    /// Settings decision runs.
+    func recordLaunchReason(_ reason: LaunchReason) {
+        launchReasonState.record(reason)
+    }
+
+    private func settleLaunchPresentation(_ step: LaunchPresentationGate.Step) {
+        guard launchPresentationGate.settle(step) else { return }
+        openSettingsIfNoVisibleEntryPoint()
+    }
+
+    /// Control Center Only leaves no menu bar or Dock icon, so a launch the
+    /// person started would otherwise show nothing at all. Runs once, after
+    /// the welcome and license notice decisions.
+    private func openSettingsIfNoVisibleEntryPoint() {
         let preferences = PingWardenPreferences.shared
-        let menuBarIconHidden = InterfaceVisibilityPolicy.isMenuBarIconHidden(
-            controlCenterModeEnabled: preferences.controlCenterWidgetEnabled,
-            controlCenterAvailable: ControlCenterSupport.isAvailableForCurrentApp()
-        )
         guard InterfaceVisibilityPolicy.shouldOpenSettingsAtLaunch(
-            menuBarIconHidden: menuBarIconHidden,
-            launchedAsLoginItem: launchedAsLoginItem,
-            launchedByControlCenter: launchedByControlCenter
+            mode: preferences.interfaceVisibilityMode,
+            controlCenterAvailable: ControlCenterSupport.isAvailableForCurrentApp(),
+            showDockIconPreference: preferences.showDockIcon,
+            launchReason: launchReasonState.reason,
+            welcomeVisible: welcomeWindow?.isVisible ?? false,
+            licenseNoticeVisible: licenseNoticeWindow?.isVisible ?? false
         ) else { return }
-        guard !(welcomeWindow?.isVisible ?? false), !(licenseNoticeWindow?.isVisible ?? false) else { return }
-        log.info("Control Center mode has no app icon; opening Settings for a direct launch")
+        log.info("Control Center Only has no app icon; opening Settings for a direct launch")
         openSettings()
+    }
+
+    /// Reads and clears the marker `updaterWillRelaunchApplication` leaves.
+    /// Clearing it here keeps a stale marker from silencing a later launch.
+    private func consumeUpdateRelaunchMarker() -> Bool {
+        let defaults = UserDefaults.standard
+        let timestamp = defaults.double(forKey: Self.updateRelaunchMarkerKey)
+        guard timestamp > 0 else { return false }
+        defaults.removeObject(forKey: Self.updateRelaunchMarkerKey)
+        return InterfaceVisibilityPolicy.isUpdateRelaunchMarkerFresh(
+            markedAt: Date(timeIntervalSince1970: timestamp),
+            now: Date()
+        )
     }
 
     @objc func openSettings() {
@@ -1307,6 +1358,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             return nil
         }
         return "https://oliverames.github.io/ping-warden/appcast-beta.xml"
+    }
+
+    /// "Install and Relaunch" starts a new process that would otherwise count
+    /// as a direct launch and open Settings in Control Center Only. The
+    /// marker tells the next launch to stay silent.
+    nonisolated func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: AppDelegate.updateRelaunchMarkerKey)
     }
 
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
@@ -1652,7 +1710,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let isProperlySignedForControlCenter = ControlCenterSupport.isAvailableForCurrentApp()
 
         defer { updateDockIconVisibility() }
-        if PingWardenPreferences.shared.controlCenterWidgetEnabled && isProperlySignedForControlCenter {
+        if InterfaceVisibilityPolicy.isMenuBarIconHidden(
+            mode: PingWardenPreferences.shared.interfaceVisibilityMode,
+            controlCenterAvailable: isProperlySignedForControlCenter
+        ) {
             removeMenuBar()
         } else {
             // Reset preference if widget isn't available
@@ -1964,7 +2025,7 @@ struct GeneralSettingsContent: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var showDockIcon = PingWardenPreferences.shared.showDockIcon
     @State private var showMenuDropdownMetrics = PingWardenPreferences.shared.showMenuDropdownMetrics
-    @State private var controlCenterModeActive = GeneralSettingsContent.isControlCenterModeActive()
+    @State private var interfaceMode = GeneralSettingsContent.effectiveInterfaceMode()
     @State private var settingsErrorMessage: String?
     @State private var isFinishingSetup = false
 
@@ -1972,13 +2033,19 @@ struct GeneralSettingsContent: View {
         self.onCheckForUpdates = onCheckForUpdates
     }
 
-    /// Control Center mode removes both the menu bar and Dock icons, so the
-    /// Dock and menu options have nothing to act on while it is on.
-    private static func isControlCenterModeActive() -> Bool {
-        InterfaceVisibilityPolicy.isMenuBarIconHidden(
-            controlCenterModeEnabled: PingWardenPreferences.shared.controlCenterWidgetEnabled,
+    /// Either icon-hiding mode removes the menu, and each fixes the Dock
+    /// icon one way, so those options have nothing to act on while it is on.
+    private static func effectiveInterfaceMode() -> InterfaceVisibilityMode {
+        InterfaceVisibilityPolicy.effectiveMode(
+            PingWardenPreferences.shared.interfaceVisibilityMode,
             controlCenterAvailable: ControlCenterSupport.isAvailableForCurrentApp()
         )
+    }
+
+    /// The Dock icon the current mode requires, or nil when Show Dock Icon
+    /// applies as saved.
+    private var dockIconOverride: Bool? {
+        InterfaceVisibilityPolicy.dockIconOverride(mode: interfaceMode, controlCenterAvailable: true)
     }
 
     var body: some View {
@@ -2141,10 +2208,12 @@ struct GeneralSettingsContent: View {
                     }
                 }
 
-                // Shown off while Control Center mode hides the icon; the
-                // saved choice returns when that mode is turned off.
+                // Shows what the Dock actually does while a mode fixes the
+                // icon: on for Hide Menu Bar Icon, off for Control Center
+                // Only. The saved choice is untouched and returns when the
+                // mode is turned off.
                 Toggle(isOn: Binding(
-                    get: { showDockIcon && !controlCenterModeActive },
+                    get: { dockIconOverride ?? showDockIcon },
                     set: { showDockIcon = $0 }
                 )) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -2154,7 +2223,7 @@ struct GeneralSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .disabled(controlCenterModeActive)
+                .disabled(dockIconOverride != nil)
                 .onChangeCompat(of: showDockIcon) { newValue in
                     PingWardenPreferences.shared.showDockIcon = newValue
                 }
@@ -2167,15 +2236,15 @@ struct GeneralSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .disabled(controlCenterModeActive)
+                .disabled(interfaceMode != .menuBarIcon)
                 .onChangeCompat(of: showMenuDropdownMetrics) { newValue in
                     PingWardenPreferences.shared.showMenuDropdownMetrics = newValue
                 }
             } header: {
                 Text("App")
             } footer: {
-                if controlCenterModeActive {
-                    Text("Control Center Only is on in Automation, so Ping Warden has no menu bar or Dock icon. Use the Control Center toggle, and open Ping Warden from Applications or Spotlight to return to Settings.")
+                if let footer = InterfaceVisibilityCopy.generalFooter(mode: interfaceMode) {
+                    Text(footer)
                 }
             }
 
@@ -2193,13 +2262,13 @@ struct GeneralSettingsContent: View {
         .settingsScrollEdgeTreatment()
         .onAppear {
             monitorState.startObserving()
-            controlCenterModeActive = Self.isControlCenterModeActive()
+            interfaceMode = Self.effectiveInterfaceMode()
         }
         .onDisappear {
             monitorState.stopObserving()
         }
         .onReceive(NotificationCenter.default.publisher(for: .controlCenterModeChanged)) { _ in
-            controlCenterModeActive = Self.isControlCenterModeActive()
+            interfaceMode = Self.effectiveInterfaceMode()
         }
         .alert(
             "Setting Could Not Be Changed",
@@ -2467,7 +2536,7 @@ struct LicenseSettingsContent: View {
 
 struct AutomationSettingsContent: View {
     @State private var gameModeAutoDetect = PingWardenPreferences.shared.gameModeAutoDetect
-    @State private var controlCenterEnabled = PingWardenPreferences.shared.controlCenterWidgetEnabled
+    @State private var interfaceMode = PingWardenPreferences.shared.interfaceVisibilityMode
     @State private var controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
     @State private var screenRecordingPermissionGranted = GameModeDetector.hasScreenRecordingPermission()
     @State private var showingControlCenterConfirm = false
@@ -2512,10 +2581,23 @@ struct AutomationSettingsContent: View {
             }
 
             Section {
-                Toggle(isOn: $controlCenterEnabled) {
+                // Bound to the resolved mode rather than a local copy, so a
+                // cancelled confirmation or a legacy Hide Menu Bar Icon value
+                // is never written back by accident. Turning the toggle on
+                // only asks; the confirmation button saves the choice.
+                Toggle(isOn: Binding(
+                    get: { effectiveMode == .controlCenterOnly || showingControlCenterConfirm },
+                    set: { newValue in
+                        if newValue {
+                            showingControlCenterConfirm = true
+                        } else {
+                            PingWardenPreferences.shared.showMenuBarIcon()
+                        }
+                    }
+                )) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
-                            Text("Control Center Only")
+                            Text(InterfaceVisibilityCopy.controlCenterOnlyTitle)
                             if !controlCenterAvailability.isAvailable {
                                 StatusBadge(text: controlCenterAvailability.statusText, tint: .unavailable)
                             }
@@ -2525,28 +2607,40 @@ struct AutomationSettingsContent: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .accessibilityLabel("Control Center Only")
+                .accessibilityLabel(InterfaceVisibilityCopy.controlCenterOnlyTitle)
                 .accessibilityHint("Uses the Control Center toggle instead of the menu bar and Dock icons")
                 .disabled(!controlCenterAvailability.isAvailable)
-                .onChangeCompat(of: controlCenterEnabled) { newValue in
-                    if newValue {
-                        showingControlCenterConfirm = true
-                    } else {
-                        PingWardenPreferences.shared.controlCenterWidgetEnabled = false
+
+                // Someone who chose Hide Menu Bar Icon in 4.2.1 or earlier
+                // keeps it, with its Dock icon, until they pick another
+                // option here.
+                if effectiveMode == .hideMenuBarIcon {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(InterfaceVisibilityCopy.legacyStatusTitle)
+                            Text(InterfaceVisibilityCopy.legacyStatusDetail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 8)
+                        Button(InterfaceVisibilityCopy.showMenuBarIconButton) {
+                            PingWardenPreferences.shared.showMenuBarIcon()
+                        }
                     }
+                    .accessibilityElement(children: .contain)
                 }
             } header: {
                 Text("Interface")
             } footer: {
-                // Section footer carries the conditional help text. EmptyView()
-                // collapses the footer when there's nothing relevant to say.
-                if controlCenterAvailability.isAvailable && controlCenterEnabled {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(controlCenterAvailability.footerText)
-                        Text("Ping Warden also leaves the Dock. Open it from Applications or Spotlight to return to Settings.")
-                    }
-                } else if !controlCenterAvailability.isAvailable {
+                // The reason Control Center is unavailable appears once,
+                // here, beside the Unavailable badge. Otherwise the footer
+                // explains the mode in effect, and collapses when there is
+                // nothing relevant to say.
+                if !controlCenterAvailability.isAvailable {
                     Text(controlCenterAvailability.footerText)
+                } else if let footer = InterfaceVisibilityCopy.automationFooter(mode: effectiveMode) {
+                    Text(footer)
                 } else {
                     EmptyView()
                 }
@@ -2569,23 +2663,32 @@ struct AutomationSettingsContent: View {
             Text("Game Mode auto-detect already recognizes a game when it is the frontmost app. Allowing Screen Recording lets it also notice a fullscreen game behind other windows. Ping Warden reads only window metadata and never captures or saves screen contents.")
         }
         .confirmationDialog(
-            "Use Control Center Only?",
+            InterfaceVisibilityCopy.confirmationTitle,
             isPresented: $showingControlCenterConfirm,
             titleVisibility: .visible
         ) {
-            Button("Use Control Center Only") {
-                PingWardenPreferences.shared.controlCenterWidgetEnabled = true
+            Button(InterfaceVisibilityCopy.confirmationButton) {
+                PingWardenPreferences.shared.enableControlCenterOnly()
             }
-            Button("Cancel", role: .cancel) {
-                controlCenterEnabled = false
-            }
+            // Cancel writes nothing, so a legacy Hide Menu Bar Icon choice
+            // stays exactly as it was.
+            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Ping Warden's menu bar and Dock icons will be hidden. Add the Ping Protection control from Control Center → Edit Controls if it is not already there. To return to Settings, open Ping Warden from Applications or Spotlight.")
+            Text(InterfaceVisibilityCopy.confirmationMessage)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .controlCenterModeChanged)) { _ in
+            interfaceMode = PingWardenPreferences.shared.interfaceVisibilityMode
+        }
+    }
+
+    /// The mode that actually applies on this Mac.
+    private var effectiveMode: InterfaceVisibilityMode {
+        InterfaceVisibilityPolicy.effectiveMode(interfaceMode, controlCenterAvailable: controlCenterAvailability.isAvailable)
     }
 
     private func refreshAvailability() {
         controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
+        interfaceMode = PingWardenPreferences.shared.interfaceVisibilityMode
         screenRecordingPermissionGranted = GameModeDetector.hasScreenRecordingPermission()
     }
 }
