@@ -111,7 +111,7 @@ final class HelperRecoveryTests: XCTestCase {
     }
 
     func testSilentRegisteredHelperStillOwesTheIntroductionOnce() {
-        let suiteName = "PingWardenHelperRecoveryTests.\(UUID().uuidString)"
+        let suiteName = TestDefaultsSuite.name("PingWardenHelperRecoveryTests")
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         // The app treats a registered helper that never answers as not set up.

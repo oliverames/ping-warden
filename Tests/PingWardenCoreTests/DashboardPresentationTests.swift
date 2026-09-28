@@ -226,7 +226,7 @@ final class CustomPingTargetUndoTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        suiteName = "PingWardenCoreTests.undo.\(UUID().uuidString)"
+        suiteName = TestDefaultsSuite.name("PingWardenCoreTests.undo")
         defaults = UserDefaults(suiteName: suiteName)
     }
 

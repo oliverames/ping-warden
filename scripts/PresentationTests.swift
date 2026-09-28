@@ -104,7 +104,10 @@ final class CustomTargetHost {
         try! await Task.sleep(nanoseconds: 25_000_000)
     }
     @MainActor static func main() async {
-        let suite = "PingWarden.PresentationTests.\(UUID().uuidString)"
+        // An absolute-path suite keeps its plist in a temporary folder
+        // instead of leaving an empty file in ~/Library/Preferences.
+        let suite = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("PingWarden.PresentationTests.\(UUID().uuidString)").path
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let targets = CustomTargetHost(defaults: defaults)
