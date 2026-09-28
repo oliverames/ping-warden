@@ -186,6 +186,7 @@ final class ProtectionExperiencePolicyTests: XCTestCase {
 
     func testDesiredAndEffectiveMismatchHasHonestStatus() {
         var state = makeState(persistentProtectionEnabled: true)
+        state.commandInFlight = true
         var presentation = ProtectionExperiencePolicy.presentation(for: state, now: now)
         XCTAssertEqual(presentation.statusTitle, "Status: Turning On Protection")
 
@@ -193,6 +194,141 @@ final class ProtectionExperiencePolicyTests: XCTestCase {
         state.effectiveProtectionEnabled = true
         presentation = ProtectionExperiencePolicy.presentation(for: state, now: now)
         XCTAssertEqual(presentation.statusTitle, "Status: Turning Off Protection")
+    }
+
+    func testMismatchWithoutACommandDoesNotPromiseProgress() {
+        var state = makeState(persistentProtectionEnabled: true)
+        XCTAssertEqual(
+            ProtectionExperiencePolicy.presentation(for: state, now: now).statusTitle,
+            "Status: Not Protected"
+        )
+        state.helperResponding = false
+        XCTAssertEqual(
+            ProtectionExperiencePolicy.presentation(for: state, now: now).statusTitle,
+            "Status: Not Protected, Helper Not Responding"
+        )
+        state.protectionRequested = true
+        XCTAssertEqual(
+            ProtectionExperiencePolicy.presentation(for: state, now: now).statusTitle,
+            "Status: Reconnecting to Helper"
+        )
+    }
+
+    func testSilentHelperWithSavedIntentOffersTurnOffAndDoesWhatItSays() {
+        // The reviewed defect: the title said Turn Off while the click turned
+        // protection on, and the status said Turning On indefinitely.
+        var state = makeState(persistentProtectionEnabled: true)
+        state.helperResponding = false
+        let presentation = ProtectionExperiencePolicy.presentation(for: state, now: now)
+        let action = ProtectionExperiencePolicy.toggleAction(for: state, now: now)
+        XCTAssertEqual(action, .turnOff)
+        XCTAssertEqual(presentation.protectionTitle, action.menuTitle)
+        XCTAssertNotEqual(presentation.statusTitle, "Status: Turning On Protection")
+    }
+
+    func testToggleTitleAndActionAgreeInEveryState() {
+        let bools = [false, true]
+        let pauses: [Date?] = [nil, now.addingTimeInterval(600), now.addingTimeInterval(-1)]
+        var combinations = 0
+        for helperAvailable in bools {
+            for persistent in bools {
+                for effective in bools {
+                    for requested in bools {
+                        for inFlight in bools {
+                            for responding in bools {
+                                for licensed in bools {
+                                    for pause in pauses {
+                                        for phase in ProtectionSessionPhase.allCases {
+                                            let state = ProtectionExperiencePolicy.State(
+                                                helperAvailable: helperAvailable,
+                                                persistentProtectionEnabled: persistent,
+                                                effectiveProtectionEnabled: effective,
+                                                sessionPhase: phase,
+                                                sessionTrigger: phase == .idle ? nil : .manual,
+                                                pauseUntil: pause,
+                                                licenseAllowsProtection: licensed,
+                                                protectionRequested: requested,
+                                                commandInFlight: inFlight,
+                                                helperResponding: responding
+                                            )
+                                            combinations += 1
+                                            assertToggleInvariants(state)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        XCTAssertEqual(combinations, 2 * 2 * 2 * 2 * 2 * 2 * 2 * 3 * 4)
+    }
+
+    private func assertToggleInvariants(
+        _ state: ProtectionExperiencePolicy.State,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let presentation = ProtectionExperiencePolicy.presentation(for: state, now: now)
+        let action = ProtectionExperiencePolicy.toggleAction(for: state, now: now)
+        XCTAssertEqual(presentation.protectionTitle, action.menuTitle, "\(state)", file: file, line: line)
+
+        let wanted = ProtectionExperiencePolicy.shouldEnableProtection(for: state, now: now)
+        let expected: ProtectionExperiencePolicy.ToggleAction
+        if !state.helperAvailable {
+            expected = .finishSetup
+        } else if state.effectiveProtectionEnabled || state.protectionRequested || wanted {
+            expected = .turnOff
+        } else {
+            expected = .turnOn
+        }
+        XCTAssertEqual(action, expected, "\(state)", file: file, line: line)
+
+        // "Turning On" and "Turning Off" only ever describe a pending command.
+        if !state.commandInFlight {
+            XCTAssertNotEqual(presentation.statusTitle, "Status: Turning On Protection", "\(state)", file: file, line: line)
+            XCTAssertNotEqual(presentation.statusTitle, "Status: Turning Off Protection", "\(state)", file: file, line: line)
+        }
+    }
+
+    func testLaunchNeverEnablesForAnUnapprovedHelper() {
+        XCTAssertEqual(
+            ProtectionExperiencePolicy.launchIntentAction(
+                persistentProtectionEnabled: true, licenseAllowsProtection: true, helperRegistered: false
+            ),
+            .waitForSetup
+        )
+        XCTAssertEqual(
+            ProtectionExperiencePolicy.launchIntentAction(
+                persistentProtectionEnabled: true, licenseAllowsProtection: false, helperRegistered: false
+            ),
+            .clearIntentForLicense
+        )
+        XCTAssertEqual(
+            ProtectionExperiencePolicy.launchIntentAction(
+                persistentProtectionEnabled: true, licenseAllowsProtection: false, helperRegistered: true
+            ),
+            .clearIntentForLicense
+        )
+        XCTAssertEqual(
+            ProtectionExperiencePolicy.launchIntentAction(
+                persistentProtectionEnabled: true, licenseAllowsProtection: true, helperRegistered: true
+            ),
+            .none
+        )
+        for licensed in [false, true] {
+            for registered in [false, true] {
+                XCTAssertEqual(
+                    ProtectionExperiencePolicy.launchIntentAction(
+                        persistentProtectionEnabled: false,
+                        licenseAllowsProtection: licensed,
+                        helperRegistered: registered
+                    ),
+                    .none
+                )
+            }
+        }
     }
 
     private func makeState(

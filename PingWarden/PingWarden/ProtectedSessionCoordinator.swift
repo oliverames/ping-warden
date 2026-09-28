@@ -33,6 +33,9 @@ final class ProtectedSessionCoordinator: ObservableObject {
     private var elapsedTimer: Timer?
     private var interventionTimer: Timer?
     private var startOperationID: UUID?
+    /// Set when protection dropped and was restored during this session,
+    /// so the recap says so even though the session kept running.
+    private var protectionInterruptedDuringSession = false
     /// The target this session registered with the shared probe. The
     /// dashboard registers at a higher priority, so while it is open its
     /// selection owns the probe stream; samples from any other target are
@@ -83,6 +86,7 @@ final class ProtectedSessionCoordinator: ObservableObject {
         guard phase == .starting, startOperationID == operationID else {
             return
         }
+        protectionInterruptedDuringSession = false
         accumulator = ProtectedSessionAccumulator(
             startedAt: startedAt,
             trigger: trigger,
@@ -131,6 +135,16 @@ final class ProtectedSessionCoordinator: ObservableObject {
         )
     }
 
+    /// Protection dropped mid-session, for example while a restarted helper
+    /// reconnects. The session continues; its recap records the gap.
+    func noteProtectionInterrupted() {
+        guard accumulator != nil else { return }
+        if !protectionInterruptedDuringSession {
+            sessionLog.info("Protection was interrupted during the session; the recap will note it")
+        }
+        protectionInterruptedDuringSession = true
+    }
+
     func finishForTermination() {
         guard accumulator != nil else { return }
         finish(
@@ -167,8 +181,10 @@ final class ProtectedSessionCoordinator: ObservableObject {
         protectionWasInterrupted: Bool
     ) {
         guard let currentAccumulator = accumulator else { return }
+        let wasInterrupted = protectionWasInterrupted || protectionInterruptedDuringSession
 
         accumulator = nil
+        protectionInterruptedDuringSession = false
         sessionTarget = nil
         phase = .idle
         startOperationID = nil
@@ -184,7 +200,7 @@ final class ProtectedSessionCoordinator: ObservableObject {
             endedAt: Date(),
             endingInterventionCount: endingInterventionCount,
             endReason: endReason,
-            protectionWasInterrupted: protectionWasInterrupted
+            protectionWasInterrupted: wasInterrupted
         )
         latestSummary = summary
         elapsed = summary.duration

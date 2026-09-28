@@ -29,36 +29,85 @@ final class HelperRecoveryTests: XCTestCase {
         XCTAssertNil(HelperRecovery.interfaceIsUp(flagsLine: ""))
     }
 
-    func testDisableIsSatisfiedWhenInterfaceIsUpAndNothingWasRequested() {
-        // A fresh install whose first enable timed out records "unknown";
+    func testOffSucceedsWithoutHelperOnlyWhenNothingWasHeldAndAWDLIsUp() {
+        // A fresh install whose first enable timed out has nothing held;
         // turning off must not then depend on the silent helper.
-        XCTAssertTrue(HelperRecovery.disableAlreadySatisfied(
-            isRequested: false, isActive: false, lastKnownState: "unknown", interfaceUp: true
-        ))
-        XCTAssertTrue(HelperRecovery.disableAlreadySatisfied(
-            isRequested: false, isActive: false, lastKnownState: "up", interfaceUp: nil
+        XCTAssertTrue(HelperRecovery.offSatisfiedWithoutHelper(
+            wasRequested: false, wasActive: false, enablePending: false, interfaceUp: true
         ))
     }
 
-    func testDisableStillNeedsHelperWhenAWDLMayBeBlocked() {
-        XCTAssertFalse(HelperRecovery.disableAlreadySatisfied(
-            isRequested: false, isActive: false, lastKnownState: "unknown", interfaceUp: false
+    func testOffStillNeedsHelperWhenAWDLMayBeBlocked() {
+        XCTAssertFalse(HelperRecovery.offSatisfiedWithoutHelper(
+            wasRequested: false, wasActive: false, enablePending: false, interfaceUp: false
         ), "a down interface may be held down by the helper")
-        XCTAssertFalse(HelperRecovery.disableAlreadySatisfied(
-            isRequested: false, isActive: false, lastKnownState: "unknown", interfaceUp: nil
+        XCTAssertFalse(HelperRecovery.offSatisfiedWithoutHelper(
+            wasRequested: false, wasActive: false, enablePending: false, interfaceUp: nil
         ), "an unreadable interface leaves the helper as the authority")
-        XCTAssertFalse(HelperRecovery.disableAlreadySatisfied(
-            isRequested: false, isActive: false, lastKnownState: "down", interfaceUp: nil
-        ))
     }
 
-    func testDisableNeedsHelperWhileProtectionIsRequestedOrActive() {
-        XCTAssertFalse(HelperRecovery.disableAlreadySatisfied(
-            isRequested: true, isActive: false, lastKnownState: "up", interfaceUp: true
+    func testOffNeedsHelperWhileProtectionIsRequestedActiveOrPending() {
+        XCTAssertFalse(HelperRecovery.offSatisfiedWithoutHelper(
+            wasRequested: true, wasActive: false, enablePending: false, interfaceUp: true
         ))
-        XCTAssertFalse(HelperRecovery.disableAlreadySatisfied(
-            isRequested: false, isActive: true, lastKnownState: "up", interfaceUp: true
+        XCTAssertFalse(HelperRecovery.offSatisfiedWithoutHelper(
+            wasRequested: false, wasActive: true, enablePending: false, interfaceUp: true
         ))
+        XCTAssertFalse(HelperRecovery.offSatisfiedWithoutHelper(
+            wasRequested: false, wasActive: false, enablePending: true, interfaceUp: true
+        ), "a first enable still in flight could land after the Off")
+    }
+
+    func testHealthCheckDoesNotCallAMissingInterfaceStillUp() {
+        let missing = HelperRecovery.interfaceHealth(
+            protectionRequested: true,
+            interfaceUp: HelperRecovery.interfaceIsUp(flagsLine: "ifconfig: interface awdl0 does not exist")
+        )
+        XCTAssertTrue(missing.isHealthy)
+        XCTAssertFalse(missing.summary.contains("still up"))
+
+        let stillUp = HelperRecovery.interfaceHealth(protectionRequested: true, interfaceUp: true)
+        XCTAssertFalse(stillUp.isHealthy)
+        XCTAssertTrue(stillUp.summary.contains("still up"))
+
+        XCTAssertTrue(HelperRecovery.interfaceHealth(protectionRequested: false, interfaceUp: true).isHealthy)
+        XCTAssertTrue(HelperRecovery.interfaceHealth(protectionRequested: true, interfaceUp: false).isHealthy)
+    }
+
+    func testOnlyADeclinedCommandMeansTheHelperAnswered() {
+        XCTAssertFalse(HelperCommandFailure.declined.helperDidNotAnswer)
+        XCTAssertTrue(HelperCommandFailure.timedOut.helperDidNotAnswer)
+        XCTAssertTrue(HelperCommandFailure.noConnection.helperDidNotAnswer)
+        XCTAssertTrue(HelperCommandFailure.rejected(code: 4099).helperDidNotAnswer)
+        XCTAssertTrue(HelperCommandFailure.rejected(code: 4099).diagnosticDescription.contains("rejected the connection"))
+        XCTAssertTrue(HelperCommandFailure.rejected(code: 4097).diagnosticDescription.contains("interrupted"))
+        XCTAssertTrue(HelperCommandFailure.timedOut.diagnosticDescription.contains("timed out"))
+    }
+
+    func testFailureCopyReservesQuitAdviceForAHelperThatAnswered() {
+        for action in [ProtectionFailureCopy.Action.turnOff, .pause] {
+            let silent = ProtectionFailureCopy.message(for: action, failure: .timedOut)
+            XCTAssertFalse(silent.contains("Quit"), "\(action): a silent helper does not restore on quit")
+            XCTAssertTrue(silent.contains("click Repair"))
+            XCTAssertTrue(ProtectionFailureCopy.message(for: action, failure: .declined).contains("Quit"))
+        }
+        XCTAssertTrue(ProtectionFailureCopy.message(for: .turnOn, failure: .rejected(code: 4099)).contains("not responding"))
+        XCTAssertTrue(ProtectionFailureCopy.lostHelperConnection.contains("click Repair"))
+        XCTAssertFalse(ProtectionFailureCopy.lostHelperConnection.contains("restart the app"))
+    }
+
+    func testFailureCopyAvoidsEmDashes() {
+        let copies = [
+            ProtectionFailureCopy.helperNotResponding,
+            ProtectionFailureCopy.lostHelperConnection,
+            ProtectionFailureCopy.restoreAfterReconnectFailed,
+            ProtectionFailureCopy.setupIncomplete
+        ] + [ProtectionFailureCopy.Action.turnOn, .turnOff, .pause, .startSession].flatMap { action in
+            [HelperCommandFailure.timedOut, .declined, nil].map { ProtectionFailureCopy.message(for: action, failure: $0) }
+        }
+        for copy in copies {
+            XCTAssertFalse(copy.contains("\u{2014}"), copy)
+        }
     }
 
     func testSilentRegisteredHelperStillOwesTheIntroductionOnce() {

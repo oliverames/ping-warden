@@ -35,7 +35,7 @@ def assemble(repo: Path, fixtures: Path) -> tuple[str, str]:
         "    private init(harness: Void) {}\n\n    private init() {",
     )
     parts = [(fixtures / "Stubs.swift").read_text(), source]
-    for name in ("XPCReconnectPolicy.swift", "StateObserverRegistry.swift", "HelperBundleValidator.swift", "HelperRecovery.swift"):
+    for name in ("XPCReconnectPolicy.swift", "StateObserverRegistry.swift", "HelperBundleValidator.swift", "HelperRecovery.swift", "ProtectionFailureCopy.swift"):
         parts.append((app / "Core" / name).read_text())
     parts.append((fixtures / "MonitorTests.swift").read_text())
     return "\n".join(parts), hashlib.sha256(original.encode()).hexdigest()

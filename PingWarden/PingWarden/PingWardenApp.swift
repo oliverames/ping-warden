@@ -113,6 +113,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var gameModeObserver: NSObjectProtocol?
     private var menuMetricsObserver: NSObjectProtocol?
     private var windowObserver: NSObjectProtocol?
+    private var wakeObserver: NSObjectProtocol?
     private var settingsShortcutMonitor: Any?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
@@ -177,21 +178,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         LicenseManager.shared.reverifyAtLaunchIfNeeded()
 
         // The monitor only restores persisted protection when the gate
-        // already held before grandfathering ran. Settle the two cases
-        // that leaves: a freshly grandfathered install that still needs
-        // its restore, and a persisted intent whose entitlement is gone.
-        if PingWardenPreferences.shared.isMonitoringEnabled {
-            if LicenseManager.shared.canEnableProtection {
-                if !monitor.isMonitoringActive, !monitor.isMonitoringRequested,
-                   !protectionExperience.isPauseActive {
-                    Task { @MainActor in
-                        await self.protectionExperience.setPersistentProtection(true)
-                    }
-                }
-            } else {
-                log.info("Clearing persisted protection intent: license entitlement is gone")
-                protectionExperience.noteLaunchLicenseGate()
-            }
+        // already held before grandfathering ran. A freshly grandfathered
+        // install is restored by the launch reconcile below, which joins
+        // any enable already in flight. A persisted intent whose
+        // entitlement is gone is cleared here. Without an approved helper,
+        // the intent waits for Finish Setup: enabling now would open Login
+        // Items with no action from the person and stall for a minute.
+        switch ProtectionExperiencePolicy.launchIntentAction(
+            persistentProtectionEnabled: PingWardenPreferences.shared.isMonitoringEnabled,
+            licenseAllowsProtection: LicenseManager.shared.canEnableProtection,
+            helperRegistered: monitor.isHelperRegistered
+        ) {
+        case .none:
+            break
+        case .clearIntentForLicense:
+            log.info("Clearing persisted protection intent: license entitlement is gone")
+            protectionExperience.noteLaunchLicenseGate()
+        case .waitForSetup:
+            log.info("Saved protection intent is waiting for helper setup")
+            protectionExperience.noteSetupIncomplete()
         }
 
         // Check on launch and while the app is in use. The persisted timestamp
@@ -382,10 +387,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 self?.updateDockIconVisibility()
             }
         }
+
+        // Timers do not fire during sleep, and the helper can restart while
+        // the Mac sleeps. Recheck the pause and reconcile protection on wake.
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                await self.protectionExperience.handleSystemWake()
+                self.updateMenuBarIcon()
+                self.updateMenuItem()
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
+    }
+
+    /// Quit waits briefly for the helper to confirm the stop. Without the
+    /// wait, AWDL stays down until the helper notices the closed connection,
+    /// which can take up to a minute, and an enable still in flight could
+    /// land after the app is gone.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let waiting = protectionExperience.prepareForTermination {
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return waiting ? .terminateLater : .terminateNow
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -432,6 +463,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
         if let observer = windowObserver {
             NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
         if let settingsShortcutMonitor {
             NSEvent.removeMonitor(settingsShortcutMonitor)
@@ -1377,22 +1411,43 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
         lastToggleTime = now
 
-        guard PingWardenMonitor.shared.isHelperRegistered else {
+        // The item's title comes from the same decision, so what it says is
+        // what it does.
+        let action = protectionExperience.toggleAction()
+        guard action != .finishSetup else {
             showWelcomeWindow()
             return
         }
 
-        let shouldEnable = protectionExperience.pauseUntil != nil
-            || (!PingWardenMonitor.shared.isMonitoringRequested
-                && !PingWardenMonitor.shared.isMonitoringActive)
+        let shouldEnable = action == .turnOn
         Task {
             let succeeded = await protectionExperience.setPersistentProtection(shouldEnable)
             updateMenuItem()
-            if shouldEnable, !succeeded,
+            guard !succeeded else { return }
+            if shouldEnable,
                protectionExperience.lastError?.localizedCaseInsensitiveContains("license") == true {
                 presentLicenseDeniedAlert()
+            } else {
+                presentMenuActionFailure(
+                    title: shouldEnable
+                        ? "Ping Protection Could Not Turn On"
+                        : "Ping Protection Could Not Turn Off"
+                )
             }
         }
+    }
+
+    /// The menu has no place to show `lastError`, so an action started from
+    /// it reports a failure in one alert. Automated paths never do this;
+    /// their errors wait in the Dashboard and Settings.
+    private func presentMenuActionFailure(title: String) {
+        guard let message = protectionExperience.lastError else { return }
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     private func presentLicenseDeniedAlert() {
@@ -1423,10 +1478,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         Task {
             if protectionExperience.pauseUntil != nil {
                 await protectionExperience.resumeProtection()
+                updateMenuItem()
             } else {
                 await protectionExperience.pauseForTenMinutes()
+                updateMenuItem()
+                if protectionExperience.pauseUntil == nil, protectionExperience.lastError != nil {
+                    presentMenuActionFailure(title: "Ping Protection Could Not Pause")
+                }
             }
-            updateMenuItem()
         }
     }
 
@@ -2000,7 +2059,7 @@ struct GeneralSettingsContent: View {
                                         if success {
                                             monitorState.refresh()
                                         } else {
-                                            settingsErrorMessage = "The helper could not reset the intervention counter. Run the helper test in Advanced settings and try again."
+                                            settingsErrorMessage = "The helper could not reset the intervention counter. Open Advanced settings, click Repair, and try again."
                                         }
                                     }
                                 }
@@ -2106,13 +2165,14 @@ struct GeneralSettingsContent: View {
     private func finishSetup() {
         guard !isFinishingSetup else { return }
         isFinishingSetup = true
-        PingWardenMonitor.shared.repairHelperRegistration { success in
+        PingWardenMonitor.shared.repairHelperRegistration(presentsErrors: false) { success in
             Task { @MainActor in
                 guard success else {
                     isFinishingSetup = false
-                    settingsErrorMessage = PingWardenMonitor.shared.isHelperRegistered
-                        ? "The helper was approved but is not responding. Restart your Mac, then open Advanced settings and click Repair."
-                        : "Ping Warden is still waiting for approval in System Settings → General → Login Items."
+                    settingsErrorMessage = PingWardenMonitor.shared.lastSetupFailureMessage
+                        ?? (PingWardenMonitor.shared.isHelperRegistered
+                            ? "The helper was approved but is not responding. Restart your Mac, then open Advanced settings and click Repair."
+                            : "Ping Warden is still waiting for approval in System Settings → General → Login Items.")
                     return
                 }
                 let enabled = await protectionExperience.setPersistentProtection(true)
@@ -2602,13 +2662,24 @@ struct AdvancedSettingsContent: View {
 
             Section("Maintenance") {
                 LabeledContent {
-                    Button("Repair...") { showingRepairConfirm = true }
+                    Button {
+                        showingRepairConfirm = true
+                    } label: {
+                        if protectionExperience.isRepairingHelper {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Repair...")
+                        }
+                    }
                         .buttonStyle(.bordered)
-                        .disabled(protectionExperience.isBusy)
+                        .disabled(protectionExperience.isBusy || protectionExperience.isRepairingHelper)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Repair Helper Connection")
-                        Text("Reconnect the approved helper without changing your protection preference")
+                        Text(protectionExperience.isRepairingHelper
+                            ? "Repairing the helper connection..."
+                            : "Reconnect the approved helper without changing your protection preference")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -2723,10 +2794,11 @@ struct AdvancedSettingsContent: View {
 
     private func repairHelperConnection() {
         let shouldRemainEnabled = PingWardenPreferences.shared.isMonitoringEnabled
-        PingWardenMonitor.shared.repairHelperRegistration { repaired in
+        PingWardenMonitor.shared.repairHelperRegistration(presentsErrors: false) { repaired in
             Task { @MainActor in
                 guard repaired else {
-                    maintenanceErrorMessage = "The helper still is not responding. Confirm that Ping Warden is allowed in System Settings → General → Login Items, restart your Mac, and then click Repair again."
+                    maintenanceErrorMessage = PingWardenMonitor.shared.lastSetupFailureMessage
+                        ?? "The helper still is not responding. Confirm that Ping Warden is allowed in System Settings → General → Login Items, restart your Mac, and then click Repair again."
                     return
                 }
                 let restored = await protectionExperience.setPersistentProtection(shouldRemainEnabled)
@@ -2864,7 +2936,7 @@ struct AdvancedSettingsContent: View {
         if restored {
             return "\(cause) Your previous Ping Warden settings were restored, and no local data was erased."
         }
-        return "\(cause) Ping Warden could not fully restore the prior state. Open Ping Warden again, run the helper test, and review Launch at Login before retrying. No local data was erased."
+        return "\(cause) Ping Warden could not fully restore the prior state. Open Advanced settings, click Repair, and review Launch at Login before retrying. No local data was erased."
     }
 
     private func clearLocalDataForRemoval() throws {

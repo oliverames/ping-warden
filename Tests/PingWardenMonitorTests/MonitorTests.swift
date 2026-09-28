@@ -146,6 +146,9 @@ do {
     defer { monitor.harnessDispose() }
     let initial = confirmed(monitor)
     let baseline = NSXPCConnection.instances.count
+    let alerts = NSAlert.messages.count
+    let reported = LockedValue<[String]>([])
+    monitor.automatedErrorHandler = { message in reported.withValue { $0.append(message) } }
     initial.interruptionHandler?()
     spin()
     for delay in [1.05, 2.05, 4.05] {
@@ -159,7 +162,12 @@ do {
           "exhausted retries must leave honest stopped state")
     check(monitor.harnessRetries == 4 && NSXPCConnection.instances.count == baseline + 3,
           "dead helper produces exactly three replacement attempts")
-    check(NSAlert.messages.last?.contains("Lost connection") == true, "exhaustion reports recoverable user error")
+    spin()
+    check(reported.withValue { $0 }.count == 1 && reported.withValue { $0 }.first?.contains("Lost connection") == true,
+          "exhaustion reports recoverable user error")
+    check(reported.withValue { $0 }.first?.contains("click Repair") == true,
+          "exhaustion points to Repair, not to restarting the app")
+    check(NSAlert.messages.count == alerts, "automated reconnect exhaustion must never raise an alert")
 }
 
 // Rechecking a confirmed positive state cannot transiently end a session.

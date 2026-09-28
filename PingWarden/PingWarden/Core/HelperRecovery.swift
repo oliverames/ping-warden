@@ -3,11 +3,51 @@
 
 import Foundation
 
+/// Why a request to the helper did not succeed. Only `.declined` means the
+/// helper actually answered; every other case means it never did.
+enum HelperCommandFailure: Equatable, Sendable {
+    /// No XPC connection could be created.
+    case noConnection
+    /// The helper never replied within the command's deadline.
+    case timedOut
+    /// The connection failed with an XPC error, for example because the
+    /// helper refused it or was not running (4097, 4099, or a code-signing
+    /// requirement failure).
+    case rejected(code: Int)
+    /// The helper replied and reported that the change failed.
+    case declined
+
+    var helperDidNotAnswer: Bool {
+        self != .declined
+    }
+
+    /// Short clause for diagnostics and the helper test, such as
+    /// "the helper rejected the connection".
+    var diagnosticDescription: String {
+        switch self {
+        case .noConnection:
+            return "no connection to the helper could be made"
+        case .timedOut:
+            return "the helper did not answer (timed out)"
+        case .rejected(let code) where code == HelperRecovery.xpcConnectionInterruptedCode:
+            return "the connection to the helper was interrupted (XPC error \(code))"
+        case .rejected(let code):
+            return "the helper rejected the connection (XPC error \(code))"
+        case .declined:
+            return "the helper reported a failure"
+        }
+    }
+}
+
 /// Pure decisions for a helper whose system registration and launchd job
 /// disagree. Background Task Management can report the helper as enabled
 /// while launchd never starts it, so every XPC request times out. These
 /// rules keep that state from producing false errors or false successes.
 enum HelperRecovery {
+    /// `NSXPCConnectionInterrupted`, kept here so the rule stays
+    /// Foundation-only and testable.
+    static let xpcConnectionInterruptedCode = 4097
+
     /// Reads an `ifconfig awdl0` flags line such as
     /// `awdl0: flags=8943<UP,BROADCAST,RUNNING> mtu 1484`.
     /// Returns `nil` when the line carries no flag list, for example when
@@ -24,19 +64,45 @@ enum HelperRecovery {
         return flags.contains("UP")
     }
 
-    /// Turning Ping Protection off needs no helper command when this app
-    /// neither requested nor confirmed protection and AWDL is demonstrably
-    /// available: either the helper last confirmed the interface up, or the
-    /// interface reads up right now. The helper keeps awdl0 down while it
-    /// enforces, so an interface that is up is not being blocked. When the
-    /// interface cannot be read, the helper stays the only authority.
-    static func disableAlreadySatisfied(
-        isRequested: Bool,
-        isActive: Bool,
-        lastKnownState: String,
+    struct InterfaceHealth: Equatable, Sendable {
+        let isHealthy: Bool
+        let summary: String
+    }
+
+    /// The helper test's reading of awdl0. Only an interface that reads up
+    /// while protection is requested is a failure; a Mac without awdl0 has
+    /// nothing to block, not an interface that is "still up".
+    static func interfaceHealth(protectionRequested: Bool, interfaceUp: Bool?) -> InterfaceHealth {
+        switch interfaceUp {
+        case .some(true) where protectionRequested:
+            return InterfaceHealth(
+                isHealthy: false,
+                summary: "Protection is active, but the wireless interface is still up. The helper may not be working."
+            )
+        case .some(true):
+            return InterfaceHealth(isHealthy: true, summary: "Ping Protection is off.")
+        case .some(false):
+            return InterfaceHealth(isHealthy: true, summary: "Ping Protection is on.")
+        case .none:
+            return InterfaceHealth(isHealthy: true, summary: "This Mac has no awdl0 interface to block.")
+        }
+    }
+
+    /// Turning Ping Protection off always asks the helper first, because
+    /// only the helper knows whether it is still enforcing; a single
+    /// interface sample can catch the instant macOS re-raised awdl0 while
+    /// the helper holds it down. This rule decides whether Off may still
+    /// report success after that stop failed or went unanswered: only when
+    /// this app neither requested, confirmed, nor had an enable pending,
+    /// and awdl0 reads up now. When the interface cannot be read, the
+    /// failure stands.
+    static func offSatisfiedWithoutHelper(
+        wasRequested: Bool,
+        wasActive: Bool,
+        enablePending: Bool,
         interfaceUp: Bool?
     ) -> Bool {
-        guard !isRequested, !isActive else { return false }
-        return lastKnownState == "up" || interfaceUp == true
+        guard !wasRequested, !wasActive, !enablePending else { return false }
+        return interfaceUp == true
     }
 }
