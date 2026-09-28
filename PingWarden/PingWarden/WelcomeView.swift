@@ -7,10 +7,12 @@ import ServiceManagement
 // MARK: - Welcome View
 
 struct WelcomeView: View {
-    static let defaultSize = NSSize(width: 540, height: 640)
+    static let defaultSize = NSSize(width: 540, height: 680)
 
     private enum SetupState: String, Equatable {
         case idle
+        /// Repair is confirming or rebuilding an already approved helper.
+        case checking
         case waiting
         case complete
         case failed
@@ -22,6 +24,7 @@ struct WelcomeView: View {
 
     var onOpenLicenseSettings: () -> Void = {}
     @ObservedObject private var license = LicenseManager.shared
+    @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var setupState: SetupState = {
@@ -71,7 +74,7 @@ struct WelcomeView: View {
                 Image(nsImage: NSApplication.shared.applicationIconImage)
                     .resizable()
                     .interpolation(.high)
-                    .frame(width: 88, height: 88)
+                    .frame(width: 80, height: 80)
                     .accessibilityHidden(true)
 
                 Text("Welcome to Ping Warden")
@@ -80,14 +83,14 @@ struct WelcomeView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Reduce AWDL-related stutter when you cloud game on a Mac.")
+                Text("Keep your Wi\u{2011}Fi steady while you cloud game on a Mac.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.top, 28)
-            .padding(.bottom, 28)
+            .padding(.top, 24)
+            .padding(.bottom, 24)
 
             VStack(alignment: .leading, spacing: 20) {
                 WelcomeBenefitRow(
@@ -107,31 +110,23 @@ struct WelcomeView: View {
                 )
             }
             .frame(maxWidth: 400)
-
-            if !license.canEnableProtection {
-                VStack(spacing: 6) {
-                    Text("Ping Protection is a one-time $15 purchase.")
-                        .font(.callout)
-                    Button("Enter or Buy a License…", action: onOpenLicenseSettings)
-                        .buttonStyle(.link)
-                        .font(.callout)
-                }
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 24)
-            }
         }
         .padding(.horizontal, 40)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity)
     }
 
+    // The footer sits outside the scroll view, so the license line stays
+    // visible whichever setup state grows the callout above the buttons.
     private var setupFooter: some View {
         VStack(spacing: 14) {
             setupCallout
                 .frame(maxWidth: 400)
             setupButtons
-            Text("Anonymous crash reporting is on by default unless you have saved a different choice. You can turn it off in Settings → Advanced → Privacy.")
+            if !license.canEnableProtection {
+                licenseLine
+            }
+            Text("Ping Warden sends anonymous crash reports. You can turn this off in Settings → Advanced.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -144,64 +139,112 @@ struct WelcomeView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var licenseLine: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                licenseLineText
+                licenseLineButton
+            }
+            VStack(spacing: 4) {
+                licenseLineText
+                licenseLineButton
+            }
+        }
+        .font(.callout)
+        .multilineTextAlignment(.center)
+    }
+
+    private var licenseLineText: some View {
+        Text("Ping Protection is a one-time $15 purchase.")
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var licenseLineButton: some View {
+        Button("Enter or Buy a License…", action: onOpenLicenseSettings)
+            .buttonStyle(.link)
+    }
+
     @ViewBuilder
     private var setupCallout: some View {
         switch setupState {
         case .idle:
-            Text("Setup asks for one approval in Login Items.")
+            Text("Setup asks for one approval in \(SystemSettingsCopy.loginItemsPaneName).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+        case .checking:
+            progressCallout(
+                title: "Checking the helper…",
+                detail: "Ping Warden is confirming that its helper responds."
+            )
         case .waiting:
-            HStack(spacing: 12) {
-                ProgressView()
-                    .controlSize(.small)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Waiting for approval")
-                        .font(.headline)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("In System Settings, allow Ping Warden under Login Items, then return here.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
+            progressCallout(
+                title: "Waiting for approval",
+                detail: "In System Settings, allow Ping Warden under \(SystemSettingsCopy.loginItemsPaneName), then return here."
+            )
         case .complete:
             Label(PingWardenMonitor.shared.isMonitoringActive
                 ? "Setup complete. Ping Protection is on."
                 : "Helper ready. Ping Protection is off.", systemImage: "checkmark.circle.fill")
                 .font(.headline)
                 .foregroundStyle(.green)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
         case .failed:
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(spacing: 4) {
                 Label("Setup did not finish", systemImage: "exclamationmark.triangle.fill")
                     .font(.headline)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Approve Ping Warden in Login Items, then try again. If it is already allowed, restart your Mac, then open Advanced settings and click Repair.")
+                Text("Allow Ping Warden in \(SystemSettingsCopy.loginItemsPath), then click Try Again. If it is already allowed, restart your Mac and click Try Again.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .multilineTextAlignment(.center)
+            .accessibilityElement(children: .combine)
         }
+    }
+
+    private func progressCallout(title: String, detail: String) -> some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(title)
+                    .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(detail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .multilineTextAlignment(.center)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var primaryAction: WelcomeSetupPolicy.PrimaryAction {
+        WelcomeSetupPolicy.primaryAction(canEnableProtection: license.canEnableProtection)
     }
 
     private var setupButtons: some View {
         VStack(spacing: 12) {
             switch setupState {
             case .complete:
-                openDashboardButton
+                openDashboardButton(prominent: true)
             case .waiting:
                 openLoginItemsButton
                 laterButton
-            case .idle, .failed:
-                setupButton
+            case .idle, .checking, .failed:
+                switch primaryAction {
+                case .setUpProtection:
+                    setupButton(prominent: true)
+                case .openDashboard:
+                    openDashboardButton(prominent: true)
+                    setupButton(prominent: false)
+                }
                 laterButton
             }
         }
@@ -227,7 +270,7 @@ struct WelcomeView: View {
         Button {
             SMAppService.openSystemSettingsLoginItems()
         } label: {
-            Text("Open Login Items")
+            Text("Open \(SystemSettingsCopy.loginItemsPaneName)")
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
@@ -237,28 +280,65 @@ struct WelcomeView: View {
         .accessibilityIdentifier("welcome.openLoginItems")
     }
 
-    private var setupButton: some View {
-        Button {
-            setupState = .waiting
-            onSetup { success in
-                DispatchQueue.main.async {
-                    setupState = success ? .complete : .failed
-                }
-            }
-        } label: {
-            Text(license.canEnableProtection ? "Turn On Ping Protection" : "Set Up Ping Warden")
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity)
-        }
-        .keyboardShortcut(.defaultAction)
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-        .accessibilityIdentifier("welcome.setup")
+    private var setupButtonTitle: String {
+        if setupState == .failed { return "Try Again" }
+        return license.canEnableProtection ? "Turn On Ping Protection" : "Set Up Ping Protection"
     }
 
-    private var openDashboardButton: some View {
-        Button {
+    /// A repair started here or from Settings must not start twice: a
+    /// second one would unregister the helper the first just rebuilt.
+    private var setupInProgress: Bool {
+        setupState == .checking || protectionExperience.isRepairingHelper
+    }
+
+    private func startSetup() {
+        guard !setupInProgress else { return }
+        switch WelcomeSetupPolicy.progress(helperRegistered: PingWardenMonitor.shared.isHelperRegistered) {
+        case .checkingHelper:
+            setupState = .checking
+        case .waitingForApproval:
+            setupState = .waiting
+        }
+        onSetup { success in
+            DispatchQueue.main.async {
+                setupState = success ? .complete : .failed
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func setupButton(prominent: Bool) -> some View {
+        let button = Button(action: startSetup) {
+            ZStack {
+                Text(setupButtonTitle)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .opacity(setupInProgress ? 0 : 1)
+                if setupInProgress {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .disabled(setupInProgress)
+        .controlSize(.large)
+        .accessibilityLabel(setupButtonTitle)
+        .accessibilityIdentifier("welcome.setup")
+
+        if prominent {
+            button
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+        } else {
+            button
+                .buttonStyle(.bordered)
+        }
+    }
+
+    @ViewBuilder
+    private func openDashboardButton(prominent: Bool) -> some View {
+        let button = Button {
             onOpenDashboard()
         } label: {
             Text("Open Dashboard")
@@ -266,10 +346,17 @@ struct WelcomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
         }
-        .keyboardShortcut(.defaultAction)
-        .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .accessibilityIdentifier("welcome.openDashboard")
+
+        if prominent {
+            button
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+        } else {
+            button
+                .buttonStyle(.bordered)
+        }
     }
 }
 
