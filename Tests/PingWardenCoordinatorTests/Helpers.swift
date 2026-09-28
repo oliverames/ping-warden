@@ -63,6 +63,33 @@ func spin(_ seconds: Double = 0.03) {
     let until = Date().addingTimeInterval(seconds)
     while Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.003)) }
 }
+/// The monitor's current connection, waiting for one to exist (or, with
+/// `previous`, for a replacement) rather than for a fixed delay that a
+/// loaded machine can outrun. A timed-out wait returns whatever is current
+/// so the calling check reports the failure.
+func awaitConnection(replacing previous: NSXPCConnection? = nil, timeout: Double = 3) -> NSXPCConnection {
+    spin(until: {
+        guard let current = monitor.harnessConnection else { return false }
+        return previous.map { current !== $0 } ?? true
+    }, timeout: timeout)
+    guard let connection = monitor.harnessConnection else {
+        preconditionFailure("harness: the monitor never created a connection")
+    }
+    return connection
+}
+
+/// Waits until the fixture helper has received at least `count` protection
+/// commands.
+func awaitCommands(on connection: NSXPCConnection, count: Int = 1, timeout: Double = 3) {
+    spin(until: { connection.helper.commands.count >= count }, timeout: timeout)
+}
+
+/// Waits until the fixture helper has received at least `count` version
+/// requests.
+func awaitVersionRequests(on connection: NSXPCConnection, count: Int = 1, timeout: Double = 3) {
+    spin(until: { connection.helper.versions.count >= count }, timeout: timeout)
+}
+
 func spin(until condition: () -> Bool, timeout: Double) {
     let deadline = Date().addingTimeInterval(timeout)
     while !condition() && Date() < deadline { spin(0.01) }
@@ -153,8 +180,8 @@ func launchVoid(_ action: @escaping @MainActor () async -> Void) -> LockedValue<
 /// Turn protection on through the coordinator with an answering helper.
 @MainActor func turnOnThroughCoordinator() -> NSXPCConnection {
     let result = launch { await coordinator.setPersistentProtection(true) }
-    spin()
-    let connection = monitor.harnessConnection!
+    let connection = awaitConnection()
+    awaitCommands(on: connection)
     connection.helper.versions.forEach { $0("fixture-helper") }
     connection.helper.versions.removeAll()
     connection.helper.commands.removeFirst().1(true)

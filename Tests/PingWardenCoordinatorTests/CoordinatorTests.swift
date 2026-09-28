@@ -65,8 +65,8 @@ do {
     let alerts = NSAlert.messages.count
     let started = Date()
     let off = launch { await coordinator.setPersistentProtection(false) }
-    spin()
-    let connection = monitor.harnessConnection!
+    let connection = awaitConnection()
+    awaitCommands(on: connection)
     check(connection.helper.commands.map(\.0) == [true], "B1: Off asks the helper first")
     connection.failProxies(code: xpcConnectionInvalid)
     spin(until: { off.withValue { $0 } != nil }, timeout: 3)
@@ -173,8 +173,10 @@ do {
     monitor.startMonitoring(persistUserPreference: false)
     let a = launch { await coordinator.setPersistentProtection(true) }
     let b = launch { await coordinator.setPersistentProtection(true) }
-    spin()
-    let connection = monitor.harnessConnection!
+    let connection = awaitConnection()
+    awaitCommands(on: connection)
+    // Give any duplicate enable time to arrive before counting.
+    spin(0.05)
     check(connection.helper.commands.map(\.0) == [false], "B12: launch sends one enable, not three")
     check(MainActor.assumeIsolated { coordinator.isBusy }, "B12: the coordinator stays busy while the shared enable is in flight")
     let off = launch { await coordinator.setPersistentProtection(false) }
@@ -218,8 +220,8 @@ do {
 do {
     MainActor.assumeIsolated { resetAll() }
     let start = launchVoid { await coordinator.setGameModeActive(true) }
-    spin()
-    let connection = monitor.harnessConnection!
+    let connection = awaitConnection()
+    awaitCommands(on: connection)
     check(connection.helper.commands.map(\.0) == [false], "B13: Game Mode sends an enable")
     let end = launchVoid { await coordinator.setGameModeActive(false) }
     spin()
@@ -242,8 +244,8 @@ do {
     let token = monitor.addStateObserver { Task { @MainActor in coordinator.refreshFromMonitor() } }
     defer { monitor.removeStateObserver(token) }
     let started = launchVoid { await coordinator.setGameModeActive(true) }
-    spin()
-    let first = monitor.harnessConnection!
+    let first = awaitConnection()
+    awaitCommands(on: first)
     first.helper.commands.removeFirst().1(true)
     spin(until: { started.withValue { $0 } }, timeout: 2)
     check(MainActor.assumeIsolated { session.isActive }, "B3: the Game Mode session starts")
@@ -256,9 +258,9 @@ do {
     check(monitor.isMonitoringRequested, "B3: protection stays requested while reconnecting")
     check(MainActor.assumeIsolated { coordinator.menuPresentation().statusTitle } == "Status: Restoring Protection",
           "B3: the status says protection is being restored")
-    spin(1.0)
-    let replacement = monitor.harnessConnection!
+    let replacement = awaitConnection(replacing: first)
     check(replacement !== first, "B3: the reconnect builds a replacement connection")
+    awaitVersionRequests(on: replacement)
     replacement.helper.versions.removeFirst()("fixture-helper")
     spin()
     check(replacement.helper.commands.map(\.0) == [false], "B3: the replacement reasserts protection")
@@ -276,8 +278,8 @@ do {
     let token = monitor.addStateObserver { Task { @MainActor in coordinator.refreshFromMonitor() } }
     defer { monitor.removeStateObserver(token) }
     let started = launchVoid { await coordinator.setGameModeActive(true) }
-    spin()
-    let first = monitor.harnessConnection!
+    let first = awaitConnection()
+    awaitCommands(on: first)
     first.helper.commands.removeFirst().1(true)
     spin(until: { started.withValue { $0 } }, timeout: 2)
     let alerts = NSAlert.messages.count
@@ -466,8 +468,8 @@ do {
           "B9: setup shows the not-responding message")
     let probe = LockedValue<Bool?>(nil)
     monitor.confirmHelperResponds(attempts: 1) { ok in probe.withValue { $0 = ok } }
-    spin()
-    let connection = monitor.harnessConnection!
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
     connection.helper.versions.removeFirst()("fixture-helper")
     spin(0.2)
     check(probe.withValue { $0 } == true, "B9: the probe sees the helper answer")
@@ -494,8 +496,8 @@ do {
 do {
     MainActor.assumeIsolated { resetAll() }
     let pending = launch { await coordinator.setPersistentProtection(true) }
-    spin()
-    let connection = monitor.harnessConnection!
+    let connection = awaitConnection()
+    awaitCommands(on: connection)
     let quit = LockedValue(false)
     let waiting = MainActor.assumeIsolated {
         coordinator.prepareForTermination { quit.withValue { $0 = true } }
