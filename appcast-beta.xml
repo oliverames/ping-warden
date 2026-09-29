@@ -10,7 +10,7 @@
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.3.1</link>
       <sparkle:version>43100</sparkle:version>
       <sparkle:shortVersionString>4.3.1</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -63,16 +63,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
 &lt;ul&gt;
 &lt;li&gt;Without a license or an active transition, the dashboard offers purchase and license activation in place of Latency Session controls that cannot start. Existing customers can enter or reverify a key, and past recaps stay available.&lt;/li&gt;
 &lt;li&gt;&lt;strong&gt;Control Center Only&lt;/strong&gt; and the earlier &lt;strong&gt;Hide Menu Bar Icon&lt;/strong&gt; choice move from Automation to General. Saved choices are unchanged.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2&gt;New since 4.0&lt;/h2&gt;
-&lt;ul&gt;
-&lt;li&gt;Game Mode can detect a recognized frontmost game without Screen Recording permission. Optional Screen Recording access also enables fullscreen-window detection. Automatic activation skips Ethernet and rechecks when the network changes.&lt;/li&gt;
-&lt;li&gt;Latency Sessions record a protected game or call and produce a local recap. Starting a session requires a license or an active transition. The dashboard, diagnostics, and past recaps remain free.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2&gt;Updating&lt;/h2&gt;
-&lt;p&gt;Use &lt;strong&gt;Check for Updates&lt;/strong&gt;, or download the current DMG and replace the app in Applications. Version 2.0.5 and earlier require a manual download.&lt;/p&gt;
-&lt;p&gt;Ping Protection, including starting a Latency Session, requires a one-time $15 license or an active transition. Updates preserve eligible existing users' original 90-day transition deadline. The dashboard, diagnostics, and past session recaps remain free. The source remains MIT-licensed.&lt;/p&gt;
-      </description>
+&lt;/ul&gt;</description>
       <pubDate>Tue, 29 Sep 2026 13:06:50 +0000</pubDate>
       <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.3.1/PingWarden-4.3.1.dmg" sparkle:version="43100" sparkle:shortVersionString="4.3.1" length="6007581" type="application/octet-stream" sparkle:edSignature="apwkoBw1ATOI3TXFMjjf9oMSRF9YMOn0I5K2R4oZYWzRkxa73CWhCxPPa7vvOK4xcRU5M331UmwdbkahG22jAw==" />
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
@@ -83,7 +74,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.3.0</link>
       <sparkle:version>43000</sparkle:version>
       <sparkle:shortVersionString>4.3.0</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -166,7 +157,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.2.1</link>
       <sparkle:version>42100</sparkle:version>
       <sparkle:shortVersionString>4.2.1</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -243,7 +234,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.2.0</link>
       <sparkle:version>42000</sparkle:version>
       <sparkle:shortVersionString>4.2.0</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -323,7 +314,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.9</link>
       <sparkle:version>41900</sparkle:version>
       <sparkle:shortVersionString>4.1.9</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -395,7 +386,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.8</link>
       <sparkle:version>41800</sparkle:version>
       <sparkle:shortVersionString>4.1.8</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -472,7 +463,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.7</link>
       <sparkle:version>41700</sparkle:version>
       <sparkle:shortVersionString>4.1.7</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -541,7 +532,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.6</link>
       <sparkle:version>41600</sparkle:version>
       <sparkle:shortVersionString>4.1.6</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -611,7 +602,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.5</link>
       <sparkle:version>41500</sparkle:version>
       <sparkle:shortVersionString>4.1.5</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -674,7 +665,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.4</link>
       <sparkle:version>41400</sparkle:version>
       <sparkle:shortVersionString>4.1.4</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -735,7 +726,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.3</link>
       <sparkle:version>41300</sparkle:version>
       <sparkle:shortVersionString>4.1.3</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -795,7 +786,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.2</link>
       <sparkle:version>41200</sparkle:version>
       <sparkle:shortVersionString>4.1.2</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -857,7 +848,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.1</link>
       <sparkle:version>41100</sparkle:version>
       <sparkle:shortVersionString>4.1.1</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -927,7 +918,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.1.0</link>
       <sparkle:version>41000</sparkle:version>
       <sparkle:shortVersionString>4.1.0</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -988,7 +979,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.4</link>
       <sparkle:version>40004</sparkle:version>
       <sparkle:shortVersionString>4.0.4</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -1049,7 +1040,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.3</link>
       <sparkle:version>40003</sparkle:version>
       <sparkle:shortVersionString>4.0.3</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -1111,7 +1102,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.2</link>
       <sparkle:version>40002</sparkle:version>
       <sparkle:shortVersionString>4.0.2</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -1181,7 +1172,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.1</link>
       <sparkle:version>40001</sparkle:version>
       <sparkle:shortVersionString>4.0.1</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -1248,7 +1239,7 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.0.0</link>
       <sparkle:version>40000</sparkle:version>
       <sparkle:shortVersionString>4.0.0</sparkle:shortVersionString>
-      <description>&lt;p&gt;&lt;strong&gt;Upgrading from Ping Warden 3 or earlier?&lt;/strong&gt; Your protection keeps working when you update. If it was enabled with the helper approved, updating starts a 90-day transition that begins at your first launch of version 4. That offer has no expiry date, so it is the same 90 days whenever you update. After it ends, keeping Ping Protection in the signed app is a one-time $15. The dashboard, latency history, diagnostics, and updates stay free, and the source remains MIT. Licenses are what fund continued development, and the support means a lot. Donated through Buy Me a Coffee before version 4? Email &lt;a href="mailto:oliver@ames.consulting"&gt;oliver@ames.consulting&lt;/a&gt; with your receipt and it will be honored as a full license. &lt;a href="https://pingwarden.app/docs/overview#pricing"&gt;Pricing and transition details&lt;/a&gt;.&lt;/p&gt;&lt;style&gt;
+      <description>&lt;style&gt;
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -2109,6 +2100,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: BEBHxKKghHrg4zPK0WTCf8kGUKdZ4sins7l2296PWfaxzChVhoxju0kQjWgz/hF5a/NCu153xgBcPElnBCmTBQ==
-length: 142804
+edSignature: NVtsiJwQVRSYLA/OA1epIi4JXigN9dHD3T5KmWAuuB3N2R0hEeeVHE+9PDpNrLvUHaxgEnevyzCfzzAcXauFDQ==
+length: 124923
 -->

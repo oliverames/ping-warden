@@ -166,10 +166,12 @@ class AppcastTests(unittest.TestCase):
           <description>Changes</description><enclosure url="https://example.invalid/{version}.dmg" />
         </item>''')
 
-    def test_paid_boundary_and_notice_survive_patch_releases(self):
+    def test_paid_boundary_survives_patch_releases_without_notice(self):
         item = self.item("4.0.2", "40002")
+        item.find("description").text = "<p><strong>Upgrading from Ping Warden 3 or earlier?</strong> Old notice.</p>Changes"
         appcast.normalize(item)
         self.assertEqual(item.findtext(f"{{{appcast.SPARKLE}}}minimumAutoupdateVersion"), "40000")
+        self.assertEqual(item.findtext("description"), "Changes")
         once = ET.tostring(item)
         appcast.normalize(item)
         self.assertEqual(ET.tostring(item), once)
