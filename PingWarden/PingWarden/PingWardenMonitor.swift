@@ -85,6 +85,15 @@ class PingWardenMonitor: @unchecked Sendable {
     /// switch toggle does not revoke an approval just granted.
     private var loginItemsHandoffDelay: TimeInterval = 10.0
 
+    /// Registering again moments after unregistering (Repair's rebuild) can
+    /// be refused with Operation not permitted while Background Task
+    /// Management still holds the old record, leaving the status Not
+    /// Registered with no approval pending. Polling retries register() at
+    /// this interval, up to `refusedRegistrationRetries` times, before the
+    /// Not Registered grace period can end the attempt.
+    private var registrationRetryInterval: TimeInterval = 2.0
+    private let refusedRegistrationRetries = 3
+
     /// Current XPC retry count (protected by stateLock)
     private var _xpcRetryCount = 0
 
@@ -262,6 +271,8 @@ class PingWardenMonitor: @unchecked Sendable {
     /// The register() error a poll started from, kept so a registration
     /// that never completes still reports what macOS said.
     private var registrationFailureDetail: String?
+    private var registrationRetriesRemaining = 0
+    private var registrationLastRetryAt: TimeInterval?
 
     /// Last helper registration status read from SMAppService, and when
     /// (system uptime). Protected by stateLock. Reading the status is a
@@ -621,6 +632,7 @@ class PingWardenMonitor: @unchecked Sendable {
                         presentsErrors: presentsErrors,
                         opensLoginItemsIfPending: true,
                         failureDetail: error.localizedDescription,
+                        retriesRefusedRegistration: failureStatus != .requiresApproval,
                         completion: completion
                     )
                 } else {
@@ -1702,6 +1714,7 @@ class PingWardenMonitor: @unchecked Sendable {
         presentsErrors: Bool,
         opensLoginItemsIfPending: Bool = false,
         failureDetail: String? = nil,
+        retriesRefusedRegistration: Bool = false,
         completion: (@Sendable (Bool) -> Void)?
     ) {
         if !Thread.isMainThread {
@@ -1710,6 +1723,7 @@ class PingWardenMonitor: @unchecked Sendable {
                     presentsErrors: presentsErrors,
                     opensLoginItemsIfPending: opensLoginItemsIfPending,
                     failureDetail: failureDetail,
+                    retriesRefusedRegistration: retriesRefusedRegistration,
                     completion: completion
                 )
             }
@@ -1728,6 +1742,8 @@ class PingWardenMonitor: @unchecked Sendable {
         registrationLastPolledStatus = nil
         registrationOpensLoginItemsIfPending = opensLoginItemsIfPending
         registrationFailureDetail = failureDetail
+        registrationRetriesRemaining = retriesRefusedRegistration ? refusedRegistrationRetries : 0
+        registrationLastRetryAt = nil
 
         // Set up timeout timer
         registrationTimeoutTimer = Timer.scheduledTimer(withTimeInterval: registrationTimeoutSeconds, repeats: false) { [weak self] _ in
@@ -1772,7 +1788,13 @@ class PingWardenMonitor: @unchecked Sendable {
             // did not complete; a single read can be transient.
             let since = registrationNotRegisteredSince ?? now
             registrationNotRegisteredSince = since
-            guard now - since >= notRegisteredGraceSeconds else { return }
+            if registrationRetriesRemaining > 0,
+               now - (registrationLastRetryAt ?? registrationPollStartedAt) >= registrationRetryInterval {
+                retryRefusedRegistration(now: now)
+                return
+            }
+            guard registrationRetriesRemaining == 0,
+                  now - since >= notRegisteredGraceSeconds else { return }
             log.error("Helper registration did not complete")
             let detail = registrationFailureDetail.map { " \($0)" } ?? ""
             reportSetupFailure(
@@ -1794,6 +1816,22 @@ class PingWardenMonitor: @unchecked Sendable {
 
         @unknown default:
             break
+        }
+    }
+
+    /// Submit the registration again after an Operation not permitted
+    /// refusal left it Not Registered. Main-thread only.
+    private func retryRefusedRegistration(now: TimeInterval) {
+        registrationRetriesRemaining -= 1
+        registrationLastRetryAt = now
+        do {
+            try helperService.register()
+            let status = refreshHelperStatus()
+            log.notice("Registration retry submitted (status: \(self.statusDescription(status), privacy: .public))")
+            registrationNotRegisteredSince = nil
+        } catch let error as NSError {
+            log.notice("Registration retry refused (domain: \(error.domain, privacy: .public), code: \(error.code), \(self.registrationRetriesRemaining) left)")
+            registrationFailureDetail = error.localizedDescription
         }
     }
 

@@ -20,6 +20,7 @@ extension PingWardenMonitor {
         monitor.registrationPollInterval = 0.02
         monitor.notRegisteredGraceSeconds = 0.2
         monitor.loginItemsHandoffDelay = 0.3
+        monitor.registrationRetryInterval = 0.04
         return monitor
     }
     func harnessFastReplies() {
@@ -500,6 +501,62 @@ for error in [
           "the eventual failure keeps the error macOS reported")
     check(SMAppService.settingsOpenCalls == 0, "Login Items opens only for a registration awaiting approval")
     check(NSAlert.messages.count == alerts, "a silent registration failure must not show an alert")
+}
+
+// Repair's rebuild: register() right after unregister() is refused with
+// Operation not permitted and the status stays Not Registered while the old
+// record is removed. A later retry registers without new approval. Observed
+// on macOS 27.2 on September 29, 2026 with a signed fixture.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    SMAppService.fixtureRegistrationError = NSError(domain: "SMAppServiceErrorDomain", code: 1)
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    check(results.withValue { $0 }.isEmpty && SMAppService.registerCalls == 1,
+          "a refused re-registration waits instead of failing at once")
+    SMAppService.fixtureRegistrationError = nil
+    SMAppService.fixtureStatusAfterRegistration = .enabled
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
+    check(results.withValue { $0 } == [true], "a retried registration completes once")
+    check(SMAppService.registerCalls == 2, "one retry is enough once macOS accepts it")
+    check(SMAppService.settingsOpenCalls == 0 && monitor.lastSetupFailureMessage == nil,
+          "a retried registration neither opens Login Items nor leaves a failure")
+}
+
+// A refusal that persists is retried a bounded number of times.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    SMAppService.fixtureRegistrationError = NSError(domain: "SMAppServiceErrorDomain", code: 1)
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
+    spin(0.2)
+    check(results.withValue { $0 } == [false], "a persistent refusal completes false once")
+    check(SMAppService.registerCalls == 4, "a persistent refusal is retried three times, not in a loop")
+}
+
+// A fresh request that registers but never appears is not retried.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
+    check(SMAppService.registerCalls == 1, "only a refused registration is retried")
 }
 
 // Operation not permitted while macOS shows its approval notification, with
