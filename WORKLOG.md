@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-09-29 - #99 comparative investigation: likely 4.3.0 regression
+
+**Finding:** Commit 0de3f50 (Sept 28) removed the long-standing fallback that treated a permission-type `register()` error as pending approval. 4.3.0 now waits only if status reads exactly `.requiresApproval` right after the throw, and otherwise shows "could not register its helper. Try again." Apple DTS reports show SMAppService Code 1 "Operation not permitted" is the normal pending-approval result. The credited upstream (AWDLControl) ignores that error, never treats `NotRegistered` as terminal while polling, opens Login Items only on a second click, and allows 10 s for the first check-in. Ventura 13.1 to 13.3 had SMAppService daemon registration and notification bugs per Apple release notes.
+
+**Verification:** Git history read from tags v2.0.0 to v4.3.0. I confirmed the removed fallback myself in `git show v4.2.1` and `git show 0de3f50`. Upstream repos cloned read-only to the session scratchpad. Web findings are cited on #99. No code changed, and nothing ran on Ventura or Intel.
+
+**Left off at:** Six ranked fixes are on #99, awaiting Oliver's decision. The customer's log export is still pending.
+
 ## 2026-09-29 - Customer setup report investigated under #99
 
 **What changed:** A customer on a 2017 Intel MacBook Pro (Ventura) confirmed 4.3.0 works after a clean install, but first-time setup took three Finish Setup attempts and two password prompts. Apple's ServiceManagement docs show `requiresApproval` also means revoked consent and that daemon approval needs an admin password, so the notification's Allow plus a later switch flip reads as approve, then revoke. The docs also allow a transient `notRegistered` during re-registration, which the registration poll treats as terminal. This host's Sept 28 fixture logs hold no app-level record of the first-attempt Repair failure: the setup narration is info-level and never persisted, so only `SMAppService` status reads and launchd/BTM lines survive. Findings and four ranked recommendations are on #99.
