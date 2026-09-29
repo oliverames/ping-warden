@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-09-29 - Live setup acceptance and 4.3.1 preparation (#99)
+
+**What changed:** A signed `Ping Warden 92 Test` fixture on this Mac (macOS 27.2) reproduced #99. After `launchctl bootout` of an approved helper, Repair unregistered and re-registered about 30 ms later. `register()` threw SMAppService code 1 with the status Not Registered, while BTM still listed the old item as allowed. No notification appeared, and a second Repair succeeded. 6dd011a retries a refused registration every 2 s, up to three times. With it, the first Repair click recovered the helper in 3 s with no prompt. Fresh setup with notification approval also passed on the first attempt. Version 4.3.1 (43100) ships everything on main: the setup fix, #104's license offer, and Control Center settings in General. README, QUICKSTART and TROUBLESHOOTING now say General and note the 4.3.0 location.
+
+**Verification:** The release delta since v4.3.0 touches no license, seal, preference-storage, entitlement, helper, or Keychain file, and adds or removes no defaults key. Before commit, all local suites passed: site check, 245 Core, monitor, 111 coordinator, 204 helper checks in each sanitizer mode, 38 crash-reporter checks, and release tools. Fixture cleanup left no fixture data. Production executables and App Group preferences match the pre-test hashes, and AWDL is up. Full results are on #99.
+
+**Left off at:** Run `release.sh 4.3.1`, commit the signed appcast, and verify the published artifacts. Then draft Felix's follow-up asking him to test 4.3.1 and consider a Gumroad review or a r/GeForceNOW post.
+
 ## 2026-09-29 - Helper approval setup fix (#99), unreleased
 
 **What changed:** 7d393be makes first-time setup wait for approval instead of failing. The SMAppService or POSIX Operation not permitted error (code 1) counts as pending approval again, and Not Registered must persist for 10 s before polling fails. After a fresh registration, Login Items opens only if approval is still pending after 10 s, so it no longer competes with macOS's notification. A fresh helper gets five reply attempts, and setup logs at notice level.

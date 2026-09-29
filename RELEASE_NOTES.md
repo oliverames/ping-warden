@@ -1,3 +1,30 @@
+# Ping Warden 4.3.1
+
+This update makes helper setup and Repair finish on the first attempt, and gives Macs without a license a clearer way to activate Ping Protection.
+
+## Setup and Repair
+
+- Setup now waits for you to approve the helper instead of reporting that it could not be registered. On some Macs, setup previously needed several attempts.
+- Repair now recovers a helper that macOS lists as allowed but never starts, on the first attempt. This fixes the known limitation in 4.3.0.
+- For a new setup request, Ping Warden leaves approval to the macOS notification and opens Login Items only if approval is still pending after 10 seconds. Approve once: turning the switch off and on again in Login Items withdraws the approval.
+- Setup steps are now recorded in the Mac's log, so support requests can be resolved faster.
+
+## Dashboard and settings
+
+- Without a license or an active transition, the dashboard offers purchase and license activation in place of Latency Session controls that cannot start. Existing customers can enter or reverify a key, and past recaps stay available.
+- **Control Center Only** and the earlier **Hide Menu Bar Icon** choice move from Automation to General. Saved choices are unchanged.
+
+## New since 4.0
+
+- Game Mode can detect a recognized frontmost game without Screen Recording permission. Optional Screen Recording access also enables fullscreen-window detection. Automatic activation skips Ethernet and rechecks when the network changes.
+- Latency Sessions record a protected game or call and produce a local recap. Starting a session requires a license or an active transition. The dashboard, diagnostics, and past recaps remain free.
+
+## Updating
+
+Use **Check for Updates**, or download the current DMG and replace the app in Applications. Version 2.0.5 and earlier require a manual download.
+
+Ping Protection, including starting a Latency Session, requires a one-time $15 license or an active transition. Updates preserve eligible existing users' original 90-day transition deadline. The dashboard, diagnostics, and past session recaps remain free. The source remains MIT-licensed.
+
 # Ping Warden 4.3.0
 
 This update improves helper setup and recovery, adds an icon-free Control Center mode, and restores the dashboard's Liquid Glass cards.
