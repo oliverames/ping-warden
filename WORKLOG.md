@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-09-29 - Helper approval setup fix (#99), unreleased
+
+**What changed:** 7d393be makes first-time setup wait for approval instead of failing. The SMAppService or POSIX Operation not permitted error (code 1) counts as pending approval again, and Not Registered must persist for 10 s before polling fails. After a fresh registration, Login Items opens only if approval is still pending after 10 s, so it no longer competes with macOS's notification. A fresh helper gets five reply attempts, and setup logs at notice level.
+
+**Verification:** Universal unsigned Release build succeeded. Monitor checks passed, including nine new ones, and a mutation run that disabled the fixes produced 9 failures. 245 Core tests, 111 coordinator checks and 204 helper checks in each of the three sanitizer modes passed. The first attempt failed to build: the `SMAppServiceErrorDomain` constant requires macOS 15, so the fix matches the domain string.
+
+**Left off at:** No release, version bump, or release-notes change. The 4.3.0 "Repair can fail on its first attempt" note remains until a release ships this fix. The fix still needs a Ventura or Intel acceptance run. The customer log is pending.
+
 ## 2026-09-29 - #99 comparative investigation: likely 4.3.0 regression
 
 **Finding:** Commit 0de3f50 (Sept 28) removed the long-standing fallback that treated a permission-type `register()` error as pending approval. 4.3.0 now waits only if status reads exactly `.requiresApproval` right after the throw, and otherwise shows "could not register its helper. Try again." Apple DTS reports show SMAppService Code 1 "Operation not permitted" is the normal pending-approval result. The credited upstream (AWDLControl) ignores that error, never treats `NotRegistered` as terminal while polling, opens Login Items only on a second click, and allows 10 s for the first check-in. Ventura 13.1 to 13.3 had SMAppService daemon registration and notification bugs per Apple release notes.
