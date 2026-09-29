@@ -65,6 +65,26 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Pause between attempts while confirming the helper answers.
     private var helperRetryDelay: TimeInterval = 1.0
 
+    /// Reply attempts for a helper that was just registered or approved.
+    /// launchd starts it on the first connection, which can take longer
+    /// than an established helper on older Macs.
+    private let freshRegistrationConfirmAttempts = 5
+
+    /// How often registration polling reads the approval status.
+    private var registrationPollInterval: TimeInterval = 1.0
+
+    /// How long a Not Registered status must persist before polling treats
+    /// it as a failed registration. Apple documents Not Registered for a
+    /// service that re-registers, so a single read can be transient while
+    /// Background Task Management processes an approval.
+    private var notRegisteredGraceSeconds: TimeInterval = 10.0
+
+    /// After a fresh registration, macOS shows its own approval
+    /// notification. Login Items opens only if approval is still pending
+    /// after this delay, so the two surfaces do not compete and a second
+    /// switch toggle does not revoke an approval just granted.
+    private var loginItemsHandoffDelay: TimeInterval = 10.0
+
     /// Current XPC retry count (protected by stateLock)
     private var _xpcRetryCount = 0
 
@@ -232,6 +252,16 @@ class PingWardenMonitor: @unchecked Sendable {
 
     /// Timer for registration timeout (main-thread confined)
     private var registrationTimeoutTimer: Timer?
+
+    /// Progress of the in-flight registration poll, in system uptime
+    /// (main-thread confined). Reset by each new poll.
+    private var registrationPollStartedAt: TimeInterval = 0
+    private var registrationNotRegisteredSince: TimeInterval?
+    private var registrationLastPolledStatus: SMAppService.Status?
+    private var registrationOpensLoginItemsIfPending = false
+    /// The register() error a poll started from, kept so a registration
+    /// that never completes still reports what macOS said.
+    private var registrationFailureDetail: String?
 
     /// Last helper registration status read from SMAppService, and when
     /// (system uptime). Protected by stateLock. Reading the status is a
@@ -516,9 +546,9 @@ class PingWardenMonitor: @unchecked Sendable {
         presentsErrors: Bool = true,
         completion: (@Sendable (Bool) -> Void)? = nil
     ) {
-        log.info("┌─────────────────────────────────────────────────────┐")
-        log.info("│ registerHelper() called                             │")
-        log.info("└─────────────────────────────────────────────────────┘")
+        // Setup steps log at notice level so a customer's `log show` export
+        // keeps them; info-level messages are held in memory only.
+        log.notice("registerHelper() called")
 
         // Validate helper bundle before attempting registration
         if let failure = validateHelperBundle() {
@@ -535,49 +565,64 @@ class PingWardenMonitor: @unchecked Sendable {
         let state = signposter.beginInterval("RegisterHelper", id: signpostID)
 
         let currentStatus = refreshHelperStatus()
-        log.info("Current status: \(self.statusDescription(currentStatus))")
+        log.notice("Current status: \(self.statusDescription(currentStatus), privacy: .public)")
 
         switch currentStatus {
         case .enabled:
-            log.info("Helper already enabled")
+            log.notice("Helper already enabled")
             signposter.endInterval("RegisterHelper", state)
             connectXPC()
             completion?(true)
             return
 
         case .requiresApproval:
-            log.info("Helper requires approval - opening System Settings")
+            // An earlier registration is waiting. macOS shows no new
+            // notification for it, so Login Items is the approval surface.
+            log.notice("Helper requires approval - opening System Settings")
             SMAppService.openSystemSettingsLoginItems()
             startPollingForRegistration(presentsErrors: presentsErrors, completion: completion)
             signposter.endInterval("RegisterHelper", state)
             return
 
         case .notRegistered, .notFound:
-            log.info("Registering helper with SMAppService...")
+            log.notice("Registering helper with SMAppService...")
             do {
                 try helperService.register()
-                refreshHelperStatus()
-                log.info("Registration request submitted")
-                // Start polling for approval
-                startPollingForRegistration(presentsErrors: presentsErrors, completion: completion)
+                let submittedStatus = refreshHelperStatus()
+                log.notice("Registration request submitted (status: \(self.statusDescription(submittedStatus), privacy: .public))")
+                // macOS shows its own approval notification for a fresh
+                // registration. Login Items opens only if approval is still
+                // pending after the handoff delay.
+                startPollingForRegistration(
+                    presentsErrors: presentsErrors,
+                    opensLoginItemsIfPending: true,
+                    completion: completion
+                )
                 signposter.endInterval("RegisterHelper", state)
             } catch let error as NSError {
                 let failureStatus = refreshHelperStatus()
-                log.error("Registration failed: \(error.localizedDescription) (domain: \(error.domain, privacy: .public), code: \(error.code), status: \(self.statusDescription(failureStatus), privacy: .public))")
+                log.error("Registration failed: \(error.localizedDescription, privacy: .public) (domain: \(error.domain, privacy: .public), code: \(error.code), status: \(self.statusDescription(failureStatus), privacy: .public))")
                 signposter.endInterval("RegisterHelper", state)
 
                 // Registration can finish between the initial status check and
                 // register(). Treat its fresh status like the entry branches.
-                // Error domains and descriptions also cover unrelated failures.
+                // A daemon that still needs an administrator's approval throws
+                // Operation not permitted while macOS shows its notification,
+                // and on some systems the status has not yet moved to Requires
+                // Approval when this runs. Only that specific error waits;
+                // other domains and codes remain failures.
                 if failureStatus == .enabled {
-                    log.info("Helper is enabled after the registration request")
+                    log.notice("Helper is enabled after the registration request")
                     connectXPC()
                     completion?(true)
-                } else if failureStatus == .requiresApproval {
-                    log.info("Registration requires user approval - opening System Settings")
-                    SMAppService.openSystemSettingsLoginItems()
-                    // Start polling for the user to approve
-                    startPollingForRegistration(presentsErrors: presentsErrors, completion: completion)
+                } else if failureStatus == .requiresApproval || Self.isPendingApprovalError(error) {
+                    log.notice("Registration is waiting for approval")
+                    startPollingForRegistration(
+                        presentsErrors: presentsErrors,
+                        opensLoginItemsIfPending: true,
+                        failureDetail: error.localizedDescription,
+                        completion: completion
+                    )
                 } else {
                     reportSetupFailureOnMain(
                         "Ping Warden could not register its helper. Try again. \(error.localizedDescription)",
@@ -593,6 +638,17 @@ class PingWardenMonitor: @unchecked Sendable {
             signposter.endInterval("RegisterHelper", state)
             completion?(false)
         }
+    }
+
+    /// Whether `register()` failed because the daemon still needs an
+    /// administrator's approval. Apple's ServiceManagement reports this as
+    /// Operation not permitted (code 1) while its approval notification is
+    /// showing. Every other error is a real registration failure.
+    static func isPendingApprovalError(_ error: NSError) -> Bool {
+        // The SMAppServiceErrorDomain constant requires macOS 15; its value
+        // is used directly so macOS 13 and 14 match too.
+        (error.domain == "SMAppServiceErrorDomain" || error.domain == NSPOSIXErrorDomain)
+            && error.code == Int(EPERM)
     }
 
     /// Ask the helper for its version, retrying a few times so a daemon that
@@ -684,7 +740,10 @@ class PingWardenMonitor: @unchecked Sendable {
                         finish(false)
                         return
                     }
-                    self.confirmHelperResponds(completion: finish)
+                    self.confirmHelperResponds(
+                        attempts: self.freshRegistrationConfirmAttempts,
+                        completion: finish
+                    )
                 }
             }
         }
@@ -719,7 +778,7 @@ class PingWardenMonitor: @unchecked Sendable {
                 do {
                     try await SMAppService.daemon(plistName: plistName).unregister()
                     self.refreshHelperStatus()
-                    log.info("Stale helper registration removed")
+                    log.notice("Stale helper registration removed")
                 } catch {
                     // Continue: registering over a stale record can still
                     // recreate the job, and the final reply check decides.
@@ -1636,24 +1695,39 @@ class PingWardenMonitor: @unchecked Sendable {
     /// callers can reach this from any thread (the singleton's init runs on
     /// whichever thread first touches `shared`), and a Timer scheduled on a
     /// background thread's never-spun run loop would simply never fire.
+    /// `opensLoginItemsIfPending` follows a fresh registration: macOS shows
+    /// its own approval notification, so Login Items opens only if approval
+    /// is still pending after `loginItemsHandoffDelay`.
     private func startPollingForRegistration(
         presentsErrors: Bool,
+        opensLoginItemsIfPending: Bool = false,
+        failureDetail: String? = nil,
         completion: (@Sendable (Bool) -> Void)?
     ) {
         if !Thread.isMainThread {
             DispatchQueue.main.async { [weak self] in
-                self?.startPollingForRegistration(presentsErrors: presentsErrors, completion: completion)
+                self?.startPollingForRegistration(
+                    presentsErrors: presentsErrors,
+                    opensLoginItemsIfPending: opensLoginItemsIfPending,
+                    failureDetail: failureDetail,
+                    completion: completion
+                )
             }
             return
         }
 
-        log.debug("Starting registration polling (timeout: \(self.registrationTimeoutSeconds)s)...")
+        log.notice("Starting registration polling (timeout: \(self.registrationTimeoutSeconds)s, Login Items handoff: \(opensLoginItemsIfPending, privacy: .public))")
 
         // A superseded poll must still deliver its completion — callers
         // (e.g. startMonitoring's isRegisteringHelper flag) wait on it.
         finishRegistrationPolling(success: false, reason: "superseded by a new registration poll")
         pendingRegistrationCompletion = completion
         pendingRegistrationPresentsErrors = presentsErrors
+        registrationPollStartedAt = ProcessInfo.processInfo.systemUptime
+        registrationNotRegisteredSince = nil
+        registrationLastPolledStatus = nil
+        registrationOpensLoginItemsIfPending = opensLoginItemsIfPending
+        registrationFailureDetail = failureDetail
 
         // Set up timeout timer
         registrationTimeoutTimer = Timer.scheduledTimer(withTimeInterval: registrationTimeoutSeconds, repeats: false) { [weak self] _ in
@@ -1668,37 +1742,58 @@ class PingWardenMonitor: @unchecked Sendable {
         }
 
         // Set up polling timer
-        registrationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+        registrationTimer = Timer.scheduledTimer(withTimeInterval: registrationPollInterval, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
                 return
             }
+            self.pollRegistrationStatus()
+        }
+    }
 
-            let status = self.refreshHelperStatus()
-            log.debug("Polling: status = \(self.statusDescription(status))")
+    /// One registration poll. Main-thread only.
+    private func pollRegistrationStatus() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let status = refreshHelperStatus()
+        let now = ProcessInfo.processInfo.systemUptime
+        if status != registrationLastPolledStatus {
+            log.notice("Registration status: \(self.statusDescription(status), privacy: .public) after \(String(format: "%.1f", now - self.registrationPollStartedAt), privacy: .public)s")
+            registrationLastPolledStatus = status
+        }
 
-            switch status {
-            case .enabled:
-                log.info("✅ Helper registration approved")
-                self.connectXPC()
-                self.finishRegistrationPolling(success: true, reason: "approved")
+        switch status {
+        case .enabled:
+            log.notice("Helper registration approved")
+            connectXPC()
+            finishRegistrationPolling(success: true, reason: "approved")
 
-            case .notRegistered:
-                log.error("Helper registration did not complete")
-                self.reportSetupFailure(
-                    "Ping Warden could not complete helper registration. Try setting up Ping Protection again.",
-                    title: "Helper Setup Failed",
-                    presentsErrors: self.pendingRegistrationPresentsErrors
-                )
-                self.finishRegistrationPolling(success: false, reason: "not registered")
+        case .notRegistered:
+            // Only a Not Registered status that persists means the request
+            // did not complete; a single read can be transient.
+            let since = registrationNotRegisteredSince ?? now
+            registrationNotRegisteredSince = since
+            guard now - since >= notRegisteredGraceSeconds else { return }
+            log.error("Helper registration did not complete")
+            let detail = registrationFailureDetail.map { " \($0)" } ?? ""
+            reportSetupFailure(
+                "Ping Warden could not complete helper registration. Try setting up Ping Protection again.\(detail)",
+                title: "Helper Setup Failed",
+                presentsErrors: pendingRegistrationPresentsErrors
+            )
+            finishRegistrationPolling(success: false, reason: "not registered")
 
-            case .requiresApproval, .notFound:
-                // Keep polling
-                break
-
-            @unknown default:
-                break
+        case .requiresApproval, .notFound:
+            registrationNotRegisteredSince = nil
+            if status == .requiresApproval,
+               registrationOpensLoginItemsIfPending,
+               now - registrationPollStartedAt >= loginItemsHandoffDelay {
+                registrationOpensLoginItemsIfPending = false
+                log.notice("Approval still pending - opening System Settings")
+                SMAppService.openSystemSettingsLoginItems()
             }
+
+        @unknown default:
+            break
         }
     }
 
@@ -1713,7 +1808,7 @@ class PingWardenMonitor: @unchecked Sendable {
 
         guard let completion = pendingRegistrationCompletion else { return }
         pendingRegistrationCompletion = nil
-        log.debug("Registration polling finished (\(reason, privacy: .public))")
+        log.notice("Registration polling finished (\(reason, privacy: .public))")
         completion(success)
     }
 

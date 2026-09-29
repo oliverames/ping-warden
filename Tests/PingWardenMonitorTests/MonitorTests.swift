@@ -14,7 +14,13 @@ extension PingWardenMonitor {
         SMAppService.registerCalls = 0
         SMAppService.unregisterCalls = 0
         FakeHelper.autoReplyVersion = nil
-        return PingWardenMonitor(harness: ())
+        let monitor = PingWardenMonitor(harness: ())
+        // Registration polling runs in fixture time: 20 ms reads, a 200 ms
+        // Not Registered grace period, and a 300 ms Login Items handoff.
+        monitor.registrationPollInterval = 0.02
+        monitor.notRegisteredGraceSeconds = 0.2
+        monitor.loginItemsHandoffDelay = 0.3
+        return monitor
     }
     func harnessFastReplies() {
         helperReplyTimeout = 0.2
@@ -411,13 +417,23 @@ do {
           "repair rebuilds the registration once, not in a loop")
 }
 
-// Registration failures cannot infer pending approval from an error domain,
-// an English description, or EPERM alone. Every platform boundary is inert.
+// Only Operation not permitted (code 1) in the SMAppService or POSIX domain
+// means a daemon awaits approval. Other domains, codes, and English
+// descriptions are real failures.
+check(PingWardenMonitor.isPendingApprovalError(NSError(domain: "SMAppServiceErrorDomain", code: 1)),
+      "SMAppService Operation not permitted means approval is pending")
+check(PingWardenMonitor.isPendingApprovalError(NSError(domain: NSPOSIXErrorDomain, code: 1)),
+      "POSIX EPERM means approval is pending")
+check(!PingWardenMonitor.isPendingApprovalError(NSError(domain: "SMAppServiceErrorDomain", code: 12)),
+      "other SMAppService codes are not pending approval")
+check(!PingWardenMonitor.isPendingApprovalError(NSError(domain: "FixtureError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Operation not permitted"])),
+      "an English description in another domain is not pending approval")
+
+// Registration failures that are not pending approval complete at once.
+// Every platform boundary is inert.
 for error in [
-    NSError(domain: "SMAppServiceErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "Fixture bootstrap failed"]),
     NSError(domain: "com.apple.ServiceManagement", code: 10, userInfo: [NSLocalizedDescriptionKey: "Fixture invalid plist"]),
-    NSError(domain: "FixtureError", code: 99, userInfo: [NSLocalizedDescriptionKey: "Operation not permitted"]),
-    NSError(domain: NSPOSIXErrorDomain, code: 1, userInfo: [NSLocalizedDescriptionKey: "Fixture EPERM"])
+    NSError(domain: "FixtureError", code: 99, userInfo: [NSLocalizedDescriptionKey: "Operation not permitted"])
 ] {
     let monitor = PingWardenMonitor.harnessMonitor()
     defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
@@ -460,8 +476,56 @@ do {
           "already enabled registration must not leave a false setup failure")
 }
 
-// An actual pending approval after a thrown error keeps the existing Settings
-// handoff. Changing status to enabled completes registration exactly once.
+// An approval-pending error that never becomes a registration still ends,
+// after the grace period, with the error macOS reported.
+for error in [
+    NSError(domain: "SMAppServiceErrorDomain", code: 1, userInfo: [NSLocalizedDescriptionKey: "Fixture not permitted"]),
+    NSError(domain: NSPOSIXErrorDomain, code: 1, userInfo: [NSLocalizedDescriptionKey: "Fixture EPERM"])
+] {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    SMAppService.fixtureRegistrationError = error
+    let results = LockedValue<[Bool]>([])
+    let alerts = NSAlert.messages.count
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(0.1)
+    check(results.withValue { $0 }.isEmpty, "an approval-pending error waits instead of failing at once")
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
+    check(results.withValue { $0 } == [false], "a pending registration that never appears completes false once")
+    check(monitor.lastSetupFailureMessage?.contains(error.localizedDescription) == true,
+          "the eventual failure keeps the error macOS reported")
+    check(SMAppService.settingsOpenCalls == 0, "Login Items opens only for a registration awaiting approval")
+    check(NSAlert.messages.count == alerts, "a silent registration failure must not show an alert")
+}
+
+// Operation not permitted while macOS shows its approval notification, with
+// the status still catching up: wait, then complete once approved.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    SMAppService.fixtureRegistrationError = NSError(domain: "SMAppServiceErrorDomain", code: 1)
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(0.1)
+    SMAppService.fixtureStatus = .requiresApproval
+    spin(0.1)
+    SMAppService.fixtureStatus = .enabled
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
+    check(results.withValue { $0 } == [true], "approval after Operation not permitted completes registration once")
+    check(SMAppService.settingsOpenCalls == 0, "approval from the notification needs no Login Items handoff")
+    check(monitor.lastSetupFailureMessage == nil, "a completed approval leaves no setup failure")
+}
+
+// A fresh registration awaiting approval leaves the first move to macOS's
+// notification, then opens Login Items once if approval is still pending.
 do {
     let monitor = PingWardenMonitor.harnessMonitor()
     defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
@@ -472,12 +536,75 @@ do {
     SMAppService.fixtureRegistrationError = NSError(domain: "FixtureError", code: 99)
     let results = LockedValue<[Bool]>([])
     monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    check(SMAppService.settingsOpenCalls == 0 && results.withValue { $0 }.isEmpty,
+          "a fresh registration must not open Login Items over the approval notification")
+    spin(0.45)
     check(SMAppService.settingsOpenCalls == 1 && results.withValue { $0 }.isEmpty,
-          "actual pending approval must hand off to Settings and wait")
+          "approval still pending after the handoff delay opens Login Items once and waits")
+    spin(0.2)
+    check(SMAppService.settingsOpenCalls == 1, "Login Items opens only once per registration")
     SMAppService.fixtureStatus = .enabled
     spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
     check(results.withValue { $0 } == [true], "approval must complete registration once")
     check(!monitor.isMonitoringActive, "registration approval alone must not report protection")
+}
+
+// Approval granted from the notification before the handoff delay never
+// opens Login Items, so a second switch toggle cannot revoke it.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .requiresApproval
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(0.1)
+    SMAppService.fixtureStatus = .enabled
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
+    spin(0.4)
+    check(results.withValue { $0 } == [true], "notification approval completes registration once")
+    check(SMAppService.settingsOpenCalls == 0, "approval before the handoff delay never opens Login Items")
+}
+
+// A registration that was already waiting before this request has no new
+// notification, so Login Items opens at once.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .requiresApproval
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    check(SMAppService.settingsOpenCalls == 1 && SMAppService.registerCalls == 0,
+          "an existing pending approval opens Login Items without registering again")
+    spin(0.45)
+    check(SMAppService.settingsOpenCalls == 1, "the entry handoff is not repeated by polling")
+}
+
+// A brief Not Registered read while approval is processed is not a failure.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .requiresApproval
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(0.05)
+    SMAppService.fixtureStatus = .notRegistered
+    spin(0.1)
+    SMAppService.fixtureStatus = .requiresApproval
+    spin(0.05)
+    SMAppService.fixtureStatus = .notRegistered
+    spin(0.1)
+    SMAppService.fixtureStatus = .enabled
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
+    check(results.withValue { $0 } == [true], "transient Not Registered reads must not fail a pending approval")
+    check(monitor.lastSetupFailureMessage == nil, "a transient read leaves no setup failure")
 }
 
 // A submitted request that remains unregistered is a failed registration,
