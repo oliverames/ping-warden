@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-09-29 - 4.3.1 released
+
+**What changed:** 4.3.1 (43100) was published from c730502 via `release.sh`. It contains the #99 setup and Repair fix, #104's license offer, and the Control Center settings in General. At Oliver's request, the release notes now list only each version's changes. The 4.3.1 notes dropped "New since 4.0" and the licensing paragraph, and `update_appcast.py` no longer injects the "Upgrading from Ping Warden 3 or earlier?" paid notice. The normalizer strips that notice from every existing feed item, and the `minimumAutoupdateVersion` 40000 boundary is kept (b763161, gh-pages a4b94db). The GitHub release body was re-rendered to match.
+
+**Verification:** The downloaded GitHub DMG matches the local artifact and GitHub's SHA-256 (`ae592fcd…`). Gatekeeper reports notarized Developer ID, and the staple validates. The mounted app is 4.3.1 (43100), universal, and contains the retry. Stable, beta and raw-main feeds offer 4.3.1 and verify against the app key, before and after the notes edit. Every enclosure signature was unchanged by the feed edit. Sentry release `com.amesvt.pingwarden@4.3.1+43100` published, and the Gumroad buyer download was verified by release.sh. #99 and #104 are closed.
+
+**Left off at:** Felix's follow-up is a Gmail draft asking him to test 4.3.1 and consider a Gumroad review or an r/GeForceNOW post. Oliver switches From to oliver@ames.consulting and sends it. The project-release-runbooks Ping Warden runbook still says the normalizer re-injects the upgrade notice; that is now stale.
+
 ## 2026-09-29 - Live setup acceptance and 4.3.1 preparation (#99)
 
 **What changed:** A signed `Ping Warden 92 Test` fixture on this Mac (macOS 27.2) reproduced #99. After `launchctl bootout` of an approved helper, Repair unregistered and re-registered about 30 ms later. `register()` threw SMAppService code 1 with the status Not Registered, while BTM still listed the old item as allowed. No notification appeared, and a second Repair succeeded. 6dd011a retries a refused registration every 2 s, up to three times. With it, the first Repair click recovered the helper in 3 s with no prompt. Fresh setup with notification approval also passed on the first attempt. Version 4.3.1 (43100) ships everything on main: the setup fix, #104's license offer, and Control Center settings in General. README, QUICKSTART and TROUBLESHOOTING now say General and note the 4.3.0 location.
