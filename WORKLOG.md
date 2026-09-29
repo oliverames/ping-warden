@@ -6,7 +6,7 @@
 
 **Verification:** The downloaded GitHub DMG matches the local artifact and GitHub's SHA-256 (`ae592fcd…`). Gatekeeper reports notarized Developer ID, and the staple validates. The mounted app is 4.3.1 (43100), universal, and contains the retry. Stable, beta and raw-main feeds offer 4.3.1 and verify against the app key, before and after the notes edit. Every enclosure signature was unchanged by the feed edit. Sentry release `com.amesvt.pingwarden@4.3.1+43100` published, and the Gumroad buyer download was verified by release.sh. #99 and #104 are closed.
 
-**Left off at:** Felix's follow-up is a Gmail draft asking him to test 4.3.1 and consider a Gumroad review or an r/GeForceNOW post. Oliver switches From to oliver@ames.consulting and sends it. The project-release-runbooks Ping Warden runbook still says the normalizer re-injects the upgrade notice; that is now stale.
+**Left off at:** Felix's follow-up is a Gmail draft asking him to test 4.3.1 and consider a Gumroad review or an r/GeForceNOW post. Oliver switches From to oliver@ames.consulting and sends it. Resolved this session: the project-release-runbooks runbook now states the changes-only notes rule (ames-plugins-local e8316fd, ames-dev-workflows-local 2.2.2). NEW: #107 tracks the misleading "rejected the connection (XPC error 4099)" log text for a missing launchd job, and whether the menu should offer Repair for a silent helper. Still open: Ventura and Intel confirmation of 4.3.1 via Felix, and the existing manual-testing issues #64, #78 and #96.
 
 ## 2026-09-29 - Live setup acceptance and 4.3.1 preparation (#99)
 
