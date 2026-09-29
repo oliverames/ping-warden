@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-09-29 - Customer setup report investigated under #99
+
+**What changed:** A customer on a 2017 Intel MacBook Pro (Ventura) confirmed 4.3.0 works after a clean install, but first-time setup took three Finish Setup attempts and two password prompts. Apple's ServiceManagement docs show `requiresApproval` also means revoked consent and that daemon approval needs an admin password, so the notification's Allow plus a later switch flip reads as approve, then revoke. The docs also allow a transient `notRegistered` during re-registration, which the registration poll treats as terminal. This host's Sept 28 fixture logs hold no app-level record of the first-attempt Repair failure: the setup narration is info-level and never persisted, so only `SMAppService` status reads and launchd/BTM lines survive. Findings and four ranked recommendations are on #99.
+
+**Verification:** Local `log show` over Sept 28 covered the production app, the `Ping Warden 92 Test` fixture and backgroundtaskmanagementd. No code changed. The customer reply is a Gmail draft in the thread asking for `sw_vers` plus a two-day log export with launchd and BTM lines, to be sent from oliver@ames.consulting.
+
+**Left off at:** Waiting on the customer log to name the failing branch. Decide whether the next release promotes setup logging to notice level, adds a grace period before `notRegistered` ends the poll, extends the post-approval reply check, and tells people not to re-toggle the Login Items switch.
+
 ## 2026-09-28 - Product Hunt scheduled, MacMenuBar submitted, NVIDIA approval requested
 
 **What changed:** Product Hunt launch is scheduled for Sep 29 2026 at 12:01 AM PDT (3:01 AM EDT). Live listing copy now differs from the 09-24 prepared docs: tagline "Less Wi-Fi stutter in GeForce NOW and Mac cloud gaming", a 462-character description that leads with the symptom, topics Mac, Open Source and Menu Bar Apps, and four captioned gallery images (hero with menu bar, dashboard chart cropped to exclude a test latency-session card, menu bar states, Game Mode). The MacMenuBar form was filled with three real menu bar captures and submitted (its thanks page appeared). The required reviewer promo field holds a note offering a free license on request, not a code. A direct message asking permission for one General Chat introduction was sent to a listed NVIDIA admin, as the NVIDIA code of conduct requires prior approval for advertising.
