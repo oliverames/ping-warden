@@ -2,7 +2,7 @@
 
 Author: Oliver Ames  
 Date: October 6, 2026  
-Status: Offline validation tool. Parent parser corrections and independent re-review passed. Not enabled in release workflows.
+Status: Offline validator with a preparation-only release entry point. Live feed publication remains unchanged.
 
 The draft consists of `validate_migration_feeds.py` and `test_migration_feeds.py`. It reads two local XML files and emits a JSON report. It does not change files, contact services, inspect applications, sign artifacts or publish feeds.
 
@@ -68,3 +68,21 @@ The model follows locally inspected upstream Sparkle commit `ac2def288cbff5cfc7d
 - [Numeric component balancing](https://github.com/sparkle-project/Sparkle/blob/ac2def288cbff5cfc7df3ffef6abdf45b72bcb0a/Sparkle/SUStandardVersionComparator.m#L174). The draft intentionally rejects the comparator's more complex formats.
 
 The two scripts are available for manual offline review. No release workflow calls them. Compatible-bridge classification and native validation remain separate requirements.
+
+## Preparation Entry Point Added October 6
+
+The existing release script now accepts `--prepare-migration-feeds` before any credential, build, signing or publication step. It requires an explicit candidate item, migration build, required bridge build and a new output directory. The ordinary release invocation remains unchanged and still requires the former signing team.
+
+```text
+./PingWarden/PingWarden/release.sh --prepare-migration-feeds \
+  --item CANDIDATE_ITEM_XML --migration-candidate-build ACTUAL_BUILD \
+  --required-bridge-build ACTUAL_BRIDGE_BUILD --output-dir NEW_DIRECTORY
+```
+
+This mode reads both complete source feeds, checks their raw structure, uses the maintained updater merge in a temporary directory, and validates both merged candidates. Only a passing preparation writes a new output directory containing unsigned feeds and a report. Existing destinations are rejected. No candidate or bridge version is selected by this implementation.
+
+The report explicitly sets `preparationOnly` to true and `publicationAuthorized` to false. A metadata pass does not establish licensing, helper, staged-update, installation or rollback continuity. Beta-only migration candidates remain unsupported.
+
+Independent review caught two draft issues. Divergent stable/beta entries sharing a marketing version are now rejected before merging, and every source freshness read retains the 10 MiB input bound. Strict comparison may hold differently formatted source entries for review. The corrected source passed focused independent re-review.
+
+Bash syntax, ShellCheck, Python syntax and the preparation command's help route passed. No further tests, candidate-feed execution, signing, release or feed publication ran, following Oliver's October 6 scope instruction. Earlier 32-case evidence above applies to the standalone validator before this integration.
