@@ -35,6 +35,94 @@ extension View {
     }
 }
 
+#if PINGWARDEN_DORMANT_RECEIVER
+/// A compile-time receiver shell. It has no production runtime or activation path.
+@main
+struct PingWardenApp: App {
+    @NSApplicationDelegateAdaptor(DormantReceiverAppDelegate.self) var appDelegate
+
+    var body: some Scene {
+        Settings { EmptyView() }
+            .commands {
+                CommandGroup(replacing: .appInfo) {
+                    Button("About Ping Warden") { appDelegate.showMigrationPending() }
+                }
+                CommandGroup(after: .appInfo) {
+                    Button("Check for Updates…") { appDelegate.showMigrationPending() }
+                }
+                CommandGroup(replacing: .appSettings) {
+                    Button("Settings…") { appDelegate.showMigrationPending() }
+                        .keyboardShortcut(",", modifiers: .command)
+                }
+                CommandGroup(replacing: .help) {
+                    Button("Migration Status") { appDelegate.showMigrationPending() }
+                }
+            }
+    }
+}
+
+@MainActor
+final class DormantReceiverAppDelegate: NSObject, NSApplicationDelegate {
+    // Own only presentation. Do not add live singleton access or a lazy fallback.
+    private var pendingWindow: NSWindow?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        showMigrationPending()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showMigrationPending()
+        return false
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply { .terminateNow }
+
+    // No observers, updater, runtime teardown or source-state changes while dormant.
+    func applicationDidBecomeActive(_ notification: Notification) {}
+    func applicationWillTerminate(_ notification: Notification) {}
+
+    func showMigrationPending() {
+        let window: NSWindow
+        if let pendingWindow {
+            window = pendingWindow
+        } else {
+            window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 420, height: 180),
+                styleMask: [.titled, .closable, .miniaturizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "Ping Warden Migration"
+            window.isReleasedWhenClosed = false
+            window.isRestorable = false
+            window.contentView = NSHostingView(rootView: DormantReceiverView())
+            window.center()
+            pendingWindow = window
+        }
+        window.makeKeyAndOrderFront(nil)
+        if #available(macOS 14, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+}
+
+private struct DormantReceiverView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Migration Pending")
+                .font(.title2)
+            Text("Keep using your existing Ping Warden installation while migration is prepared.")
+                .foregroundStyle(.secondary)
+        }
+        .padding(28)
+        .frame(width: 420, height: 180, alignment: .leading)
+    }
+}
+#else
 @main
 struct PingWardenApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -1727,6 +1815,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     }
 
 }
+
+#endif
 
 // MARK: - License Transition Notice View
 
