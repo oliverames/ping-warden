@@ -13,6 +13,14 @@ The historical 4.0.0 offline paid cache does not satisfy the current sealed-cach
 
 The characterization also retains existing handling of unavailable credential reads and failed persistence. This commit does not repair those decisions, create entitlement exceptions, extend licensing periods or reset transition deadlines. It provides evidence for the existing migration blocker in issue 109.
 
+## Read-Only Continuity Assessment
+
+`LicenseContinuityAssessment.swift` now accepts explicitly captured values and produces separate cache, clock, credential, marker, verification and transition observations. It preserves original verification and transition dates. Blocked, missing, malformed and unobserved credentials remain distinct. It reuses the existing license policy and snapshot classifier rather than granting entitlement from a preference or copied key.
+
+The component opens no store, makes no network request and has no production caller. Every report retains the original installation and the snapshot's unresolved migration requirements. A reported successful license check is still only an observation, not a durable handoff.
+
+Native Xcode compiled the complete app successfully in 51.255 seconds on October 6, with no errors. The log confirms compilation of the new source file. Independent source review found no actionable issue. No new test suite, app launch, customer credential or live store was involved. This establishes build readiness, not a working account transfer.
+
 ## Remaining Migration Gate
 
 The live 4.0-and-newer requirement remains mandatory. The future handoff must preserve licensing, saved settings, helper and widget compatibility, update trust and recovery behavior before a receiving-team candidate can replace an existing installation. A version number or copied preference flag alone does not establish those guarantees.
