@@ -73,7 +73,7 @@ struct MigrationSource: Codable, Equatable, Sendable {
     let buildVersion: String
 }
 
-enum MigrationSessionState: String, Codable, Sendable { case idle, active, transitioning }
+enum MigrationSessionState: String, Codable, Sendable { case idle, active, transitioning, unobserved }
 enum MigrationLicenseCacheFormat: String, Codable, Sendable {
     case absent, legacyUnsealed, sealedV1Unverified, malformed
 }
@@ -140,9 +140,9 @@ enum MigrationSnapshotBuilder {
     static let maximumPayloadBytes = 12 * 1024 * 1024
     static let maximumStringBytes = 64 * 1024
 
-    private enum ValueKind { case bool, count, real, string, date, data }
+    enum ValueKind { case bool, count, real, string, date, data }
 
-    private static let sharedKinds: [String: ValueKind] = [
+    static let sharedKinds: [String: ValueKind] = [
         "AWDLMonitoringEnabled": .bool, "ProtectionPauseUntil": .real,
         "ControlCenterWidgetEnabled": .bool, "ControlCenterOnlyEnabled": .bool,
         "GameModeAutoDetect": .bool, "ShowDockIcon": .bool, "ShowMenuDropdownMetrics": .bool,
@@ -152,12 +152,12 @@ enum MigrationSnapshotBuilder {
         "DashboardCustomPingTargets": .data, "LegacyAppGroupMigrationCompleted": .bool,
         "LicenseTransitionNoticeShown": .bool, "LicenseTransitionLastPresentedAt": .date,
     ]
-    private static let licenseKinds: [String: ValueKind] = [
+    static let licenseKinds: [String: ValueKind] = [
         "LicenseCachedValid": .bool, "LicenseLastVerifiedAt": .real,
         "LicenseGrandfatherDeadline": .real, "LicenseLastSeenAt": .real,
         "LicenseStateSeal": .string, "LicenseGrandfatherChecked": .bool,
     ]
-    private static let standardKinds: [String: ValueKind] = [
+    static let standardKinds: [String: ValueKind] = [
         "DashboardSelectedPingTargetID": .string, "DashboardUpdateInterval": .real,
         "NSWindow Frame PingWardenSettings": .string,
     ]

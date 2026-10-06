@@ -1,0 +1,316 @@
+// !$*UTF8*$!
+{
+	"archiveVersion" = 1;
+	"classes" = {
+	};
+	"objectVersion" = 56;
+	"objects" = {
+		"27F2AD40612BCADB4B4C79A3" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "CaptureMain.swift";
+			"sourceTree" = "<group>";
+		};
+		"2E17AF8EEB3F595D30109B5A" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "27F2AD40612BCADB4B4C79A3";
+		};
+		"7BFA90A061803354193156A9" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "CaptureCodeIdentity.swift";
+			"sourceTree" = "<group>";
+		};
+		"0AB3AA5E95018479060C7D5A" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "7BFA90A061803354193156A9";
+		};
+		"602A70DDA81041F2A5D00BDB" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "CaptureFileIO.swift";
+			"sourceTree" = "<group>";
+		};
+		"086CE5DD90972F50749DAAB5" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "602A70DDA81041F2A5D00BDB";
+		};
+		"019FD9D2B7F0DC47848D210C" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "CaptureProjection.swift";
+			"sourceTree" = "<group>";
+		};
+		"BC1CE3ACEB414C81C933597A" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "019FD9D2B7F0DC47848D210C";
+		};
+		"761416FE550A6EB16556B3DC" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../PingWarden/Core/PingWardenMigrationSnapshot.swift";
+			"sourceTree" = "<group>";
+		};
+		"4E370775AD1BA76C63630B52" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "761416FE550A6EB16556B3DC";
+		};
+		"8E0370EE118F8469152032C5" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../PingWarden/Core/PingWardenMigrationCodec.swift";
+			"sourceTree" = "<group>";
+		};
+		"DEBE1BB2A005ABAED74266E8" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "8E0370EE118F8469152032C5";
+		};
+		"C30A816E697884794CC041A9" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../PingWarden/Core/CustomPingTargetStore.swift";
+			"sourceTree" = "<group>";
+		};
+		"D66F5983D4EFECC09B7A1EE3" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "C30A816E697884794CC041A9";
+		};
+		"B4A64A9FBE4A1A84E0913640" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../PingWarden/Core/ProtectedSession.swift";
+			"sourceTree" = "<group>";
+		};
+		"FE83C426BF5A9FAEC152996A" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "B4A64A9FBE4A1A84E0913640";
+		};
+		"82F1C4CEEA094B11FC72AD1B" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../PingWarden/Core/PingStatistics.swift";
+			"sourceTree" = "<group>";
+		};
+		"EAE4D322B4198D4E53E781F4" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "82F1C4CEEA094B11FC72AD1B";
+		};
+		"5DA98D7187D795EAD3DE6610" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../PingWarden/Core/LicensePolicy.swift";
+			"sourceTree" = "<group>";
+		};
+		"23E4CEFABA36E88BA02B6FEE" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "5DA98D7187D795EAD3DE6610";
+		};
+		"B59EDE75D9BAEA090AB9B46C" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../PingWarden/LicenseContinuityAssessment.swift";
+			"sourceTree" = "<group>";
+		};
+		"F5C1E2EC6BAB7DF047D5BDF1" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "B59EDE75D9BAEA090AB9B46C";
+		};
+		"DB49459B02EDC3836296D005" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../PingWarden/LicenseCredentialObservation.swift";
+			"sourceTree" = "<group>";
+		};
+		"428C175EF3E6BB031832D74E" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "DB49459B02EDC3836296D005";
+		};
+		"A8792157CB4F27FB949C035F" = {
+			"isa" = "PBXFileReference";
+			"explicitFileType" = "wrapper.application";
+			"includeInIndex" = 0;
+			"path" = "PingWardenCapture.app";
+			"sourceTree" = "BUILT_PRODUCTS_DIR";
+		};
+		"0A3E27B8CA818264D75C8D81" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"A8792157CB4F27FB949C035F",
+			);
+			"name" = "Products";
+			"sourceTree" = "<group>";
+		};
+		"AD936FCBED631FA67E05C3EA" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"27F2AD40612BCADB4B4C79A3",
+				"7BFA90A061803354193156A9",
+				"602A70DDA81041F2A5D00BDB",
+				"019FD9D2B7F0DC47848D210C",
+				"761416FE550A6EB16556B3DC",
+				"8E0370EE118F8469152032C5",
+				"C30A816E697884794CC041A9",
+				"B4A64A9FBE4A1A84E0913640",
+				"82F1C4CEEA094B11FC72AD1B",
+				"5DA98D7187D795EAD3DE6610",
+				"B59EDE75D9BAEA090AB9B46C",
+				"DB49459B02EDC3836296D005",
+				"0A3E27B8CA818264D75C8D81",
+			);
+			"sourceTree" = "<group>";
+		};
+		"878A52FC5FF6A57D50B7B870" = {
+			"isa" = "PBXSourcesBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = (
+				"2E17AF8EEB3F595D30109B5A",
+				"0AB3AA5E95018479060C7D5A",
+				"086CE5DD90972F50749DAAB5",
+				"BC1CE3ACEB414C81C933597A",
+				"4E370775AD1BA76C63630B52",
+				"DEBE1BB2A005ABAED74266E8",
+				"D66F5983D4EFECC09B7A1EE3",
+				"FE83C426BF5A9FAEC152996A",
+				"EAE4D322B4198D4E53E781F4",
+				"23E4CEFABA36E88BA02B6FEE",
+				"F5C1E2EC6BAB7DF047D5BDF1",
+				"428C175EF3E6BB031832D74E",
+			);
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"2B23A31EEC75B029432F2445" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Debug";
+			"buildSettings" = {
+				"SDKROOT" = "macosx";
+				"MACOSX_DEPLOYMENT_TARGET" = "13.0";
+				"CLANG_ENABLE_MODULES" = "YES";
+				"SWIFT_VERSION" = "5.0";
+			};
+		};
+		"EDDA600A3F771F810A8065C9" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Debug";
+			"buildSettings" = {
+				"PRODUCT_NAME" = "PingWardenCapture";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "com.amesvt.pingwarden.capture";
+				"INFOPLIST_FILE" = "Info.plist";
+				"GENERATE_INFOPLIST_FILE" = "NO";
+				"MARKETING_VERSION" = "0.1.0";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"CODE_SIGN_STYLE" = "Manual";
+				"CODE_SIGN_IDENTITY" = "A551D3F1C5AB71FDF211D0404BFD540F2F65FB2F";
+				"DEVELOPMENT_TEAM" = "PV3W52NDZ3";
+				"CODE_SIGN_ENTITLEMENTS" = "Capture.entitlements";
+				"OTHER_CODE_SIGN_FLAGS" = "--timestamp";
+				"CODE_SIGN_INJECT_BASE_ENTITLEMENTS" = "NO";
+				"ENABLE_HARDENED_RUNTIME" = "YES";
+				"ENABLE_APP_SANDBOX" = "NO";
+				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
+				"SWIFT_COMPILATION_MODE" = "wholemodule";
+				"ONLY_ACTIVE_ARCH" = "NO";
+				"ARCHS" = "$(ARCHS_STANDARD)";
+				"COMBINE_HIDPI_IMAGES" = "YES";
+				"SKIP_INSTALL" = "NO";
+			};
+		};
+		"07CA1E69F6068DEA30A4DA6B" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Release";
+			"buildSettings" = {
+				"SDKROOT" = "macosx";
+				"MACOSX_DEPLOYMENT_TARGET" = "13.0";
+				"CLANG_ENABLE_MODULES" = "YES";
+				"SWIFT_VERSION" = "5.0";
+			};
+		};
+		"594BCDCC96599D88EF772A08" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Release";
+			"buildSettings" = {
+				"PRODUCT_NAME" = "PingWardenCapture";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "com.amesvt.pingwarden.capture";
+				"INFOPLIST_FILE" = "Info.plist";
+				"GENERATE_INFOPLIST_FILE" = "NO";
+				"MARKETING_VERSION" = "0.1.0";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"CODE_SIGN_STYLE" = "Manual";
+				"CODE_SIGN_IDENTITY" = "A551D3F1C5AB71FDF211D0404BFD540F2F65FB2F";
+				"DEVELOPMENT_TEAM" = "PV3W52NDZ3";
+				"CODE_SIGN_ENTITLEMENTS" = "Capture.entitlements";
+				"OTHER_CODE_SIGN_FLAGS" = "--timestamp";
+				"CODE_SIGN_INJECT_BASE_ENTITLEMENTS" = "NO";
+				"ENABLE_HARDENED_RUNTIME" = "YES";
+				"ENABLE_APP_SANDBOX" = "NO";
+				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
+				"SWIFT_COMPILATION_MODE" = "wholemodule";
+				"ONLY_ACTIVE_ARCH" = "NO";
+				"ARCHS" = "$(ARCHS_STANDARD)";
+				"COMBINE_HIDPI_IMAGES" = "YES";
+				"SKIP_INSTALL" = "NO";
+			};
+		};
+		"14E586E4324BDDD5494634DC" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = (
+				"2B23A31EEC75B029432F2445",
+				"07CA1E69F6068DEA30A4DA6B",
+			);
+			"defaultConfigurationIsVisible" = 0;
+			"defaultConfigurationName" = "Release";
+		};
+		"EA2F6A582D34219E0BDB62FA" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = (
+				"EDDA600A3F771F810A8065C9",
+				"594BCDCC96599D88EF772A08",
+			);
+			"defaultConfigurationIsVisible" = 0;
+			"defaultConfigurationName" = "Release";
+		};
+		"34A04005BCAF206EEC990BD9" = {
+			"isa" = "PBXNativeTarget";
+			"buildConfigurationList" = "EA2F6A582D34219E0BDB62FA";
+			"buildPhases" = (
+				"878A52FC5FF6A57D50B7B870",
+			);
+			"buildRules" = (
+			);
+			"dependencies" = (
+			);
+			"name" = "PingWardenCapture";
+			"productName" = "PingWardenCapture";
+			"productReference" = "A8792157CB4F27FB949C035F";
+			"productType" = "com.apple.product-type.application";
+		};
+		"244210E48437B6556980A702" = {
+			"isa" = "PBXProject";
+			"attributes" = {
+				"BuildIndependentTargetsInParallel" = "YES";
+				"LastUpgradeCheck" = "2710";
+				"TargetAttributes" = {
+					"34A04005BCAF206EEC990BD9" = {
+						"CreatedOnToolsVersion" = "27.1";
+						"ProvisioningStyle" = "Manual";
+					};
+				};
+			};
+			"buildConfigurationList" = "14E586E4324BDDD5494634DC";
+			"compatibilityVersion" = "Xcode 14.0";
+			"developmentRegion" = "en";
+			"hasScannedForEncodings" = 0;
+			"knownRegions" = (
+				"en",
+				"Base",
+			);
+			"mainGroup" = "AD936FCBED631FA67E05C3EA";
+			"productRefGroup" = "0A3E27B8CA818264D75C8D81";
+			"projectDirPath" = "";
+			"projectRoot" = "";
+			"targets" = (
+				"34A04005BCAF206EEC990BD9",
+			);
+		};
+	};
+	"rootObject" = "244210E48437B6556980A702";
+}

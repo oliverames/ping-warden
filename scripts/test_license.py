@@ -35,6 +35,7 @@ def assemble(repo: Path, overlay: Path | None) -> tuple[str, dict[str, str]]:
     app = source_root / "PingWarden" / "PingWarden"
     manager = (app / "LicenseManager.swift").read_text()
     dependencies = (app / "LicenseDependencies.swift").read_text()
+    observations = (app / "LicenseCredentialObservation.swift").read_text()
     marker = "// MARK: - Live adapters\n"
     if dependencies.count(marker) != 1:
         raise RuntimeError("Live dependency adapter boundary changed")
@@ -76,6 +77,7 @@ def assemble(repo: Path, overlay: Path | None) -> tuple[str, dict[str, str]]:
     fixtures = source_root / "Tests" / "PingWardenLicenseTests"
     core = repo / "PingWarden" / "PingWarden" / "Core"
     parts = [
+        observations,
         interfaces,
         (fixtures / "Stubs.swift").read_text(),
         (core / "LicensePolicy.swift").read_text(),
@@ -98,6 +100,7 @@ def assemble(repo: Path, overlay: Path | None) -> tuple[str, dict[str, str]]:
     provenance = {
         "manager": hashlib.sha256(manager.encode()).hexdigest(),
         "dependencies": hashlib.sha256(dependencies.encode()).hexdigest(),
+        "credential_observations": hashlib.sha256(observations.encode()).hexdigest(),
         "legacy_4_0_0_policy": hashlib.sha256(legacy.encode()).hexdigest(),
     }
     return unit, provenance

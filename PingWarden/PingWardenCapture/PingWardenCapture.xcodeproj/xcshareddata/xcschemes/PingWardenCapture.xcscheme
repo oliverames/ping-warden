@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2710" version="1.3">
+ <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="NO">
+  <BuildActionEntries><BuildActionEntry buildForTesting="NO" buildForRunning="YES" buildForProfiling="NO" buildForArchiving="YES" buildForAnalyzing="YES">
+   <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="34A04005BCAF206EEC990BD9" BuildableName="PingWardenCapture.app" BlueprintName="PingWardenCapture" ReferencedContainer="container:PingWardenCapture.xcodeproj"/>
+  </BuildActionEntry></BuildActionEntries>
+ </BuildAction>
+ <LaunchAction buildConfiguration="Release"/>
+ <AnalyzeAction buildConfiguration="Release"/>
+ <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="NO"/>
+</Scheme>

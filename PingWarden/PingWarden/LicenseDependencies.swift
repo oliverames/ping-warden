@@ -14,21 +14,6 @@ protocol LicenseStateStore: AnyObject {
 
 extension UserDefaults: LicenseStateStore {}
 
-enum LicenseCredentialFailure: Equatable {
-    case interactionNotAllowed
-    case userCanceled
-    case authenticationFailed
-    case unavailable(OSStatus)
-    case malformedValue
-}
-
-enum LicenseCredentialRead {
-    /// A marker lookup deliberately requests no secret data.
-    case found(Data?)
-    case notFound
-    case blocked(LicenseCredentialFailure)
-}
-
 struct LicenseCredentialClient {
     let read: (_ service: String, _ account: String, _ returnData: Bool) -> LicenseCredentialRead
     let update: (_ service: String, _ account: String, _ data: Data) -> OSStatus
