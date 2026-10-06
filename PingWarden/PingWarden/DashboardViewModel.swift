@@ -125,8 +125,8 @@ class DashboardViewModel: ObservableObject {
     private var pendingSavedTargetID: String?
     private var isApplyingProgrammaticSelection = false
 
-    private let userDefaults = UserDefaults.standard
-    private let customTargetStore = CustomPingTargetStore(userDefaults: PingWardenPreferences.shared.defaults)
+    private let userDefaults: UserDefaults
+    private let customTargetStore: CustomPingTargetStore
 
     var selectedTarget: PingTarget? {
         targets.first { $0.id == selectedTargetID }
@@ -175,7 +175,22 @@ class DashboardViewModel: ObservableObject {
         }
     }
 
-    init() {
+    /// Preserve the current app's stores for every existing construction site.
+    convenience init() {
+        self.init(
+            applicationDefaults: .standard,
+            sharedDefaults: PingWardenPreferences.shared.defaults
+        )
+    }
+
+    /// A future receiving runtime must pass both destination handles together.
+    /// This does not authorize constructing the dashboard before activation.
+    init(
+        applicationDefaults: UserDefaults,
+        sharedDefaults: UserDefaults
+    ) {
+        userDefaults = applicationDefaults
+        customTargetStore = CustomPingTargetStore(userDefaults: sharedDefaults)
         // Initialize with base targets (no local gateway yet — resolved async in start())
         customTargets = customTargetStore.load()
         // Seed the GeForce NOW zones from the last successful discovery so a
@@ -183,7 +198,7 @@ class DashboardViewModel: ObservableObject {
         // the pane fell back to another target and probed it until the
         // network fetch below finished. The fetch still runs (subject to
         // the cooldown) and replaces the list when it succeeds.
-        if let cached = GeForceNOWDiscovery.cachedTargets() {
+        if let cached = GeForceNOWDiscovery.cachedTargets(userDefaults: userDefaults) {
             gfnTargets = cached.targets
             lastGFNRefreshDate = cached.fetchedAt
         }
@@ -484,8 +499,9 @@ class DashboardViewModel: ObservableObject {
         gfnRefreshError = nil
         lastGFNRefreshDate = Date()
 
+        let cacheDefaults = userDefaults
         gfnRefreshTask = Task { [weak self] in
-            let discoveredTargets = await GeForceNOWDiscovery.fetchTargets()
+            let discoveredTargets = await GeForceNOWDiscovery.fetchTargets(userDefaults: cacheDefaults)
 
             await MainActor.run {
                 guard let self, !Task.isCancelled else { return }

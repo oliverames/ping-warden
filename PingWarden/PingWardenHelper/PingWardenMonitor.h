@@ -35,6 +35,17 @@ os_log_t PingWardenHelperLog(void);
 /// Allowing AWDL works even if the poll thread has died; blocking needs it.
 - (BOOL)setAwdlEnabled:(BOOL)enabled;
 
+#if defined(PINGWARDEN_MIGRATION_HELPER) && PINGWARDEN_MIGRATION_HELPER
+
+/// Observe physical UP plus idle enforcement and cleared recovery state.
+/// Unknown, absent or unreadable interfaces are not safe receiver acquisition.
+- (BOOL)migrationReceiverCanAcquire;
+
+/// Drop receiver enforcement even when physical restoration fails. Never use
+/// this to revoke a legacy hold. Does not stop the shared monitoring thread.
+- (BOOL)migrationRelinquishReceiverProtection;
+#endif
+
 /// Stop the monitoring thread and cleanup all resources.
 /// Should be called before the helper exits.
 - (void)invalidate;

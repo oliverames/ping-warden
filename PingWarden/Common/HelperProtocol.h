@@ -41,3 +41,37 @@
 - (void)resetAWDLInterventionCountWithReply:(void (^_Nonnull)(BOOL success))reply NS_SWIFT_NAME(resetAWDLInterventionCount(reply:));
 
 @end
+
+#if defined(PINGWARDEN_MIGRATION_HELPER) && PINGWARDEN_MIGRATION_HELPER
+
+/// Additive receiver protocol. The original six selectors above are unchanged.
+/// No receiver principal is admitted by the current helper build.
+typedef NS_ENUM(NSInteger, PWReceiverResult) {
+    PWReceiverResultOK = 0,
+    PWReceiverResultUnsupportedPrincipal = 1,
+    PWReceiverResultUnavailable = 2,
+    PWReceiverResultLegacyBusy = 3,
+    PWReceiverResultLegacyGrace = 4,
+    PWReceiverResultAlreadyOwned = 5,
+    PWReceiverResultStaleOwnership = 6,
+    PWReceiverResultRestorationUncertain = 7,
+    PWReceiverResultOperationFailed = 8
+};
+
+@protocol PingWardenReceiverProtocol <PingWardenHelperProtocol>
+- (void)receiverStatusWithReply:(void (^_Nonnull)(PWReceiverResult result,
+    NSInteger protocolVersion, NSUUID *_Nullable epoch, NSUUID *_Nullable generation))reply;
+
+- (void)acquireReceiverOwnershipForEpoch:(NSUUID *_Nonnull)epoch
+    importGeneration:(NSUUID *_Nonnull)importGeneration
+    reply:(void (^_Nonnull)(PWReceiverResult result, NSUUID *_Nullable token,
+                           NSUUID *_Nullable generation))reply;
+
+- (void)setReceiverAWDLEnabled:(BOOL)enabled epoch:(NSUUID *_Nonnull)epoch
+    token:(NSUUID *_Nonnull)token
+    reply:(void (^_Nonnull)(PWReceiverResult result, unsigned long long commandSequence))reply;
+
+- (void)releaseReceiverOwnershipForEpoch:(NSUUID *_Nonnull)epoch
+    token:(NSUUID *_Nonnull)token reply:(void (^_Nonnull)(PWReceiverResult result))reply;
+@end
+#endif
