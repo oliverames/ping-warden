@@ -9,7 +9,7 @@ const root = resolve(site, '..');
 const output = resolve(site, 'public');
 const origin = 'https://pingwarden.app';
 const pages = [
-  { source: 'README.md', slug: 'overview', updated: '2026-09-29', title: 'Features, Pricing, and Privacy', description: 'Explore Ping Warden features, the $15 Ping Protection license, the existing-user transition, privacy, system requirements, and source builds.' },
+  { source: 'README.md', slug: 'overview', updated: '2026-10-07', title: 'Features, Pricing, and Privacy', description: 'Explore Ping Warden features, the $15 Ping Protection license, the existing-user transition, privacy, system requirements, and source builds.' },
   { source: 'PingWarden/QUICKSTART.md', slug: 'setup', updated: '2026-09-29', title: 'Setup Guide', description: 'Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center.' },
   { source: 'PingWarden/README.md', slug: 'technical', updated: '2026-09-28', title: 'Technical Documentation', description: 'How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates.' },
   { source: 'PingWarden/TROUBLESHOOTING.md', slug: 'troubleshooting', updated: '2026-09-29', title: 'Troubleshooting and Removal', description: 'Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app.' },
