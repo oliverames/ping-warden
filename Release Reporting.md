@@ -21,7 +21,8 @@ A normal run syncs issues, attaches the published GitHub release notes when avai
 and completes the scheduled release only after delivery passes. `--notes-file`
 can supply reviewed notes explicitly.
 
-Include the relevant `AME-123` identifier in the commits that deliver an issue.
+Use the supported commit subject format `[AME-123] Describe the change` for
+commits that deliver an issue. Preserve that reference in the final squash commit.
 The release scanner uses commit references in the scanned history to associate
 issues with a release. GitHub-to-project routing does not establish release
 membership, and an existing-delivery baseline can legitimately have zero issues.
