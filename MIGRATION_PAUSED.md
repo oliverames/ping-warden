@@ -1,6 +1,6 @@
 # Developer-account migration is paused
 
-Oliver requested this preserved branch and worktree on October 7, 2026. Do not resume migration implementation, packaging, account changes, merging or release work until Oliver explicitly resumes it. Keep this branch and worktree available.
+Oliver requested this preserved branch and worktree on October 7, 2026. Oliver's explicit authorization is required before resuming migration implementation, signing changes (including identities, entitlements and provisioning), account changes, packaging, merges of migration work, or migration releases. Website documentation maintenance does not resume the migration. Keep this branch and worktree available.
 
 - Branch: `migration/paused-developer-account`
 - Worktree: `/Users/oliverames/Developer/Projects/ping-warden-migration-paused`
@@ -10,6 +10,6 @@ Oliver requested this preserved branch and worktree on October 7, 2026. Do not r
 
 The preparation is incomplete and does not establish a customer handoff. Migration compiler flags remain disabled. Existing licenses, production signing, installed applications and public feeds are unchanged by this preservation step.
 
-The preparation commits were already ancestors of `main`. Their changes are being removed from `main` with a normal revert, without rewriting shared history. This branch retains their source together with the later README refresh and release-reporting changes. Its only additional changes document the pause.
+The preparation commits were already ancestors of `main`. Their changes were removed from current `main` source by revert `273e26c`, without rewriting shared history. The preparation commits remain in that history. This branch retains their source together with the later README refresh and release-reporting changes. Its only additional changes document the pause.
 
 Do not merge this branch automatically. If Oliver resumes the migration, first inspect the revert on `main` and deliberately restore the required changes on a new working branch. Merging an old branch alone does not undo a revert of commits already in shared history. Preserve subsequent unrelated changes and verify the complete continuity requirements before any release.
