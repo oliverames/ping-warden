@@ -197,3 +197,9 @@ The prebuilt, signed, and notarized app is free to download. The dashboard, late
     &bull; <a href="https://bsky.app/profile/oliverames.bsky.social">Bluesky</a>
   </sub>
 </p>
+
+## Linear release reporting
+
+See [Release Reporting](Release%20Reporting.md) for the delivery checks, scoped
+credential reference, AME commit references, and reporting-only retries. Linear
+records a verified delivery after the existing publisher completes.
