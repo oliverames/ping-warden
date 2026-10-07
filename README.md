@@ -5,7 +5,7 @@
 <h1 align="center">Ping Warden</h1>
 
 <p align="center">
-  <strong>Stop AWDL lag spikes during cloud gaming on your Mac.</strong>
+  <strong>Keep AWDL paused while you play, with latency readings you can inspect.</strong>
 </p>
 
 <p align="center">
@@ -18,6 +18,7 @@
 <p align="center">
   <a href="https://github.com/oliverames/ping-warden/releases/latest"><img src="https://img.shields.io/github/v/release/oliverames/ping-warden?style=flat-square&color=f5a542&label=Download" alt="Download"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f5a542?style=flat-square" alt="License"></a>
+  <a href="https://www.buymeacoffee.com/oliverames"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-support-f5a542?style=flat-square&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee"></a>
   <a href="https://amesconsulting.gumroad.com/l/pingwarden"><img src="https://img.shields.io/badge/Gumroad-license-f5a542?style=flat-square" alt="Buy license on Gumroad"></a>
 </p>
 
@@ -34,7 +35,7 @@
 
 ---
 
-Ping Warden (formerly AWDL Control) is an open source (MIT) Mac app for cloud gaming that you control from the menu bar or, on macOS 26, a native Control Center toggle. AWDL can contribute to Wi-Fi stutters in GeForce NOW, Xbox Cloud Gaming, self-hosted streaming through Moonlight or Parsec, and other latency-sensitive games or calls. Ping Warden keeps it paused while you play. The source stays MIT. The dashboard, latency history, diagnostics, and updates are free.
+Ping Warden (formerly AWDL Control) is a Mac app for controlling Apple Wireless Direct Link during latency-sensitive games and calls. It keeps the interface paused while protection is active and displays latency, jitter and probe history so you can assess your connection. You can control it from the menu bar or a native Control Center toggle on macOS 26 and later.
 
 Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by AirDrop, AirPlay, Handoff, and other nearby-device features, and keeps that interface down while it is active. The prebuilt app requires a one-time $15 license to enable Ping Protection, including starting a protected Latency Session. Eligible existing users receive the [90-day transition described below](#pricing). Visit [pingwarden.app](https://pingwarden.app/) for the product website and [complete documentation](https://pingwarden.app/docs/).
 
@@ -46,11 +47,11 @@ Ping Protection watches Apple Wireless Direct Link (AWDL), the interface used by
 
 Ping Protection temporarily makes AirDrop, AirPlay, Handoff, and other AWDL-dependent features unavailable on your Mac. Turn protection off when you need them, or use the 10-minute pause from the menu bar. Ping Warden restores AWDL when protection stops and during its removal flow.
 
-That tradeoff is the point of the app. You choose when a latency-sensitive game or call matters more than nearby-device features.
+Turn protection on for the session that needs it, then restore nearby-device features when you finish.
 
-## Why this exists
+## Why This Exists
 
-Running `sudo ifconfig awdl0 down` once is not enough because macOS can bring AWDL back up automatically. A timer-based script reacts after the interface is already active, which still leaves time for channel switching to affect the connection.
+A one-time command can lower `awdl0`, but macOS can bring it back up. Ping Warden watches interface events for reactivation and keeps the current protection state visible, so you can control that behavior for a gaming session.
 
 ## How it works
 
@@ -66,9 +67,9 @@ To keep one icon instead of two, turn on **Settings → General → Control Cent
 
 ### 1. Get the app
 
-Buy the [Ping Warden License on Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). The signed, notarized DMG is attached to the purchase, so it is in your receipt and your Gumroad library, and the license key arrives in the same email. Open the DMG, drag Ping Warden to `/Applications`, and launch the copy in Applications.
+Download the signed, notarized DMG from [Releases](https://github.com/oliverames/ping-warden/releases/latest). Open it, drag Ping Warden to `/Applications`, and launch that copy. The dashboard, latency history, diagnostics and updates work without a key.
 
-Want to try the free features first? The same build is on [Releases](https://github.com/oliverames/ping-warden/releases/latest). The dashboard, latency history, diagnostics, and updates work without a key. Enabling Ping Protection, including starting a Latency Session, requires a license or an active transition. Any official build accepts the key from a later purchase.
+Enabling Ping Protection, including starting a Latency Session, requires a [Gumroad license](https://amesconsulting.gumroad.com/l/pingwarden) or an active existing-user transition. The purchase includes the same app download and a license key. An official build accepts a key purchased later.
 
 **On version 2.0.5 or earlier? Download the current version once.** Early builds either lack an updater or have incomplete updater configuration. Quit Ping Warden, [download the latest DMG](https://github.com/oliverames/ping-warden/releases/latest), and replace the copy in Applications. Launch it from Applications afterward.
 
@@ -110,13 +111,22 @@ Ping targets include common public services, discovered GeForce NOW regions, you
 
 Ping Warden stays open source under MIT. You can build from source, inspect it, and modify it under MIT whether you pay or not. The prebuilt, signed, and notarized app is free to download. The dashboard, latency history, diagnostics, and updates are free to use.
 
-**Why a license:** After two years of free builds, donations cover only a fraction of the ongoing work — Developer ID signing, Apple notarization, testing across macOS releases, and release engineering. A one-time $15 license for the Ping Protection feature makes that work sustainable without subscriptions, ads, or analytics. The tradeoff that defines this app stays exactly the same, and the source stays auditable under MIT.
-
 Enabling Ping Protection in the prebuilt app, including starting a Latency Session, requires a license or an active transition. Buy the license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch; verification is offline-friendly for up to 14 days.
 
 **Transition for existing users:** If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in **Settings → License**. When the transition ends, enter a license key to keep protection available. The app introduces the transition once and reminds eligible users twice more, when 30 days and 7 days remain, showing the days left. Reminders are held while a detected game or latency session is active, appear the next time you use Ping Warden, and stop after license activation. A reminder missed while the app was closed does not stack with the next one.
 
 **Donors:** If you supported Ping Warden through [Buy Me a Coffee](https://www.buymeacoffee.com/oliverames) before version 4, email [oliver@ames.consulting](mailto:oliver@ames.consulting) with your receipt and it will be honored as a full license.
+
+## Configuration
+
+| Setting | Location | Behavior |
+| --- | --- | --- |
+| Ping Protection | Menu bar or Control Center | Requests AWDL protection when licensing and helper approval permit it. |
+| Quick pause | Menu bar | Restores AWDL for 10 minutes, then returns to the previous protection state. |
+| Game Mode auto-detect | Settings | Uses frontmost-game detection. Optional Screen Recording permission adds fullscreen detection behind other windows. |
+| Control Center Only | Settings > General | Hides the app's menu bar and Dock icons on supported Macs. Direct launch opens Settings. |
+| License | Settings > License | Activates a key and shows any existing-user transition deadline. |
+| Crash reporting | Settings > Advanced > Privacy | Defaults on when no choice is saved. A saved opt-out persists. |
 
 ## Privacy
 
@@ -127,7 +137,7 @@ The app makes a few narrow outbound requests:
 - Sparkle checks the public appcast for updates.
 - License activation and refresh send your license key and the product ID to Gumroad over HTTPS. Your key stays in the macOS Keychain between checks.
 - The dashboard checks `status.geforcenow.com` to discover GeForce NOW target hostnames.
-- Starting with version 4.2.0, anonymous crash reporting is on by default when no choice has been saved. Updates preserve your saved choice, including an opt-out. Turn it off under **Settings > Advanced > Privacy** to stop new reports immediately. Turning it back on requires a relaunch. Reports exclude ping targets, network breadcrumbs, performance traces, and app-lifecycle tracking. IP-address storage is disabled in the reporting service.
+- Starting with version 4.2.0, anonymous crash reporting is on by default when no choice has been saved. Updates preserve your saved choice, including an opt-out. Turn it off under **Settings > Advanced > Privacy** to stop new reports immediately. Turning it back on requires a relaunch. Reports exclude ping targets, network breadcrumbs, performance traces, and app-lifecycle tracking. The client disables default personally identifying data, performance tracing and session tracking.
 - TCP latency probes connect only to the target you select or ask Ping Warden to choose.
 
 Diagnostics exports are written locally. Ping Warden never uploads them for you.
@@ -156,6 +166,12 @@ open PingWarden/PingWarden.xcodeproj
 
 The app requires macOS 13 or newer. Configure signing for the app, helper, and widget targets before running from Xcode. The full helper-registration flow only works when the built app is installed in `/Applications`; non-helper UI work can run from Xcode.
 
+## Development Status
+
+The project declares 4.3.1 (43100). Migration support on `main` is preparatory: the receiving app remains dormant, and the helper admission and update handoff are not enabled. The [October 6, 2026 boundary review](docs/Migration%20Boundaries%20Review%202026-10-06.md) records the remaining continuity work. It does not describe a completed customer migration or authorize release.
+
+`swift test` covers the Foundation-based core. It doesn't exercise helper registration, signed Control Center behavior or live network changes. Use the scoped verification and release procedures in [CONTRIBUTING.md](CONTRIBUTING.md) and [WORKLOG.md](WORKLOG.md) for changes to those surfaces.
+
 ## Credits
 
 - [jamestut/awdlkiller](https://github.com/jamestut/awdlkiller) provided inspiration for Ping Warden's approach to AWDL control.
@@ -163,15 +179,19 @@ The app requires macOS 13 or newer. Configure signing for the app, helper, and w
 
 ## License
 
-The source code is MIT, Copyright (c) 2025-2026 Oliver Ames — build it, inspect it, and modify it under MIT whether you buy a license or not. See [LICENSE](LICENSE) for the full terms.
+The source code is MIT, Copyright (c) 2025-2026 Oliver Ames, build it, inspect it, and modify it under MIT whether you buy a license or not. See [LICENSE](LICENSE) for the full terms.
 
 The prebuilt, signed, and notarized app is free to download. The dashboard, latency history, diagnostics, and updates are free to use. Enabling Ping Protection, including starting a Latency Session, requires a purchased key or an active transition. [Pricing](#pricing) covers what it costs, how verification works, and how the existing-user transition and donor path apply.
 
 ---
 
 <p align="center">
+  <a href="https://www.buymeacoffee.com/oliverames"><img src="https://img.shields.io/badge/Buy_Me_a_Coffee-support-f5a542?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee"></a>
+</p>
+
+<p align="center">
   <sub>
-    Built by Oliver Ames in Vermont
+    Maintained by <a href="https://ames.consulting">Oliver Ames</a> in Vermont
     &bull; <a href="https://github.com/oliverames">GitHub</a>
     &bull; <a href="https://linkedin.com/in/oliverames">LinkedIn</a>
     &bull; <a href="https://bsky.app/profile/oliverames.bsky.social">Bluesky</a>
