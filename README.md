@@ -168,7 +168,7 @@ The app requires macOS 13 or newer. Configure signing for the app, helper, and w
 
 ## Development Status
 
-The project declares 4.3.1 (43100). Migration support on `main` is preparatory: the receiving app remains dormant, and the helper admission and update handoff are not enabled. The [October 6, 2026 boundary review](docs/Migration%20Boundaries%20Review%202026-10-06.md) records the remaining continuity work. It does not describe a completed customer migration or authorize release.
+The project declares 4.3.1 (43100). This branch preserves the paused developer-account migration preparation. The receiving app remains dormant, and the helper admission and update handoff are not enabled. Read [MIGRATION_PAUSED.md](MIGRATION_PAUSED.md) before doing any work here. The [October 6, 2026 boundary review](docs/Migration%20Boundaries%20Review%202026-10-06.md) records the remaining continuity work. It does not describe a completed customer migration or authorize release.
 
 `swift test` covers the Foundation-based core. It doesn't exercise helper registration, signed Control Center behavior or live network changes. Use the scoped verification and release procedures in [CONTRIBUTING.md](CONTRIBUTING.md) and [WORKLOG.md](WORKLOG.md) for changes to those surfaces.
 
