@@ -1,5 +1,17 @@
 # Ping Warden Worklog
 
+## 2026-10-07 - README Refresh Closeout
+
+**What changed**: Clarifies measured interventions, licensing, privacy, and dormant migration preparation.
+
+**Decisions made**: Keep setup and status claims tied to current source or explicitly dated evidence. This entry records the multi-repository README maintenance session.
+
+**Left off at**: Resolved this session: README review and publication at `111fb34`. Relative links, examples and applicable counts were checked. Verification covered documentation. No fresh runtime acceptance is claimed.
+
+**Open questions**: No new question from the README refresh. Dormant migration work and the earlier setup-investigation evidence remain separate from this README refresh. No helper, licensing or network setting changed.
+
+---
+
 ## 2026-09-29 - 4.3.1 released
 
 **What changed:** 4.3.1 (43100) was published from c730502 via `release.sh`. It contains the #99 setup and Repair fix, #104's license offer, and the Control Center settings in General. At Oliver's request, the release notes now list only each version's changes. The 4.3.1 notes dropped "New since 4.0" and the licensing paragraph, and `update_appcast.py` no longer injects the "Upgrading from Ping Warden 3 or earlier?" paid notice. The normalizer strips that notice from every existing feed item, and the `minimumAutoupdateVersion` 40000 boundary is kept (b763161, gh-pages a4b94db). The GitHub release body was re-rendered to match.
