@@ -17,9 +17,6 @@
 
 #import "../Common/HelperProtocol.h"
 #import "PingWardenMonitor.h"
-#if defined(PINGWARDEN_MIGRATION_HELPER) && PINGWARDEN_MIGRATION_HELPER
-#import "PingWardenMigrationService.h"
-#endif
 
 #define LOG PingWardenHelperLog()
 // Fallback only — the live version is read from the embedded Info.plist by
@@ -34,7 +31,6 @@
 // tearing down monitoring and re-enabling AWDL mid-session.
 #define EXIT_GRACE_PERIOD_SECONDS 60.0
 
-#if !defined(PINGWARDEN_MIGRATION_HELPER) || !PINGWARDEN_MIGRATION_HELPER
 @class PingWardenService;
 
 static NSInteger activeConnectionCount = 0;
@@ -45,7 +41,6 @@ static BOOL isExiting = NO;
 // Mutated only on the main queue (scheduleExit and the main-queue hop in
 // shouldAcceptNewConnection) so cancel/recreate cannot race across threads.
 static dispatch_source_t exitTimer = nil;
-#endif
 // Keep the service and listener alive for the whole process lifetime.
 // main() never returns from dispatch_main(), and ARC is allowed to release
 // locals after their last use — the listener's weak delegate would then go
@@ -124,7 +119,6 @@ static BOOL isProperlyCodeSigned(void) {
     return status == errSecSuccess;
 }
 
-#if !defined(PINGWARDEN_MIGRATION_HELPER) || !PINGWARDEN_MIGRATION_HELPER
 #pragma mark - AWDLService
 
 @interface PingWardenService : NSObject <PingWardenHelperProtocol, NSXPCListenerDelegate>
@@ -341,8 +335,6 @@ static BOOL isProperlyCodeSigned(void) {
 
 @end
 
-#endif
-
 #pragma mark - Signal Handling
 
 /// Set up dispatch source for SIGTERM handling (async-signal-safe)
@@ -360,9 +352,6 @@ static dispatch_source_t setupSignalHandler(PingWardenService *service) {
 
     if (signalSource) {
         dispatch_source_set_event_handler(signalSource, ^{
-#if defined(PINGWARDEN_MIGRATION_HELPER) && PINGWARDEN_MIGRATION_HELPER
-            [service shutdownWithCompletion:^{ exit(0); }];
-#else
             os_log(LOG, "Received SIGTERM via dispatch, performing graceful shutdown");
             if (service && service.monitor) {
                 // Stop blocking, then raise awdl0 only if this helper
@@ -376,7 +365,6 @@ static dispatch_source_t setupSignalHandler(PingWardenService *service) {
                            dispatch_get_main_queue(), ^{
                 exit(0);
             });
-#endif
         });
         dispatch_resume(signalSource);
     }
@@ -431,12 +419,10 @@ int main(int argc, const char * argv[]) {
         os_log(LOG, "PingWardenHelper v%{public}@ starting (%{public}s)",
                helperVersionString(), isSigned ? "signed" : "unsigned/ad-hoc");
 
-#if !defined(PINGWARDEN_MIGRATION_HELPER) || !PINGWARDEN_MIGRATION_HELPER
         // Initialize thread-safe queue for connection counting
         connectionCountQueue = dispatch_queue_create("com.amesvt.pingwarden.helper.connectionCount",
                                                      DISPATCH_QUEUE_SERIAL);
 
-#endif
         // Create XPC listener for our Mach service
         // The service name must match the MachServices key in the plist
         NSXPCListener *listener = [[NSXPCListener alloc] initWithMachServiceName:@"com.amesvt.pingwarden.xpc"];
@@ -469,14 +455,7 @@ int main(int argc, const char * argv[]) {
 
         // Initialize the service. Monitor setup also restores awdl0 if an
         // earlier helper died while holding it down.
-#if defined(PINGWARDEN_MIGRATION_HELPER) && PINGWARDEN_MIGRATION_HELPER
-        PingWardenService *service = [[PingWardenService alloc]
-            initWithVersion:helperVersionString()
-            consoleUIDProvider:^uid_t { return consoleUserID(); }
-            exitGracePeriod:EXIT_GRACE_PERIOD_SECONDS];
-#else
         PingWardenService *service = [PingWardenService new];
-#endif
         if (!service) {
             runRefusingService(listener, @"the AWDL monitor could not initialize");
         }

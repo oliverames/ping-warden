@@ -7,7 +7,6 @@ The fixture's helper still controls the real awdl0 interface when enabled.
 """
 import argparse
 from pathlib import Path
-import re
 import shutil
 
 
@@ -66,32 +65,15 @@ def prepare(destination, license_state="paid"):
 
     app = project / "PingWarden"
     license_source = app / "LicenseManager.swift"
-    dependencies_source = app / "LicenseDependencies.swift"
     initial_state = ("cachedLicenseValid: true, lastVerifiedAt: now, grandfatherDeadline: nil"
                      if license_state == "paid" else
                      "cachedLicenseValid: false, lastVerifiedAt: nil, grandfatherDeadline: now.addingTimeInterval(21 * 86400)")
-    replace_body(license_source, "private convenience init()", '''        self.init(dependencies: LicenseDependencies(
-            defaults: Self.sharedDefaults(),
-            now: { Date() },
-            seal: .live,
-            credentials: .live,
-            verify: { _ in .failure(URLError(.notConnectedToInternet)) }
-        ))
+    replace_body(license_source, "private init()", '''        defaults = Self.sharedDefaults()
         // Seed only once so same-identity upgrade tests exercise preservation.
         if defaults.object(forKey: Self.sealKey) == nil {
-            let now = dependencies.now()
-            Self.writeSealedState(SealedState(INITIAL_STATE, lastSeenAt: now),
-                                  to: defaults, seal: dependencies.seal)
+            let now = Date()
+            Self.writeSealedState(SealedState(INITIAL_STATE, lastSeenAt: now), to: defaults)
         }'''.replace("INITIAL_STATE", initial_state))
-    # Preserve the real device-bound seal shared with the widget, but remove
-    # every live credential adapter from the generated app. These closures
-    # trap if a future fixture change accidentally reaches a credential path.
-    replace_body(dependencies_source, "static var live: LicenseCredentialClient", '''        LicenseCredentialClient(
-            read: { _, _, _ in fatalError("Control Center fixture forbids credential reads") },
-            update: { _, _, _ in fatalError("Control Center fixture forbids credential updates") },
-            add: { _, _, _ in fatalError("Control Center fixture forbids credential adds") },
-            delete: { _, _ in fatalError("Control Center fixture forbids credential deletes") }
-        )''')
     for declaration in [
         "func establishGrandfatheringIfNeeded(helperEnabled: Bool)",
         "func startPeriodicReverification()", "func reverifyAtLaunchIfNeeded()",
@@ -115,17 +97,11 @@ def prepare(destination, license_state="paid"):
     widget = project / "PingWardenWidget/PingWardenWidget.swift"
     widget.write_text(widget.read_text().replace('"Ping Protection"', '"Ping Protection 92 Test"'))
 
-    # Scan every licensing source, not only LicenseManager: adapters may move
-    # between files. Match symbols/whitespace variants rather than one call form.
-    forbidden = [
-        r"\bSecItem(?:CopyMatching|Update|Add|Delete)\b",
-        r"\bURLSession\s*[.(]",
-    ]
-    for path in project.rglob("License*.swift"):
-        remaining = path.read_text()
-        for pattern in forbidden:
-            if re.search(pattern, remaining):
-                raise ValueError(f"Fixture still includes an external license operation in {path}: {pattern}")
+    remaining = license_source.read_text()
+    for forbidden in ["SecItemCopyMatching(", "SecItemUpdate(", "SecItemAdd(", "SecItemDelete(",
+                      "URLSession.shared.data("]:
+        if forbidden in remaining:
+            raise ValueError(f"Fixture still performs an external license operation: {forbidden}")
     print(project / "PingWarden.xcodeproj")
     print(f"App: {NAME}; bundle: {NEW_ID}; group: PV3W52NDZ3.{NEW_ID}")
     print("Before first launch, confirm the fixture has no saved protection intent.")

@@ -24,9 +24,6 @@
 #import <fcntl.h>
 #import <string.h>
 #import <stdatomic.h>
-#if defined(PINGWARDEN_MIGRATION_HELPER) && PINGWARDEN_MIGRATION_HELPER
-#import <sys/stat.h>
-#endif
 
 #define LOG PingWardenHelperLog()
 
@@ -577,38 +574,6 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     }
     return success;
 }
-
-#if defined(PINGWARDEN_MIGRATION_HELPER) && PINGWARDEN_MIGRATION_HELPER
-
-- (BOOL)migrationReceiverCanAcquire {
-    [_interfaceLock lock];
-    struct ifreq ifr = {0};
-    strlcpy(ifr.ifr_name, TARGETIFNAM, IFNAMSIZ);
-    NSString *markerPath = self.loweredMarkerPath;
-    struct stat marker = {0};
-    BOOL markerAbsent = markerPath.length > 0
-        && lstat(markerPath.fileSystemRepresentation, &marker) != 0 && errno == ENOENT;
-    BOOL safe = !_invalidating && atomic_load(&_threadRunning)
-        && atomic_load(&_awdlEnabledAtomic) && !atomic_load(&_enforcementPending)
-        && !_loweredByHelper && markerAbsent
-        && _iocfd != INVALID_FD && ioctl(_iocfd, SIOCGIFFLAGS, &ifr) == 0
-        && (ifr.ifr_flags & IFF_UP) != 0;
-    [_interfaceLock unlock];
-    return safe;
-}
-
-- (BOOL)migrationRelinquishReceiverProtection {
-    [_interfaceLock lock];
-    // The old lease is gone even if the ioctl fails. Do not re-arm its poller.
-    atomic_store(&_awdlEnabledAtomic, true);
-    atomic_store(&_enforcementPending, false);
-    BOOL restored = !_invalidating && _iocfd != INVALID_FD && [self ifconfig:YES];
-    // ifconfig clears the lowered marker only after confirmed restoration.
-    [_interfaceLock unlock];
-    [self wakePoller];
-    return restored;
-}
-#endif
 
 - (void)restoreInterfaceIfLowered {
     // Last-resort restore used on exit paths. Performs the ioctl directly on

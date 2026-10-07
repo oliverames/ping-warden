@@ -6,9 +6,6 @@
 #
 #  Usage: ./release.sh [version] [release-notes-file]
 #  Example: ./release.sh 2.1.1 release_notes_2.1.1.txt
-#  Offline preparation: ./release.sh --prepare-migration-feeds --item PATH
-#    --migration-candidate-build BUILD --required-bridge-build BUILD --output-dir PATH
-#  Preparation writes only a new local candidate directory after validation.
 #
 #  Pre-flight rebuilds the generated website pages (Site/public) and stops if
 #  the committed copies are out of step with RELEASE_NOTES.md and the guides,
@@ -39,19 +36,6 @@ fi
 # The path is resolved from this script's repository root.
 # shellcheck disable=SC1090,SC1091
 source "$VALIDATION_SCRIPT"
-
-# Offline migration preparation exits before ordinary release configuration,
-# credentials, builds, signing or publication. No release version is inferred.
-if [ "${1:-}" = "--prepare-migration-feeds" ]; then
-    shift
-    if [ "${BETA_CHANNEL:-0}" = "1" ]; then
-        echo "Error: migration preparation requires the candidate in both feeds; beta-only preparation is unsupported." >&2
-        exit 1
-    fi
-    exec "${PYTHON_BIN:-/opt/homebrew/bin/python3}" "$REPO_ROOT/scripts/update_appcast.py" \
-        --prepare-migration-feeds \
-        --stable "$REPO_ROOT/appcast.xml" --beta "$REPO_ROOT/appcast-beta.xml" "$@"
-fi
 
 # Configuration
 VERSION="${1:-}"

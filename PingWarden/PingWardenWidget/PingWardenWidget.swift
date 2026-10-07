@@ -16,25 +16,6 @@ enum PingWardenControlKind {
     static let pingProtection = "PingWardenWidget"
 }
 
-#if PINGWARDEN_DORMANT_RECEIVER
-/// Constant presentation only. This is not an observation of active protection.
-@main
-struct PingWardenWidget: ControlWidget {
-    static let kind: String = PingWardenControlKind.pingProtection
-
-    var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: Self.kind) {
-            ControlWidgetToggle(isOn: false, action: SetPingProtectionIntent()) {
-                Label("Migration Pending", systemImage: "clock")
-            } valueLabel: { _ in
-                Text("Waiting")
-            }
-        }
-        .displayName("Ping Warden Migration")
-        .description("Keep using your existing Ping Warden installation while migration is prepared.")
-    }
-}
-#else
 /// Control Widget for managing Ping Protection from Control Center.
 /// Shows the effective runtime state while saving explicit toggle choices.
 @main
@@ -62,4 +43,3 @@ struct PingWardenWidget: ControlWidget {
         .description("Reduce wireless interruptions during gaming. AirDrop, AirPlay discovery, and Handoff are unavailable while protected.")
     }
 }
-#endif

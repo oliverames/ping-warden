@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-10-07 - Preserve paused migration outside main
+
+**What changed:** At Oliver's request, preserved source at `d57bb12` on `migration/paused-developer-account` in `/Users/oliverames/Developer/Projects/ping-warden-migration-paused`. The branch is pushed and its worktree is locked against accidental cleanup. Reverted the changes from the nine preparation commits, `f83e625` through `78b665b`, from `main` without rewriting history. The later README refresh and release-reporting changes remain. README now points to the preserved branch.
+
+**Verification:** The reverted source matches the pre-preparation baseline `fc618424` with the later unrelated commits applied. All 42 offline release-tool and release-reporting checks passed. Bash syntax and ShellCheck error checks passed for `release.sh`. Project settings, both appcasts and release notes are unchanged. No app suite, build, app launch, signing, account change or publication ran.
+
+**Pause:** Migration implementation and customer handoff remain incomplete. Further implementation, packaging, account changes, merges and releases require Oliver to explicitly resume the migration. Keep the preserved branch and worktree. The old preparation commits remain in Git history; resumption must deliberately restore the required changes after reviewing this revert, rather than automatically merging the preserved branch. Tracking remains [#109](https://github.com/oliverames/ping-warden/issues/109) / [AME-90](https://linear.app/ames-consulting/issue/AME-90/verify-4x-continuity-before-signing-migration).
+
 ## 2026-10-07 - GitHub Issue Review Closeout
 
 **What changed**: Reviewed all 10 open issues against source at `111fb34686e4` and their complete issue history. No issue qualified for closure.

@@ -18,7 +18,6 @@
 //  itself.
 //
 
-import Combine
 import Foundation
 import Security
 import os.log
@@ -62,27 +61,14 @@ final class LicenseManager: ObservableObject {
     /// the protection coordinator can enforce a fresh revocation.
     var onReverificationSettled: (@MainActor () -> Void)?
 
-    private let defaults: any LicenseStateStore
-    private let dependencies: LicenseDependencies
+    private let defaults: UserDefaults
     private var periodicReverifyTimer: Timer?
     private var entitlementTimer: Timer?
     private var verificationGeneration: UInt64 = 0
     private var isRemoving = false
 
-    private convenience init() {
-        self.init(dependencies: LicenseDependencies(
-            defaults: Self.sharedDefaults(),
-            now: { Date() },
-            seal: .live,
-            credentials: .live,
-            verify: { key in await Self.performVerifyRequest(key: key) }
-        ))
-    }
-
-    /// Internal seam for isolated characterization. Production still uses shared.
-    init(dependencies: LicenseDependencies) {
-        self.dependencies = dependencies
-        defaults = dependencies.defaults
+    private init() {
+        defaults = Self.sharedDefaults()
     }
 
     nonisolated private static func sharedDefaults() -> UserDefaults {
@@ -103,7 +89,7 @@ final class LicenseManager: ObservableObject {
         var lastSeenAt: Date?
     }
 
-    nonisolated private static func readSealedState(from defaults: any LicenseStateStore, seal: LicenseSealClient) -> SealedState? {
+    nonisolated private static func readSealedState(from defaults: UserDefaults) -> SealedState? {
         func date(_ key: String) -> Date? {
             let timestamp = defaults.double(forKey: key)
             guard timestamp > 0 else { return nil }
@@ -120,15 +106,15 @@ final class LicenseManager: ObservableObject {
             lastVerifiedAt: state.lastVerifiedAt,
             grandfatherDeadline: state.grandfatherDeadline,
             lastSeenAt: state.lastSeenAt,
-            deviceIdentifier: seal.deviceIdentifier()
+            deviceIdentifier: LicenseStateSeal.deviceIdentifier()
         )
-        guard seal.matches(defaults.string(forKey: sealKey), payload) else {
+        guard LicenseStateSeal.matches(defaults.string(forKey: sealKey), payload: payload) else {
             return nil
         }
         return state
     }
 
-    nonisolated private static func writeSealedState(_ state: SealedState, to defaults: any LicenseStateStore, seal: LicenseSealClient) {
+    nonisolated private static func writeSealedState(_ state: SealedState, to defaults: UserDefaults) {
         func stamp(_ date: Date?) -> Double {
             guard let date else { return 0 }
             return date.timeIntervalSince1970.rounded(.down)
@@ -150,23 +136,23 @@ final class LicenseManager: ObservableObject {
             lastVerifiedAt: normalized.lastVerifiedAt,
             grandfatherDeadline: normalized.grandfatherDeadline,
             lastSeenAt: normalized.lastSeenAt,
-            deviceIdentifier: seal.deviceIdentifier()
+            deviceIdentifier: LicenseStateSeal.deviceIdentifier()
         )
-        defaults.set(seal.seal(payload), forKey: sealKey)
+        defaults.set(LicenseStateSeal.seal(payload), forKey: sealKey)
     }
 
     private var sealedState: SealedState? {
-        Self.readSealedState(from: defaults, seal: dependencies.seal)
+        Self.readSealedState(from: defaults)
     }
 
     private func updateSealedState(_ mutate: (inout SealedState) -> Void) {
         var state = sealedState ?? SealedState(cachedLicenseValid: false)
         mutate(&state)
-        Self.writeSealedState(state, to: defaults, seal: dependencies.seal)
+        Self.writeSealedState(state, to: defaults)
     }
 
-    nonisolated private static func entitlement(from defaults: any LicenseStateStore, now: Date, seal: LicenseSealClient) -> Bool {
-        guard let state = readSealedState(from: defaults, seal: seal) else { return false }
+    nonisolated private static func entitlement(from defaults: UserDefaults, now: Date) -> Bool {
+        guard let state = readSealedState(from: defaults) else { return false }
         guard LicensePolicy.clockIsPlausible(
             now: now,
             lastVerifiedAt: state.lastVerifiedAt,
@@ -189,14 +175,14 @@ final class LicenseManager: ObservableObject {
     /// Runs entirely from cached state; the caller decides whether to
     /// trigger a re-verify.
     var canEnableProtection: Bool {
-        Self.entitlement(from: defaults, now: dependencies.now(), seal: dependencies.seal)
+        Self.entitlement(from: defaults, now: Date())
     }
 
     /// The same decision for code that runs before the main-actor
     /// singleton exists, such as PingWardenMonitor restoring persisted
     /// protection during its own initializer at launch.
     nonisolated static var launchGateAllowsProtection: Bool {
-        entitlement(from: sharedDefaults(), now: Date(), seal: .live)
+        entitlement(from: sharedDefaults(), now: Date())
     }
 
     /// Move the last-seen clock mark forward. Called at launch and on
@@ -209,7 +195,7 @@ final class LicenseManager: ObservableObject {
     /// minute for the life of the process for no gain in detection.
     func recordClockObservation() {
         guard let state = sealedState else { return }
-        let now = dependencies.now()
+        let now = Date()
         if let seen = state.lastSeenAt, seen > now { return }
         if let seen = state.lastSeenAt,
            now.timeIntervalSince(seen) < Self.clockObservationMinimumInterval {
@@ -226,7 +212,7 @@ final class LicenseManager: ObservableObject {
     /// Days remaining in an active grandfather window, for UI display.
     var grandfatherDaysRemaining: Int? {
         guard let deadline = grandfatherDeadline else { return nil }
-        let remaining = deadline.timeIntervalSince(dependencies.now())
+        let remaining = deadline.timeIntervalSinceNow
         guard remaining > 0 else { return nil }
         return Int(ceil(remaining / 86400))
     }
@@ -239,12 +225,12 @@ final class LicenseManager: ObservableObject {
     /// window for existing users) and has not licensed yet.
     var isGrandfathered: Bool {
         guard let deadline = grandfatherDeadline else { return false }
-        return dependencies.now() < deadline && !hasValidPaidLicense && canEnableProtection
+        return Date() < deadline && !hasValidPaidLicense && canEnableProtection
     }
 
     var hasValidPaidLicense: Bool {
         guard let state = sealedState else { return false }
-        let now = dependencies.now()
+        let now = Date()
         return LicensePolicy.clockIsPlausible(now: now, lastVerifiedAt: state.lastVerifiedAt, lastSeenAt: state.lastSeenAt)
             && LicensePolicy.canEnableProtection(cachedLicenseValid: state.cachedLicenseValid,
                 lastVerifiedAt: state.lastVerifiedAt, now: now, grandfatherDeadline: nil)
@@ -256,7 +242,7 @@ final class LicenseManager: ObservableObject {
     /// qualified.
     var grandfatherWindowExpired: Bool {
         guard let deadline = grandfatherDeadline else { return false }
-        return dependencies.now() >= deadline && !hasValidPaidLicense
+        return Date() >= deadline && !hasValidPaidLicense
     }
 
     /// Address donors should email to convert a pre-license donation
@@ -275,7 +261,7 @@ final class LicenseManager: ObservableObject {
 
     var transitionReminderIsDue: Bool {
         LicenseReminderPolicy.isDue(
-            now: dependencies.now(), deadline: grandfatherDeadline,
+            now: Date(), deadline: grandfatherDeadline,
             eligible: isGrandfathered && storedLicenseKey == nil && !isVerifying,
             lastPresentedAt: defaults.object(forKey: transitionLastPresentedKey) as? Date
         )
@@ -284,7 +270,7 @@ final class LicenseManager: ObservableObject {
     /// Persist only after presenting a window, not when a check is deferred.
     func recordTransitionNoticePresented() {
         transitionNoticeShown = true
-        defaults.set(dependencies.now(), forKey: transitionLastPresentedKey)
+        defaults.set(Date(), forKey: transitionLastPresentedKey)
     }
 
     /// One-time grandfathering for the licensed build's first launch:
@@ -306,11 +292,11 @@ final class LicenseManager: ObservableObject {
             timestamp: defaults.double(forKey: Self.grandfatherDeadlineKey),
             previouslyChecked: alreadyChecked || legacyChecked,
             helperEnabled: helperEnabled,
-            now: dependencies.now()
+            now: Date()
         ) {
             updateSealedState { state in
                 state.grandfatherDeadline = originalDeadline
-                state.lastSeenAt = dependencies.now()
+                state.lastSeenAt = Date()
             }
         }
         guard !alreadyChecked else { return }
@@ -329,10 +315,10 @@ final class LicenseManager: ObservableObject {
             return
         }
 
-        let deadline = dependencies.now().addingTimeInterval(LicensePolicy.grandfatherInterval)
+        let deadline = Date().addingTimeInterval(LicensePolicy.grandfatherInterval)
         updateSealedState { state in
             state.grandfatherDeadline = deadline
-            state.lastSeenAt = dependencies.now()
+            state.lastSeenAt = Date()
         }
         licenseLog.info("Grandfathering existing install for 90 days")
     }
@@ -392,10 +378,18 @@ final class LicenseManager: ObservableObject {
     // MARK: - Keychain
 
     var storedLicenseKey: String? {
-        guard case .found(let data) = dependencies.credentials.read(keychainService, keychainAccount, true),
-              let data, let key = String(data: data, encoding: .utf8) else {
-            // Preserve current behavior: blocked, missing and malformed reads
-            // all expose nil. Fixtures characterize this before any policy fix.
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess,
+              let data = item as? Data,
+              let key = String(data: data, encoding: .utf8) else {
             return nil
         }
         return key
@@ -410,9 +404,14 @@ final class LicenseManager: ObservableObject {
     }
 
     private func keychainMarkerExists(account: String) -> Bool {
-        if case .found = dependencies.credentials.read(keychainService, account, false) { return true }
-        // Keep the existing failure-to-false decision in this seam-only change.
-        return false
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: false,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
     }
 
     private func setKeychainMarker(account: String) {
@@ -420,19 +419,35 @@ final class LicenseManager: ObservableObject {
     }
 
     private func storeKeychainValue(_ data: Data, account: String) {
-        let updateStatus = dependencies.credentials.update(keychainService, account, data)
+        let baseQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: account,
+        ]
+
+        // Update if present, insert otherwise.
+        let updateAttributes: [String: Any] = [
+            kSecValueData as String: data,
+        ]
+        let updateStatus = SecItemUpdate(baseQuery as CFDictionary, updateAttributes as CFDictionary)
         if updateStatus == errSecSuccess { return }
 
-        // Preserve the current add-after-any-update-error behavior. The client
-        // exposes exact status values so a later fix can be tested separately.
-        let addStatus = dependencies.credentials.add(keychainService, account, data)
+        var addQuery = baseQuery
+        addQuery[kSecValueData as String] = data
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
         if addStatus != errSecSuccess {
             licenseLog.error("Could not store keychain item \(account, privacy: .public) (OSStatus \(addStatus))")
         }
     }
 
     private func deleteKeychainItem(account: String) {
-        _ = dependencies.credentials.delete(keychainService, account)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: account,
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 
     // MARK: - Verification
@@ -476,7 +491,7 @@ final class LicenseManager: ObservableObject {
         defer { isVerifying = false }
 
         let generation = verificationGeneration
-        let result = await dependencies.verify(key)
+        let result = await Self.performVerifyRequest(key: key)
         guard !isRemoving, generation == verificationGeneration else { return false }
 
         switch result {
@@ -492,8 +507,8 @@ final class LicenseManager: ObservableObject {
                 storeLicenseKey(key)
                 updateSealedState { state in
                     state.cachedLicenseValid = true
-                    state.lastVerifiedAt = dependencies.now()
-                    state.lastSeenAt = dependencies.now()
+                    state.lastVerifiedAt = Date()
+                    state.lastSeenAt = Date()
                 }
                 licenseLog.info("License verified")
                 return true
@@ -514,7 +529,7 @@ final class LicenseManager: ObservableObject {
     private func applyRevocation() {
         updateSealedState { state in
             state.cachedLicenseValid = false
-            state.lastSeenAt = dependencies.now()
+            state.lastSeenAt = Date()
         }
         // Keep the key and timestamp: a refund that is later reversed
         // (or a transient seller-side disable) should not require the

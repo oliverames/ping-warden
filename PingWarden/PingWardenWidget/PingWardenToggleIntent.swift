@@ -14,48 +14,6 @@ import Foundation
 import os.log
 import WidgetKit
 
-#if PINGWARDEN_DORMANT_RECEIVER
-// Keep both discoverable intent entry points inert, including existing Shortcuts.
-struct SetPingProtectionIntent: SetValueIntent {
-    static var title: LocalizedStringResource = "Set Ping Protection"
-    static var description = IntentDescription("Migration is pending. Keep using your existing Ping Warden installation.")
-    static var supportedModes: IntentModes { .background }
-
-    @Parameter(title: "Enabled")
-    var value: Bool
-
-    init() {}
-    init(value: Bool) { self.value = value }
-
-    func perform() async throws -> some IntentResult {
-        try DormantReceiverIntentGate.refuse()
-        return .result()
-    }
-}
-
-struct ToggleAWDLMonitoringIntent: AppIntent {
-    static var title: LocalizedStringResource = "Toggle Ping Protection"
-    static var description = IntentDescription("Migration is pending. Keep using your existing Ping Warden installation.")
-    static var supportedModes: IntentModes { .background }
-
-    func perform() async throws -> some IntentResult {
-        try DormantReceiverIntentGate.refuse()
-        return .result()
-    }
-}
-
-private enum DormantReceiverIntentGate {
-    static func refuse() throws { throw DormantReceiverIntentError.migrationPending }
-}
-
-private enum DormantReceiverIntentError: Error, CustomLocalizedStringResourceConvertible {
-    case migrationPending
-
-    var localizedStringResource: LocalizedStringResource {
-        "Migration is pending. Keep using your existing Ping Warden installation."
-    }
-}
-#else
 private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "WidgetIntent")
 
 /// App Intent to set Ping Protection from a Control Center toggle.
@@ -191,8 +149,6 @@ private enum PingProtectionIntentHandler {
         )
     }
 }
-
-#endif
 
 enum AWDLError: Error, CustomLocalizedStringResourceConvertible {
     case toggleFailed

@@ -19,10 +19,7 @@ enum GeForceNOWDiscovery {
     /// be matched until a fresh network round-trip finished, and the shared
     /// probe spent those seconds measuring a fallback target instead.
     private static let cacheLock = NSLock()
-    // Keep the owning handle so object identity cannot be reused after release.
-    // Another defaults handle must reload its own domain, even if this process
-    // previously cached zones for a different destination.
-    nonisolated(unsafe) private static var memoryCache: (defaults: UserDefaults, codes: [String], fetchedAt: Date)?
+    nonisolated(unsafe) private static var memoryCache: (codes: [String], fetchedAt: Date)?
     private static let cachedCodesKey = "DashboardGFNZoneCodes"
     private static let cachedAtKey = "DashboardGFNZoneCodesFetchedAt"
     private static let cacheRetention: TimeInterval = 30 * 24 * 3600
@@ -34,7 +31,7 @@ enum GeForceNOWDiscovery {
     static func cachedTargets(userDefaults: UserDefaults = .standard) -> (targets: [PingTarget], fetchedAt: Date)? {
         cacheLock.lock()
         defer { cacheLock.unlock() }
-        if let memoryCache, memoryCache.defaults === userDefaults {
+        if let memoryCache {
             return (makeTargets(fromCodes: memoryCache.codes), memoryCache.fetchedAt)
         }
         guard let codes = userDefaults.stringArray(forKey: cachedCodesKey), !codes.isEmpty else {
@@ -44,13 +41,13 @@ enum GeForceNOWDiscovery {
         guard Date().timeIntervalSince(fetchedAt) < cacheRetention else { return nil }
         let validCodes = codes.filter { !extractZoneCodes(from: [$0]).isEmpty }
         guard !validCodes.isEmpty else { return nil }
-        memoryCache = (userDefaults, validCodes, fetchedAt)
+        memoryCache = (validCodes, fetchedAt)
         return (makeTargets(fromCodes: validCodes), fetchedAt)
     }
 
     private static func storeCache(codes: [String], fetchedAt: Date, userDefaults: UserDefaults = .standard) {
         cacheLock.lock()
-        memoryCache = (userDefaults, codes, fetchedAt)
+        memoryCache = (codes, fetchedAt)
         cacheLock.unlock()
         userDefaults.set(codes, forKey: cachedCodesKey)
         userDefaults.set(fetchedAt.timeIntervalSince1970, forKey: cachedAtKey)
@@ -59,9 +56,7 @@ enum GeForceNOWDiscovery {
     /// Remove both cache tiers. Used by the removal flow.
     static func clearCache(userDefaults: UserDefaults = .standard) {
         cacheLock.lock()
-        if memoryCache?.defaults === userDefaults {
-            memoryCache = nil
-        }
+        memoryCache = nil
         cacheLock.unlock()
         userDefaults.removeObject(forKey: cachedCodesKey)
         userDefaults.removeObject(forKey: cachedAtKey)
@@ -91,9 +86,7 @@ enum GeForceNOWDiscovery {
     /// successful-but-empty response so callers can keep previously
     /// discovered zones on a transient failure instead of wiping them —
     /// which would silently reset the user's selected GFN target.
-    // Keep the dashboard-owned defaults handle on its actor across the await.
-    @MainActor
-    static func fetchTargets(userDefaults: UserDefaults = .standard) async -> [PingTarget]? {
+    static func fetchTargets() async -> [PingTarget]? {
         guard let endpoint else { return nil }
 
         var request = URLRequest(url: endpoint)
@@ -111,7 +104,7 @@ enum GeForceNOWDiscovery {
             // An empty list is a successful answer that says "no zones";
             // keep the previous cache rather than persisting nothing.
             if !codes.isEmpty {
-                storeCache(codes: codes, fetchedAt: Date(), userDefaults: userDefaults)
+                storeCache(codes: codes, fetchedAt: Date())
             }
             return makeTargets(fromCodes: codes)
         } catch {
