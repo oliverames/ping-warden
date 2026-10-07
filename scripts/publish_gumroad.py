@@ -83,6 +83,20 @@ def verify_download(file, path):
         raise ValueError("Gumroad DMG bytes do not match the release artifact")
 
 
+def verify_current_delivery(product, pages, path):
+    """Read-only gate: uploading a file is insufficient without buyer visibility."""
+    validate(product, pages)
+    matches = [f for f in product.get("files", []) if f.get("name") == path.name]
+    if len(matches) != 1:
+        raise ValueError("Expected exactly one uploaded file for this release")
+    dmg_ids = {f["id"] for f in product["files"] if re.fullmatch(r"PingWarden-[\w.+-]+\.dmg", f.get("name", ""))}
+    visible = [n.get("attrs", {}).get("id") for n in nodes(pages)
+               if n.get("type") == "fileEmbed" and n.get("attrs", {}).get("id") in dmg_ids]
+    if visible != [matches[0]["id"]]:
+        raise ValueError("Buyer content does not offer exactly the current release")
+    verify_download(matches[0], path)
+
+
 def attempts_for(wait_seconds, delay=POLL_DELAY_SECONDS):
     """Poll count that covers wait_seconds at the given delay (at least one)."""
     if wait_seconds <= 0:
@@ -114,7 +128,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("product")
     parser.add_argument("dmg", type=Path, nargs="?")
-    parser.add_argument("--check", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--verify-only", action="store_true", help="Verify the existing buyer download without publishing")
     parser.add_argument("--wait-seconds", type=int, default=DEFAULT_WAIT_SECONDS,
                         help="How long to wait for Gumroad to settle the upload's metadata "
                              f"(default {DEFAULT_WAIT_SECONDS})")
@@ -127,6 +143,10 @@ def main():
         return
     if args.dmg is None or not args.dmg.is_file():
         parser.error("A release DMG is required")
+    if args.verify_only:
+        verify_current_delivery(product, pages, args.dmg)
+        print(f"Verified existing buyer download: {args.dmg.name}")
+        return
     if not any(f.get("name") == args.dmg.name for f in product.get("files", [])):
         gumroad("products", "update", args.product, "--file", str(args.dmg), "--file-name", args.dmg.name)
     product = wait_for_upload(args.product, args.dmg.name, args.dmg.stat().st_size,

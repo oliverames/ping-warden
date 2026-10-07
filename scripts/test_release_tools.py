@@ -262,5 +262,24 @@ class GumroadContentTests(unittest.TestCase):
             gumroad.validate({"id": "wrong", "published": True}, [{"type": "licenseKey"}])
 
 
+    def test_verify_only_checks_buyer_visibility_and_never_writes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "PingWarden-4.3.1.dmg"
+            path.write_bytes(b"release")
+            current = {"id": "latest", "name": path.name, "size": 7, "url": "https://example.invalid/download"}
+            old = {"id": "old", "name": "PingWarden-4.3.0.dmg"}
+            product = {"id": gumroad.PRODUCT_ID, "published": True, "files": [current, old]}
+            pages = [{"type": "licenseKey"}, {"type": "fileEmbed", "attrs": {"id": "latest"}}]
+            with patch.object(sys, 'argv', ['publish_gumroad.py', 'qthvm', str(path), '--verify-only']), patch.object(gumroad, 'gumroad', side_effect=[{"product": product}, pages]) as api, patch.object(gumroad, 'verify_download') as download:
+                gumroad.main()
+                self.assertEqual([c.args for c in api.call_args_list], [('products', 'view', 'qthvm'), ('products', 'content', 'get', 'qthvm')])
+                download.assert_called_once_with(current, path)
+            with patch.object(gumroad, 'verify_download') as download:
+                for broken in [pages[:1], pages + [{"type": "fileEmbed", "attrs": {"id": "old"}}]]:
+                    with self.assertRaises(ValueError):
+                        gumroad.verify_current_delivery(product, broken, path)
+                download.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

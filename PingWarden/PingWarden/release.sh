@@ -645,7 +645,18 @@ fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "${GREEN}Release Complete!${NC}"
+# Report only after all delivery channels are ready. A skip remains a skip,
+# but it cannot silently become a completed Linear release.
+if [ "${SKIP_GH_PAGES:-0}" = "1" ] || { [ "${BETA_CHANNEL:-0}" != "1" ] && [ "${SKIP_GUMROAD:-0}" = "1" ]; }; then
+    echo -e "${YELLOW}Delivery incomplete; Linear completion deferred because a required delivery was skipped.${NC}"
+else
+    if ! "$PYTHON_BIN" "$REPO_ROOT/scripts/report_linear_release.py" \
+        --version "$VERSION" --artifacts "$(dirname "$DMG_PATH")" --feed "$APPCAST_FILE"; then
+        echo "App publication already ran; retry only scripts/report_linear_release.py with the same version and artifacts." >&2
+        exit 1
+    fi
+    echo -e "${GREEN}Release Complete!${NC}"
+fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Next steps:"
