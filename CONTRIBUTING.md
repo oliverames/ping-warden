@@ -37,3 +37,9 @@ Add focused tests for behavior that can run without AppKit or root privileges. F
 Keep each pull request to one logical change. Explain the user-visible result, list the tests you ran, and call out changes to the privileged helper, XPC authorization, entitlements, diagnostics, or update delivery.
 
 Do not commit credentials, private signing keys, provisioning profiles, notarization data, exported diagnostics, or personal network information.
+
+## Linear release reporting
+
+See [Release Reporting](Release%20Reporting.md) for the delivery checks, scoped
+credential reference, AME commit references, and reporting-only retries. Linear
+records a verified delivery after the existing publisher completes.
