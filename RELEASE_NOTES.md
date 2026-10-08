@@ -1,3 +1,18 @@
+# Ping Warden 4.3.2
+
+This update makes helper Repair easier to reach and keeps it from overriding changes you make while it runs. It also checks current protection state when Control Center requests a fresh value.
+
+## Helper recovery
+
+- After Ping Warden detects that an approved helper isn't answering, **Settings → General** and the menu bar now offer **Repair**. The button keeps an accessible label while Repair runs.
+- Repair follows your current protection choice, pause, license eligibility, and Latency Session state, so reconnecting doesn't restore an older On or Off choice over a newer one.
+- Helper diagnostics describe connection failures without treating an XPC error as proof that the helper rejected the connection.
+
+## Control Center
+
+- A fresh Control Center value reports protection as on only if it observes the matching Ping Warden app running, active shared protection state, and an AWDL interface that's down. Reading that state doesn't launch the app or change protection.
+- Known limitation: macOS can keep the last rendered Control Center value after Ping Warden crashes, and a refresh after a crash still isn't guaranteed. [Issue #101](https://github.com/oliverames/ping-warden/issues/101) remains open.
+
 # Ping Warden 4.3.1
 
 This update makes helper setup and Repair finish on the first attempt, and gives Macs without a license a clearer way to activate Ping Protection.
