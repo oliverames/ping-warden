@@ -23,12 +23,11 @@ struct PingWardenWidget: ControlWidget {
     static let kind: String = PingWardenControlKind.pingProtection
 
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: Self.kind) {
+        StaticControlConfiguration(kind: Self.kind, provider: PingProtectionValueProvider()) { isProtected in
             // Runtime state can differ from the saved preference while a
             // Latency Session or Game Mode automation is active. Display
-            // what the helper is actually doing. The SetValueIntent receives
+            // the conservatively observed state. The SetValueIntent receives
             // the user's explicit target and persists it after XPC succeeds.
-            let isProtected = PingWardenPreferences.shared.effectiveMonitoringEnabled
             ControlWidgetToggle(isOn: isProtected, action: SetPingProtectionIntent()) {
                 Label(
                     "Ping Protection",
