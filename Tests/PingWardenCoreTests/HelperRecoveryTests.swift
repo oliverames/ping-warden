@@ -79,9 +79,19 @@ final class HelperRecoveryTests: XCTestCase {
         XCTAssertTrue(HelperCommandFailure.timedOut.helperDidNotAnswer)
         XCTAssertTrue(HelperCommandFailure.noConnection.helperDidNotAnswer)
         XCTAssertTrue(HelperCommandFailure.rejected(code: 4099).helperDidNotAnswer)
-        XCTAssertTrue(HelperCommandFailure.rejected(code: 4099).diagnosticDescription.contains("rejected the connection"))
+        XCTAssertEqual(HelperCommandFailure.rejected(code: 4099).diagnosticDescription,
+                       "the connection to the helper was invalid (XPC error 4099)")
         XCTAssertTrue(HelperCommandFailure.rejected(code: 4097).diagnosticDescription.contains("interrupted"))
         XCTAssertTrue(HelperCommandFailure.timedOut.diagnosticDescription.contains("timed out"))
+    }
+
+    func testConnectionFailureDoesNotInventARejectionCause() {
+        for code in [4099, -67050, 42] {
+            let description = HelperCommandFailure.rejected(code: code).diagnosticDescription
+            XCTAssertTrue(description.contains("\(code)"))
+            XCTAssertFalse(description.contains("rejected"))
+            XCTAssertFalse(description.contains("not running"))
+        }
     }
 
     func testFailureCopyReservesQuitAdviceForAHelperThatAnswered() {

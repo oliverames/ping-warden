@@ -585,7 +585,8 @@ do {
     spin(until: { result.withValue { $0 } != nil }, timeout: 5)
     let outcome = result.withValue { $0 }
     check(outcome?.0 == false, "Cross-lane: a rejected helper fails the test")
-    check(outcome?.1.contains("rejected the connection") == true, "Cross-lane: the test says the helper rejected the connection")
+    check(outcome?.1.contains("connection to the helper was invalid") == true && outcome?.1.contains("rejected") == false,
+          "Cross-lane: the helper test reports an invalid connection without inventing rejection")
     check(Date().timeIntervalSince(started) < 1.5, "Cross-lane: a rejection does not wait out both timeouts")
 }
 
@@ -619,6 +620,275 @@ do {
     check(Date().timeIntervalSince(started) < 1, "Cross-lane: a rejected probe does not wait out the two-second timeout")
     check(monitor.lastConnectionFailure == .rejected(code: xpcConnectionInvalid), "Cross-lane: the rejection is kept for messages")
     monitor.harnessFastReplies()
+}
+
+// #107: Repair is additive only after the helper is known silent.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    check(!MainActor.assumeIsolated { coordinator.shouldOfferHelperRepair },
+          "107: unknown helper health does not offer Repair")
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    check(MainActor.assumeIsolated { coordinator.shouldOfferHelperRepair && coordinator.canRepairHelper },
+          "107: registered silent helper offers an available Repair")
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    check(MainActor.assumeIsolated { coordinator.toggleAction() } == .turnOff,
+          "107: additive Repair preserves Turn Off for saved intent")
+    SMAppService.fixtureStatus = .notRegistered
+    monitor.refreshHelperStatus()
+    check(!MainActor.assumeIsolated { coordinator.shouldOfferHelperRepair },
+          "107: unregistered helper keeps Finish Setup rather than silent-helper Repair")
+}
+
+// #107: two surfaces share the complete repair, not just its registration.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    let first = launchRepair()
+    let second = launchRepair()
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
+    connection.helper.versions.forEach { $0("fixture-helper") }
+    connection.helper.versions.removeAll()
+    awaitCommands(on: connection)
+    check(MainActor.assumeIsolated { coordinator.isRepairingHelper && coordinator.shouldOfferHelperRepair && !coordinator.canRepairHelper },
+          "107: Repair stays visible and busy through protection restoration")
+    check(first.withValue { $0 } == nil && second.withValue { $0 } == nil,
+          "107: no Repair success before restoration answers")
+    check(connection.helper.commands.map(\.0) == [false],
+          "107: helper reply and concurrent callers cause only one enable")
+    connection.helper.commands.removeFirst().1(true)
+    spin(until: { first.withValue { $0 } != nil && second.withValue { $0 } != nil }, timeout: 2)
+    check(first.withValue { $0 } == second.withValue { $0 }
+          && first.withValue { $0 }?.title == RepairResultCopy.successTitle,
+          "107: concurrent surfaces receive the same successful repair result")
+    check(!MainActor.assumeIsolated { coordinator.isRepairingHelper || coordinator.shouldOfferHelperRepair },
+          "107: confirmed recovery clears the Repair affordance after completion")
+    check(PingWardenPreferences.shared.isMonitoringEnabled && monitor.isMonitoringActive,
+          "107: repair restores protection without changing saved intent")
+}
+
+// #107: a rebuild restores through one tracked coordinator command.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    setFixtureHelperBundle(installed: true)
+    defer { setFixtureHelperBundle(installed: false) }
+    let original = MainActor.assumeIsolated { turnOnThroughCoordinator() }
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.onUnregister = { original.invalidate() }
+    let repaired = launchRepair()
+    spin(until: { SMAppService.registerCalls == 1 }, timeout: 4)
+    let replacement = awaitConnection(replacing: original)
+    awaitVersionRequests(on: replacement)
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    replacement.helper.versions.forEach { $0("fixture-helper") }
+    replacement.helper.versions.removeAll()
+    awaitCommands(on: replacement)
+    check(replacement.helper.commands.map(\.0) == [false]
+          && monitor.isProtectionCommandInFlight,
+          "107: reconnect validation defers to one tracked Repair restoration")
+    check(repaired.withValue { $0 } == nil,
+          "107: rebuilt-helper Repair waits for its sole restoration reply")
+    replacement.helper.commands.removeFirst().1(true)
+    spin(until: { repaired.withValue { $0 } != nil }, timeout: 2)
+    check(repaired.withValue { $0 }?.title == RepairResultCopy.successTitle
+          && monitor.isMonitoringActive && replacement.helper.commands.isEmpty,
+          "107: rebuilt-helper Repair confirms protection without duplicate enables")
+    check(!monitor.defersProtectionReassertion,
+          "107: completed Repair releases reconnect reconciliation ownership")
+}
+
+// #107: repair preserves pauses and cannot enable through a lost license.
+for licensed in [true, false] {
+    MainActor.assumeIsolated { resetAll() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    LicenseManager.shared.canEnableProtection = licensed
+    let pause = Date().addingTimeInterval(600)
+    if licensed {
+        PingWardenPreferences.shared.protectionPauseUntil = pause
+        MainActor.assumeIsolated { coordinator.harnessSetPause(until: pause) }
+    }
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    let result = launchRepair()
+    spin(until: { result.withValue { $0 } != nil }, timeout: 2)
+    check(result.withValue { $0 }?.title == RepairResultCopy.successTitle,
+          "107: repair of a responding helper completes while paused or unlicensed")
+    check(NSXPCConnection.instances.allSatisfy { $0.helper.commands.isEmpty } && !monitor.isMonitoringActive,
+          "107: paused or unlicensed repair never sends enable")
+    check(PingWardenPreferences.shared.isMonitoringEnabled,
+          "107: paused or unlicensed repair preserves saved ongoing intent")
+    if licensed {
+        check(MainActor.assumeIsolated { coordinator.pauseUntil } == pause
+              && PingWardenPreferences.shared.protectionPauseUntil == pause,
+              "107: repair preserves the active and persisted pause")
+    }
+}
+
+// #107: temporary session demand survives Repair without becoming saved intent.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    MainActor.assumeIsolated { session.phase = .active; session.activeTrigger = .manual }
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    let result = launchRepair()
+    let connection = awaitConnection()
+    awaitCommands(on: connection)
+    check(connection.helper.commands.map(\.0) == [false], "107: current session demand restores protection")
+    connection.helper.commands.removeFirst().1(true)
+    spin(until: { result.withValue { $0 } != nil }, timeout: 2)
+    check(MainActor.assumeIsolated { session.phase == .active && session.endings.isEmpty },
+          "107: repair does not end a temporary session")
+    check(!PingWardenPreferences.shared.isMonitoringEnabled && monitor.isMonitoringActive,
+          "107: session-only protection stays temporary after repair")
+}
+
+// #107: a newer Off during the repair probe wins over the old saved choice.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    let repaired = launchRepair()
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
+    let off = launch { await coordinator.setPersistentProtection(false) }
+    awaitCommands(on: connection)
+    check(connection.helper.commands.map(\.0) == [true], "107: Off remains actionable during Repair")
+    connection.helper.commands.removeFirst().1(true)
+    spin(until: { off.withValue { $0 } != nil }, timeout: 2)
+    connection.helper.versions.forEach { $0("fixture-helper") }
+    connection.helper.versions.removeAll()
+    spin(until: { repaired.withValue { $0 } != nil }, timeout: 2)
+    check(off.withValue { $0 } == true && repaired.withValue { $0 }?.title == RepairResultCopy.successTitle,
+          "107: Repair completes after the newer Off")
+    check(!PingWardenPreferences.shared.isMonitoringEnabled && !monitor.isMonitoringActive
+          && connection.helper.commands.isEmpty,
+          "107: Repair never restores a stale on preference")
+}
+
+// #107: a newer action owns its pending reply, before preferences are saved.
+for desiredState in [false, true] {
+    MainActor.assumeIsolated { resetAll() }
+    PingWardenPreferences.shared.isMonitoringEnabled = !desiredState
+    let repaired = launchRepair()
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
+    let change = launch { await coordinator.setPersistentProtection(desiredState) }
+    awaitCommands(on: connection)
+    // Deliberately finish the repair probe BEFORE the newer command replies.
+    connection.helper.versions.forEach { $0("fixture-helper") }
+    connection.helper.versions.removeAll()
+    spin(until: { repaired.withValue { $0 } != nil }, timeout: 2)
+    check(connection.helper.commands.map(\.0) == [!desiredState],
+          "107: repair never adds a competing command while newer \(desiredState ? "On" : "Off") waits")
+    check(repaired.withValue { $0 }?.title == "Protection Change In Progress",
+          "107: repair reports pending change rather than final protection success")
+    connection.helper.commands.removeFirst().1(true)
+    spin(until: { change.withValue { $0 } != nil }, timeout: 2)
+    check(change.withValue { $0 } == true
+          && PingWardenPreferences.shared.isMonitoringEnabled == desiredState
+          && monitor.isMonitoringActive == desiredState,
+          "107: newer held \(desiredState ? "On" : "Off") remains authoritative")
+}
+
+// #107: pending license revocation and pause own their stop before it replies.
+for change in ["license", "pause"] {
+    MainActor.assumeIsolated { resetAll() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    let repaired = launchRepair()
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
+    if change == "license" { LicenseManager.shared.canEnableProtection = false }
+    let changed = launchVoid {
+        if change == "license" { await coordinator.handleLicenseReverification() }
+        else { await coordinator.pauseForTenMinutes() }
+    }
+    awaitCommands(on: connection)
+    connection.helper.versions.forEach { $0("fixture-helper") }
+    connection.helper.versions.removeAll()
+    spin(until: { repaired.withValue { $0 } != nil }, timeout: 2)
+    check(connection.helper.commands.map(\.0) == [true]
+          && repaired.withValue { $0 }?.title == "Protection Change In Progress",
+          "107: Repair does not supersede the pending \(change) stop")
+    connection.helper.commands.removeFirst().1(true)
+    spin(until: { changed.withValue { $0 } }, timeout: 2)
+    check(!monitor.isMonitoringActive
+          && PingWardenPreferences.shared.isMonitoringEnabled == (change == "pause"),
+          "107: pending \(change) persists its intended outcome after Repair")
+    if change == "license" {
+        check(MainActor.assumeIsolated { coordinator.lastError } == LicenseCopy.revoked,
+              "107: Repair does not suppress license revocation feedback")
+    }
+}
+
+// #107: license loss or a new pause during the probe prevents a later enable.
+for change in ["license", "pause"] {
+    MainActor.assumeIsolated { resetAll() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    let repaired = launchRepair()
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
+    if change == "license" {
+        LicenseManager.shared.canEnableProtection = false
+    } else {
+        let paused = launchVoid { await coordinator.pauseForTenMinutes() }
+        awaitCommands(on: connection)
+        check(connection.helper.commands.map(\.0) == [true], "107: new pause sends only a stop during Repair")
+        connection.helper.commands.removeFirst().1(true)
+        spin(until: { paused.withValue { $0 } }, timeout: 2)
+    }
+    connection.helper.versions.forEach { $0("fixture-helper") }
+    connection.helper.versions.removeAll()
+    spin(until: { repaired.withValue { $0 } != nil }, timeout: 2)
+    check(repaired.withValue { $0 }?.title == RepairResultCopy.successTitle
+          && !monitor.isMonitoringActive && connection.helper.commands.isEmpty,
+          "107: newer \(change) wins during repair reconciliation")
+    check(PingWardenPreferences.shared.isMonitoringEnabled,
+          "107: \(change) repair reconciliation does not rewrite saved intent")
+}
+
+// #107: termination while validation waits cannot later restore or claim success.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    let repaired = launchRepair()
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
+    _ = MainActor.assumeIsolated { coordinator.prepareForTermination {} }
+    connection.helper.versions.forEach { $0("fixture-helper") }
+    connection.helper.versions.removeAll()
+    spin(until: { repaired.withValue { $0 } != nil }, timeout: 2)
+    check(repaired.withValue { $0 }?.title == "Helper Repair Stopped"
+          && connection.helper.commands.isEmpty && !monitor.isMonitoringActive,
+          "107: termination stops Repair without a late enable or success")
+}
+
+// #107: a helper that validates but then stops answering is not a success.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    let repaired = launchRepair()
+    let connection = awaitConnection()
+    awaitCommands(on: connection)
+    connection.failProxies(code: xpcConnectionInvalid)
+    spin(until: { repaired.withValue { $0 } != nil }, timeout: 3)
+    check(repaired.withValue { $0 }?.title == "Protection Could Not Be Restored",
+          "107: renewed helper silence cannot report Repair success")
+    check(MainActor.assumeIsolated { coordinator.shouldOfferHelperRepair }
+          && PingWardenPreferences.shared.isMonitoringEnabled,
+          "107: failed restoration retains Repair and saved intent")
+}
+
+// #107: a failed rebuild keeps its specific explanation and ends busy state.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    let result = launchRepair()
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
+    connection.failProxies(code: xpcConnectionInvalid)
+    spin(until: { result.withValue { $0 } != nil }, timeout: 3)
+    check(result.withValue { $0 }?.title == RepairResultCopy.failureTitle
+          && result.withValue { $0 }?.message == monitor.lastSetupFailureMessage,
+          "107: Repair reports the specific invalid-bundle cause")
+    check(!MainActor.assumeIsolated { coordinator.isRepairingHelper }, "107: failed Repair releases shared busy state")
 }
 
 MainActor.assumeIsolated { resetAll() }

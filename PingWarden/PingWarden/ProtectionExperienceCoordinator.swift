@@ -39,7 +39,10 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// from the helper clears that message and nothing more specific.
     private var silenceMessage: String?
     private var lastAutomaticRetry: Date?
-    private var isTerminating = false
+    private(set) var isTerminating = false
+    /// All repair entry points share one operation, including the final
+    /// reconciliation. A second caller waits for the same result.
+    private var helperRepairTask: Task<HelperTestReport, Never>?
 
     private init() {
         restorePersistedPauseIfActive()
@@ -59,10 +62,85 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         transition != .idle || session.isTransitioning
     }
 
-    /// Whether a repair is rebuilding the helper's registration. Views that
-    /// offer Repair or Finish Setup disable those controls meanwhile.
+    /// Whether a repair is checking registration or restoring protection.
+    /// Views that offer Repair or Finish Setup disable those controls meanwhile.
     var isRepairingHelper: Bool {
-        monitor.isRepairingHelper
+        helperRepairTask != nil || monitor.isRepairingHelper
+    }
+
+    /// Unknown at launch is not a failure. Offer repair only after an
+    /// unanswered request, and keep the action visible while it completes.
+    var shouldOfferHelperRepair: Bool {
+        isRepairingHelper || (monitor.isHelperRegistered && helperSilent)
+    }
+
+    var canRepairHelper: Bool {
+        !isTerminating && !isBusy && !isRepairingHelper && !monitor.isHelperSetupInProgress
+    }
+
+    /// Called only after an explicit Repair confirmation. Reconcile current
+    /// policy instead of replaying a snapshot of the saved preference: a
+    /// pause, session, license change or newer Off must still win.
+    func repairHelperConnection() async -> HelperTestReport {
+        if let helperRepairTask { return await helperRepairTask.value }
+        guard canRepairHelper else {
+            return HelperTestReport(
+                title: "Helper Repair Could Not Start",
+                message: "Wait for the current protection change to finish, then try Repair again."
+            )
+        }
+        let repairGeneration = actionGeneration
+        let task = Task { @MainActor in
+            monitor.defersProtectionReassertion = true
+            defer { monitor.defersProtectionReassertion = false }
+            let repaired = await withCheckedContinuation { continuation in
+                monitor.repairHelperRegistration(presentsErrors: false) {
+                    continuation.resume(returning: $0)
+                }
+            }
+            guard !isTerminating else {
+                return HelperTestReport(title: "Helper Repair Stopped", message: "Ping Warden is quitting. Repair did not finish.")
+            }
+            guard repaired else {
+                return HelperTestReport(
+                    title: RepairResultCopy.failureTitle,
+                    message: monitor.lastSetupFailureMessage ?? RepairResultCopy.failureMessage
+                )
+            }
+            // A newer On/Off, pause or license change owns its command even
+            // before its reply updates the saved preference. Replaying that
+            // old preference here would supersede the newer operation.
+            if actionGeneration == repairGeneration,
+               transition == .idle, !monitor.isProtectionCommandInFlight {
+                await reconcileProtection()
+            }
+            guard !isTerminating else {
+                return HelperTestReport(title: "Helper Repair Stopped", message: "Ping Warden is quitting. Repair did not finish.")
+            }
+            if transition != .idle || monitor.isProtectionCommandInFlight {
+                return HelperTestReport(
+                    title: "Protection Change In Progress",
+                    message: "The helper answered. Ping Warden is still applying your current protection change. Check its status when that change finishes."
+                )
+            }
+            let expected = ProtectionExperiencePolicy.shouldEnableProtection(for: policyState, now: Date())
+            guard !helperSilent, expected == monitor.isMonitoringActive else {
+                return HelperTestReport(
+                    title: "Protection Could Not Be Restored",
+                    message: lastError ?? RepairResultCopy.restoringFailureMessage
+                )
+            }
+            return HelperTestReport(
+                title: RepairResultCopy.successTitle,
+                message: RepairResultCopy.successMessage(protectionOn: monitor.isMonitoringActive)
+            )
+        }
+        helperRepairTask = task
+        objectWillChange.send()
+        let result = await task.value
+        helperRepairTask = nil
+        objectWillChange.send()
+        return result
     }
 
     /// Whether a pause is in effect right now. A persisted pause restored at
@@ -693,6 +771,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             return
         }
         guard !isTerminating,
+              helperRepairTask == nil,
               transition == .idle,
               !session.isTransitioning,
               !monitor.isMonitoringRequested,
