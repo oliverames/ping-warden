@@ -10,10 +10,10 @@ do {
     PingWardenPreferences.shared.lastKnownState = "down"
     HarnessInterface.flagsLine = upLine
     let first = launch { await coordinator.setPersistentProtection(false) }
-    spin()
-    let connection = monitor.harnessConnection
-    check(connection?.helper.commands.map(\.0) == [true], "B1: Off must send a stop even when awdl0 reads up")
-    connection?.helper.commands.removeFirst().1(true)
+    let connection = awaitConnection()
+    awaitCommands(on: connection)
+    check(connection.helper.commands.map(\.0) == [true], "B1: Off must send a stop even when awdl0 reads up")
+    connection.helper.commands.removeFirst().1(true)
     spin(until: { first.withValue { $0 } != nil }, timeout: 2)
     check(first.withValue { $0 } == true, "B1: an answered stop reports success")
     check(PingWardenPreferences.shared.lastKnownState == "up", "B1: the helper's reply records awdl0 up")
@@ -22,11 +22,11 @@ do {
     // helper on the next Off.
     HarnessInterface.flagsLine = downLine
     let second = launch { await coordinator.setPersistentProtection(false) }
-    spin()
-    let secondConnection = monitor.harnessConnection
-    check(secondConnection?.helper.commands.map(\.0) == [true],
+    let secondConnection = awaitConnection()
+    awaitCommands(on: secondConnection)
+    check(secondConnection.helper.commands.map(\.0) == [true],
           "B1: a stored lastKnownState of up must not skip the next stop")
-    secondConnection?.helper.commands.removeFirst().1(true)
+    secondConnection.helper.commands.removeFirst().1(true)
     spin(until: { second.withValue { $0 } != nil }, timeout: 2)
 }
 
@@ -117,7 +117,7 @@ do {
     let connection = MainActor.assumeIsolated { turnOnThroughCoordinator() }
     HarnessInterface.flagsLine = upLine
     let off = launch { await coordinator.setPersistentProtection(false) }
-    spin()
+    awaitCommands(on: connection)
     check(connection.helper.commands.map(\.0) == [true], "B1: Off stops confirmed protection")
     connection.failProxies(code: xpcConnectionInvalid)
     spin(until: { off.withValue { $0 } != nil }, timeout: 3)
@@ -547,8 +547,9 @@ do {
     PingWardenPreferences.shared.isMonitoringEnabled = true
     MainActor.assumeIsolated { coordinator.harnessSetPause(until: Date().addingTimeInterval(-5)) }
     let wake = launchVoid { await coordinator.handleSystemWake() }
-    spin()
-    check(monitor.harnessConnection?.helper.commands.map(\.0) == [false], "B16: an expired pause resumes protection on wake")
+    let wakeConnection = awaitConnection()
+    awaitCommands(on: wakeConnection)
+    check(wakeConnection.helper.commands.map(\.0) == [false], "B16: an expired pause resumes protection on wake")
     settle()
     spin(until: { wake.withValue { $0 } }, timeout: 2)
     check(MainActor.assumeIsolated { coordinator.pauseUntil } == nil, "B16: the expired pause is cleared")
@@ -563,8 +564,9 @@ do {
     MainActor.assumeIsolated { resetAll() }
     PingWardenPreferences.shared.isMonitoringEnabled = true
     let wakeWithIntent = launchVoid { await coordinator.handleSystemWake() }
-    spin()
-    check(monitor.harnessConnection?.helper.commands.map(\.0) == [false], "B16: wake reconciles a saved intent")
+    let intentConnection = awaitConnection()
+    awaitCommands(on: intentConnection)
+    check(intentConnection.helper.commands.map(\.0) == [false], "B16: wake reconciles a saved intent")
     settle()
     spin(until: { wakeWithIntent.withValue { $0 } }, timeout: 2)
 }
@@ -744,6 +746,7 @@ do {
 // #107: a newer Off during the repair probe wins over the old saved choice.
 do {
     MainActor.assumeIsolated { resetAll() }
+    monitor.harnessHeldProbeReplies()
     PingWardenPreferences.shared.isMonitoringEnabled = true
     let repaired = launchRepair()
     let connection = awaitConnection()
@@ -753,6 +756,8 @@ do {
     check(connection.helper.commands.map(\.0) == [true], "107: Off remains actionable during Repair")
     connection.helper.commands.removeFirst().1(true)
     spin(until: { off.withValue { $0 } != nil }, timeout: 2)
+    check(off.withValue { $0 } == true,
+          "107: the newer Off finishes before the held repair probe replies")
     connection.helper.versions.forEach { $0("fixture-helper") }
     connection.helper.versions.removeAll()
     spin(until: { repaired.withValue { $0 } != nil }, timeout: 2)
@@ -766,6 +771,7 @@ do {
 // #107: a newer action owns its pending reply, before preferences are saved.
 for desiredState in [false, true] {
     MainActor.assumeIsolated { resetAll() }
+    monitor.harnessHeldProbeReplies()
     PingWardenPreferences.shared.isMonitoringEnabled = !desiredState
     let repaired = launchRepair()
     let connection = awaitConnection()
@@ -791,6 +797,7 @@ for desiredState in [false, true] {
 // #107: pending license revocation and pause own their stop before it replies.
 for change in ["license", "pause"] {
     MainActor.assumeIsolated { resetAll() }
+    monitor.harnessHeldProbeReplies()
     PingWardenPreferences.shared.isMonitoringEnabled = true
     let repaired = launchRepair()
     let connection = awaitConnection()
@@ -821,6 +828,7 @@ for change in ["license", "pause"] {
 // #107: license loss or a new pause during the probe prevents a later enable.
 for change in ["license", "pause"] {
     MainActor.assumeIsolated { resetAll() }
+    monitor.harnessHeldProbeReplies()
     PingWardenPreferences.shared.isMonitoringEnabled = true
     let repaired = launchRepair()
     let connection = awaitConnection()

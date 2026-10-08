@@ -7,6 +7,12 @@ extension PingWardenMonitor {
         helperReplyTimeout = 2.0
         helperRetryDelay = 1.0
     }
+    /// Ordering tests hold a version probe through bounded waits for a newer
+    /// action. Keep that probe alive without changing command timeouts or
+    /// disabling the validation deadline.
+    func harnessHeldProbeReplies() {
+        helperReplyTimeout = 10.0
+    }
     /// Forget every connection and request. Old connections' timers see a
     /// newer generation and complete quietly.
     func harnessReset() {
