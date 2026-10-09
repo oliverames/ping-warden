@@ -6,6 +6,70 @@
     <description>Pre-release updates for Ping Warden</description>
     <language>en</language>
     <item>
+      <title>Version 4.3.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.3.2</link>
+      <sparkle:version>43200</sparkle:version>
+      <sparkle:shortVersionString>4.3.2</sparkle:shortVersionString>
+      <description>&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;This update makes helper Repair easier to reach and keeps it from overriding changes you make while it runs. It also checks current protection state when Control Center requests a fresh value.&lt;/p&gt;
+&lt;h2&gt;Helper recovery&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;After Ping Warden detects that an approved helper isn't answering, &lt;strong&gt;Settings → General&lt;/strong&gt; and the menu bar now offer &lt;strong&gt;Repair&lt;/strong&gt;. The button keeps an accessible label while Repair runs.&lt;/li&gt;
+&lt;li&gt;Repair follows your current protection choice, pause, license eligibility, and Latency Session state, so reconnecting doesn't restore an older On or Off choice over a newer one.&lt;/li&gt;
+&lt;li&gt;Helper diagnostics describe connection failures without treating an XPC error as proof that the helper rejected the connection.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Control Center&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;A fresh Control Center value reports protection as on only if it observes the matching Ping Warden app running, active shared protection state, and an AWDL interface that's down. Reading that state doesn't launch the app or change protection.&lt;/li&gt;
+&lt;li&gt;Known limitation: macOS can keep the last rendered Control Center value after Ping Warden crashes, and a refresh after a crash still isn't guaranteed. &lt;a href="https://github.com/oliverames/ping-warden/issues/101" data-hovercard-type="issue" data-hovercard-url="/oliverames/ping-warden/issues/101/hovercard"&gt;Issue #101&lt;/a&gt; remains open.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Fri, 09 Oct 2026 13:29:07 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.3.2/PingWarden-4.3.2.dmg" sparkle:version="43200" sparkle:shortVersionString="4.3.2" length="6031879" type="application/octet-stream" sparkle:edSignature="8l735hqftaMQ2zAuR1aZbrcsKxDVW9LztReKZjStBpiQxi5t0ZUIpxlPzs3GsAiFt7CeLRTIIf9agGTuQhbqCg==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.3.1</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.3.1</link>
       <sparkle:version>43100</sparkle:version>
@@ -2100,6 +2164,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: NVtsiJwQVRSYLA/OA1epIi4JXigN9dHD3T5KmWAuuB3N2R0hEeeVHE+9PDpNrLvUHaxgEnevyzCfzzAcXauFDQ==
-length: 124923
+edSignature: AlUgbcniB8hIs/7DdLJ+ubE8JWWMoEKBCm3jtLTUrOH3Wwo6K3v9mLjftc+zldCAUGHk+UAS5YE9gYEeVSABAw==
+length: 128520
 -->
