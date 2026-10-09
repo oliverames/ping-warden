@@ -132,7 +132,7 @@ class PingWardenMonitor: @unchecked Sendable {
     private var _lastCommandFailure: HelperCommandFailure?
 
     /// Why the most recent connection validation failed, kept so the helper
-    /// test can say "rejected" rather than "timed out".
+    /// test can distinguish a connection error from a reply timeout.
     private var _lastConnectionFailure: HelperCommandFailure?
 
     /// True while a repair rebuilds the helper's registration. The repair
@@ -144,6 +144,11 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Everyone waiting on the repair in flight (main-thread confined).
     /// Overlapping repairs join it instead of unregistering each other.
     private var repairCompletions: [@Sendable (Bool) -> Void] = []
+
+    /// The coordinator holds this while Repair restores current policy.
+    /// Reconnect validation must not send a second, untracked enable in
+    /// parallel with that reconciliation. Main-thread confined.
+    var defersProtectionReassertion = false
 
     /// The enable command awaiting the helper (main-thread confined). A
     /// second enable while one is in flight joins it, so launch sends one
@@ -427,6 +432,10 @@ class PingWardenMonitor: @unchecked Sendable {
         defer { stateLock.unlock() }
         return _isRepairingHelper
     }
+
+    /// Includes first-time setup and approval, so another repair entry point
+    /// cannot start rebuilding a registration that is still being created.
+    var isHelperSetupInProgress: Bool { isRegisteringHelper }
 
     /// Why the most recent protection command failed; `nil` after success.
     var lastCommandFailure: HelperCommandFailure? {
@@ -1232,8 +1241,8 @@ class PingWardenMonitor: @unchecked Sendable {
         }
 
         // Check 3: Query helper status with proper timeout handling. An XPC
-        // error signals at once, so a helper that refuses the connection is
-        // reported as rejecting it rather than after a timeout.
+        // error signals at once, so a failed connection is reported
+        // without waiting out the timeout.
         let helperStatus = LockedValue("Unknown")
         let helperVersion = LockedValue("Unknown")
         let rejection = LockedValue<HelperCommandFailure?>(nil)
@@ -1260,7 +1269,7 @@ class PingWardenMonitor: @unchecked Sendable {
             statusAnswered = true
         }
 
-        // A rejected connection is gone; asking it again would only wait.
+        // A failed connection is gone; asking it again would only wait.
         if rejection.withValue({ $0 }) == nil, let versionProxy = getHelperProxy(onError: { error in
             rejection.withValue { $0 = .rejected(code: (error as NSError).code) }
             versionSemaphore.signal()
@@ -1443,7 +1452,7 @@ class PingWardenMonitor: @unchecked Sendable {
 
     /// Validate XPC connection is actually working. An XPC error on the
     /// request completes at once instead of waiting out the timeout, so a
-    /// helper that refuses the connection is reported without a delay.
+    /// failed connection is reported without a delay.
     private func validateXPCConnection(completion: (@Sendable (Bool) -> Void)? = nil) {
         let didComplete = LockedValue(false)
 
@@ -1474,7 +1483,7 @@ class PingWardenMonitor: @unchecked Sendable {
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + helperReplyTimeout) { [weak self] in
             if finish(false) {
                 self?.recordConnectionFailure(.timedOut)
-                log.warning("XPC validation: Connection timeout - helper may not be running")
+                log.warning("XPC validation: The helper did not answer before the timeout")
             }
         }
 
@@ -1508,6 +1517,7 @@ class PingWardenMonitor: @unchecked Sendable {
         // Runs on the same main queue as start/stop so a pending Off command
         // cannot be followed by a reconnect's stale enable command.
         dispatchPrecondition(condition: .onQueue(.main))
+        guard !defersProtectionReassertion else { return }
         let (shouldReassert, operationID) = withProtectionOperationState()
         guard shouldReassert, LicenseManager.launchGateAllowsProtection else {
             return

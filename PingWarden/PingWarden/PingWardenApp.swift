@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import Combine
 import ServiceManagement
 import os.log
 import Sparkle
@@ -130,6 +131,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var licenseNoticeWindow: NSWindow?
     private var gameModeDetector: GameModeDetector?
     private var monitorStateObserverToken: UUID?
+    private var protectionExperienceObservation: AnyCancellable?
     private var lastToggleTime: Date = .distantPast
     private let menuMetricsConsumerID = UUID()
     private var menuMetricsObserverToken: UUID?
@@ -182,6 +184,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         sessionCoordinator.onSessionStateChanged = { [weak self] in
             self?.updateQuickActionMenuItems()
+        }
+        protectionExperienceObservation = protectionExperience.objectWillChange.sink { [weak self] in
+            // Published changes arrive before mutation; refresh on the next
+            // main-actor turn so the menu sees the settled repair state.
+            Task { @MainActor in self?.updateMenuItem() }
         }
 
         // Anonymous crash reporting defaults on only when no choice is saved.
@@ -494,6 +501,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         gameModeDetector?.stop()
         protectionExperience.finishForTermination()
+        protectionExperienceObservation = nil
 
         if let token = monitorStateObserverToken {
             PingWardenMonitor.shared.removeStateObserver(token)
@@ -885,6 +893,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         toggleItem.tag = 140
         toggleItem.image = protectionMenuImage()
         statusMenu?.addItem(toggleItem)
+
+        let repairItem = NSMenuItem(
+            title: "Repair Helper…",
+            action: #selector(repairHelperFromMenu),
+            keyEquivalent: ""
+        )
+        repairItem.target = self
+        repairItem.tag = 141
+        repairItem.image = menuSymbol("wrench.and.screwdriver")
+        repairItem.toolTip = RepairResultCopy.accessibilityHint
+        statusMenu?.addItem(repairItem)
 
         let pauseItem = NSMenuItem(
             title: initialPresentation.pauseTitle ?? "Pause for 10 Minutes",
@@ -1446,6 +1465,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         guard let menu = statusMenu else { return }
 
         let presentation = protectionExperience.menuPresentation()
+        if let repairItem = menu.items.first(where: { $0.tag == 141 }) {
+            repairItem.isHidden = !protectionExperience.shouldOfferHelperRepair
+            repairItem.title = protectionExperience.isRepairingHelper ? "Repairing Helper…" : "Repair Helper…"
+            repairItem.isEnabled = protectionExperience.canRepairHelper
+        }
         if let pauseItem = menu.items.first(where: { $0.tag == 150 }) {
             pauseItem.isHidden = presentation.pauseTitle == nil
             pauseItem.title = presentation.pauseTitle ?? "Pause for 10 Minutes"
@@ -1563,6 +1587,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     @objc private func toggleMenuDropdownMetrics() {
         PingWardenPreferences.shared.showMenuDropdownMetrics.toggle()
+    }
+
+    @objc private func repairHelperFromMenu() {
+        guard protectionExperience.canRepairHelper else { return }
+        let confirmation = NSAlert()
+        confirmation.messageText = RepairResultCopy.confirmationTitle
+        confirmation.informativeText = RepairResultCopy.confirmationMessage
+        confirmation.alertStyle = .informational
+        confirmation.addButton(withTitle: "Repair")
+        confirmation.addButton(withTitle: "Cancel")
+        guard confirmation.runModal() == .alertFirstButtonReturn else { return }
+        Task {
+            let report = await protectionExperience.repairHelperConnection()
+            guard !protectionExperience.isTerminating else { return }
+            updateMenuItem()
+            let result = NSAlert()
+            result.messageText = report.title
+            result.informativeText = report.message
+            result.alertStyle = .informational
+            result.addButton(withTitle: "OK")
+            result.runModal()
+        }
     }
 
     @objc private func toggleQuickPause() {
@@ -2017,6 +2063,76 @@ struct StatusBadge: View {
 
 // MARK: - General Settings Content
 
+/// General and Advanced use the same confirmation, operation and result.
+/// The button keeps a spoken label while its progress indicator is visible.
+private struct HelperRepairControl: View {
+    var onlyWhenNeeded = false
+    @ObservedObject private var experience = ProtectionExperienceCoordinator.shared
+    @State private var showingConfirmation = false
+    @State private var result: HelperTestReport?
+    @State private var awaitingResult = false
+
+    var body: some View {
+        Group {
+            if !onlyWhenNeeded || experience.shouldOfferHelperRepair || showingConfirmation || awaitingResult || result != nil {
+                LabeledContent {
+                    Button {
+                        showingConfirmation = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            if experience.isRepairingHelper {
+                                ProgressView().controlSize(.small)
+                            }
+                            Text(experience.isRepairingHelper ? "Repairing…" : "Repair…")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!experience.canRepairHelper)
+                    .accessibilityLabel(experience.isRepairingHelper ? "Repairing Helper Connection" : "Repair Helper Connection")
+                    .accessibilityHint(RepairResultCopy.accessibilityHint)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Repair Helper Connection")
+                        Text(experience.isRepairingHelper
+                            ? "Repairing the helper connection…"
+                            : "Reconnect the approved helper without changing your protection preference")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .confirmationDialog(
+            RepairResultCopy.confirmationTitle,
+            isPresented: $showingConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Repair") {
+                awaitingResult = true
+                Task {
+                    let report = await experience.repairHelperConnection()
+                    if !experience.isTerminating { result = report }
+                    awaitingResult = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(RepairResultCopy.confirmationMessage)
+        }
+        .alert(
+            result?.title ?? "",
+            isPresented: Binding(
+                get: { result != nil },
+                set: { if !$0 { result = nil } }
+            )
+        ) {
+            Button("OK") { result = nil }
+        } message: {
+            Text(result?.message ?? "")
+        }
+    }
+}
+
 struct GeneralSettingsContent: View {
     let onCheckForUpdates: () -> Void
     @StateObject private var monitorState = MonitoringStateStore()
@@ -2120,6 +2236,8 @@ struct GeneralSettingsContent: View {
                         }
                     }
                 }
+
+                HelperRepairControl(onlyWhenNeeded: true)
 
                 if let error = protectionExperience.lastError {
                     VStack(alignment: .leading, spacing: 4) {
@@ -2705,10 +2823,8 @@ struct AdvancedSettingsContent: View {
     }
 
     @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
-    @State private var showingRepairConfirm = false
     @State private var showingRemovalConfirm = false
-    /// Titled outcome of the helper test or Repair. Each case has its own
-    /// title, so one alert serves both.
+    /// Titled outcome of the helper test, including its specific failure.
     @State private var resultAlert: HelperTestReport?
     @State private var diagnosticsResult: DiagnosticsSheetResult?
     @State private var isRunningHelperTest = false
@@ -2820,29 +2936,7 @@ struct AdvancedSettingsContent: View {
             }
 
             Section("Maintenance") {
-                LabeledContent {
-                    Button {
-                        showingRepairConfirm = true
-                    } label: {
-                        if protectionExperience.isRepairingHelper {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Text("Repair…")
-                        }
-                    }
-                        .buttonStyle(.bordered)
-                        .disabled(protectionExperience.isBusy || protectionExperience.isRepairingHelper)
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Repair Helper Connection")
-                        Text(protectionExperience.isRepairingHelper
-                            ? "Repairing the helper connection…"
-                            : "Reconnect the approved helper without changing your protection preference")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                HelperRepairControl()
 
                 LabeledContent {
                     Button("Prepare to Remove…") { showingRemovalConfirm = true }
@@ -2860,18 +2954,6 @@ struct AdvancedSettingsContent: View {
         }
         .formStyle(.grouped)
         .settingsScrollEdgeTreatment()
-        .confirmationDialog(
-            "Repair Helper Connection?",
-            isPresented: $showingRepairConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Repair") {
-                repairHelperConnection()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Ping Warden will check that the helper answers. If it does not, Ping Warden registers the helper again, which macOS may announce with a Background Items Added notification. Your protection preference, settings, and session history stay as they are.")
-        }
         .confirmationDialog(
             "Prepare Ping Warden for Removal?",
             isPresented: $showingRemovalConfirm,
@@ -2953,35 +3035,6 @@ struct AdvancedSettingsContent: View {
                 }
 
                 diagnosticsResult = DiagnosticsSheetResult(export: result)
-            }
-        }
-    }
-
-    private func repairHelperConnection() {
-        let shouldRemainEnabled = PingWardenPreferences.shared.isMonitoringEnabled
-        PingWardenMonitor.shared.repairHelperRegistration(presentsErrors: false) { repaired in
-            Task { @MainActor in
-                guard repaired else {
-                    // A specific cause, such as a damaged app bundle, beats
-                    // the general directions.
-                    resultAlert = HelperTestReport(
-                        title: RepairResultCopy.failureTitle,
-                        message: PingWardenMonitor.shared.lastSetupFailureMessage
-                            ?? RepairResultCopy.failureMessage
-                    )
-                    return
-                }
-                let restored = await protectionExperience.setPersistentProtection(shouldRemainEnabled)
-                guard restored else {
-                    maintenanceErrorMessage = "The helper is responding again, but Ping Warden could not restore your protection preference."
-                    return
-                }
-                resultAlert = HelperTestReport(
-                    title: RepairResultCopy.successTitle,
-                    message: RepairResultCopy.successMessage(
-                        protectionOn: PingWardenMonitor.shared.isMonitoringActive
-                    )
-                )
             }
         }
     }

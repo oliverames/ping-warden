@@ -7,6 +7,12 @@ extension PingWardenMonitor {
         helperReplyTimeout = 2.0
         helperRetryDelay = 1.0
     }
+    /// Ordering tests hold a version probe through bounded waits for a newer
+    /// action. Keep that probe alive without changing command timeouts or
+    /// disabling the validation deadline.
+    func harnessHeldProbeReplies() {
+        helperReplyTimeout = 10.0
+    }
     /// Forget every connection and request. Old connections' timers see a
     /// newer generation and complete quietly.
     func harnessReset() {
@@ -26,6 +32,7 @@ extension PingWardenMonitor {
         pendingEnable = nil
         pendingStopCount = 0
         repairCompletions = []
+        defersProtectionReassertion = false
         lastSetupFailureMessage = nil
     }
     var harnessConnection: NSXPCConnection? { _xpcConnection }
@@ -44,6 +51,7 @@ extension ProtectionExperienceCoordinator {
         lastError = nil
         silenceMessage = nil
         helperSilent = false
+        helperRepairTask = nil
         lastAutomaticRetry = nil
         isTerminating = false
         gameModeActive = false
@@ -99,6 +107,7 @@ var checks = 0
 func check(_ condition: @autoclosure () -> Bool, _ message: String) {
     checks += 1
     if !condition() { failures.append(message); print("FAIL: " + message) }
+    else if ProcessInfo.processInfo.environment["PING_WARDEN_TEST_VERBOSE"] == "1" { print("PASS: " + message) }
 }
 
 let monitor = PingWardenMonitor.shared
@@ -178,6 +187,15 @@ func launchVoid(_ action: @escaping @MainActor () async -> Void) -> LockedValue<
         done.withValue { $0 = true }
     }
     return done
+}
+
+func launchRepair() -> LockedValue<HelperTestReport?> {
+    let result = LockedValue<HelperTestReport?>(nil)
+    Task { @MainActor in
+        let report = await coordinator.repairHelperConnection()
+        result.withValue { $0 = report }
+    }
+    return result
 }
 
 /// Turn protection on through the coordinator with an answering helper.

@@ -142,6 +142,52 @@ do {
     check(!monitor.isMonitoringActive, "interrupted stop cannot remain confirmed")
 }
 
+// Repair's policy reconciliation owns reassertion until it finishes. A
+// validated reconnect must preserve the current request without sending an
+// untracked enable while that reconciliation is in progress.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.defersProtectionReassertion = true
+    let connection = monitor.harnessConnectRequested()
+    connection.helper.versions.removeFirst()("fixture-helper")
+    spin()
+    check(connection.helper.commands.isEmpty,
+          "Repair deferral must suppress validation's automatic reassert")
+    check(monitor.isMonitoringRequested && !monitor.isMonitoringActive,
+          "Repair deferral must retain requested protection without confirming it")
+    monitor.harnessReassert()
+    check(connection.helper.commands.isEmpty,
+          "Repair deferral must suppress every reassert entry point")
+    monitor.defersProtectionReassertion = false
+    monitor.harnessReassert()
+    check(connection.helper.commands.map(\.0) == [false],
+          "after Repair releases deferral, requested protection must reassert exactly once")
+    if let reply = connection.helper.commands.first?.1 { reply(true) }
+    spin()
+    check(monitor.isMonitoringActive,
+          "the reassert after Repair deferral must confirm protection only on success")
+}
+
+// Deferral also leaves a confirmed state intact. Once Repair relinquishes
+// ownership, normal reassertion must still run even when protection was active.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let connection = confirmed(monitor)
+    monitor.defersProtectionReassertion = true
+    monitor.harnessReassert()
+    check(connection.helper.commands.isEmpty && monitor.isMonitoringActive,
+          "Repair deferral must preserve confirmed protection without another command")
+    monitor.defersProtectionReassertion = false
+    monitor.harnessReassert()
+    check(connection.helper.commands.map(\.0) == [false],
+          "confirmed protection must reassert normally once Repair releases ownership")
+    if let reply = connection.helper.commands.first?.1 { reply(true) }
+    spin()
+    check(monitor.isMonitoringActive, "a successful confirmed-state reassert must preserve protection")
+}
+
 // A failed latest reassert must clear any earlier confirmation.
 do {
     let monitor = PingWardenMonitor.harnessMonitor()

@@ -36,6 +36,7 @@ CORE_SOURCES = (
     "HelperRecovery.swift",
     "ProtectionFailureCopy.swift",
     "ProtectionExperiencePolicy.swift",
+    "SettingsCopy.swift",
 )
 
 

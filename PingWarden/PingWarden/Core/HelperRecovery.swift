@@ -10,9 +10,8 @@ enum HelperCommandFailure: Equatable, Sendable {
     case noConnection
     /// The helper never replied within the command's deadline.
     case timedOut
-    /// The connection failed with an XPC error, for example because the
-    /// helper refused it or was not running (4097, 4099, or a code-signing
-    /// requirement failure).
+    /// The connection failed with an XPC error. The numeric code alone
+    /// does not establish why the helper did not answer.
     case rejected(code: Int)
     /// The helper replied and reported that the change failed.
     case declined
@@ -21,8 +20,8 @@ enum HelperCommandFailure: Equatable, Sendable {
         self != .declined
     }
 
-    /// Short clause for diagnostics and the helper test, such as
-    /// "the helper rejected the connection".
+    /// Describe the observed connection failure without guessing whether a
+    /// helper rejected it or launchd could not find a running service.
     var diagnosticDescription: String {
         switch self {
         case .noConnection:
@@ -31,8 +30,10 @@ enum HelperCommandFailure: Equatable, Sendable {
             return "the helper did not answer (timed out)"
         case .rejected(let code) where code == HelperRecovery.xpcConnectionInterruptedCode:
             return "the connection to the helper was interrupted (XPC error \(code))"
+        case .rejected(let code) where code == HelperRecovery.xpcConnectionInvalidCode:
+            return "the connection to the helper was invalid (XPC error \(code))"
         case .rejected(let code):
-            return "the helper rejected the connection (XPC error \(code))"
+            return "the connection to the helper failed (XPC error \(code))"
         case .declined:
             return "the helper reported a failure"
         }
@@ -47,6 +48,7 @@ enum HelperRecovery {
     /// `NSXPCConnectionInterrupted`, kept here so the rule stays
     /// Foundation-only and testable.
     static let xpcConnectionInterruptedCode = 4097
+    static let xpcConnectionInvalidCode = 4099
 
     /// Reads an `ifconfig awdl0` flags line such as
     /// `awdl0: flags=8943<UP,BROADCAST,RUNNING> mtu 1484`.

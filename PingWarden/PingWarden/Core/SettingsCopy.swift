@@ -7,7 +7,7 @@ import Foundation
 /// health check returns one message for diagnostics exports as well, so the
 /// alert picks a title and one recovery path from the outcome rather than
 /// showing a diagnostic clause such as an XPC error code.
-struct HelperTestReport: Equatable {
+struct HelperTestReport: Equatable, Sendable {
     let title: String
     let message: String
 
@@ -49,6 +49,10 @@ struct HelperTestReport: Equatable {
 
 /// Feedback after Repair in the Advanced pane.
 enum RepairResultCopy {
+    static let confirmationTitle = "Repair Helper Connection?"
+    static let confirmationMessage = "Ping Warden will check that the helper answers. If it does not, Ping Warden registers the helper again, which macOS may announce with a Background Items Added notification. Your protection preference, settings, and session history stay as they are."
+    static let accessibilityHint = "Checks the helper connection and offers to register it again without changing your protection preference"
+    static let restoringFailureMessage = "The helper is responding again, but Ping Warden could not restore protection. Your saved protection preference has not changed."
     static let successTitle = "Helper Is Responding"
 
     static func successMessage(protectionOn: Bool) -> String {
