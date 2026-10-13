@@ -24,7 +24,7 @@
 <li>The first time, macOS asks you to confirm that you want to open an app downloaded from the internet. Click <strong>Open</strong>.</li>
 </ol>
 <!-- Screenshot: ![The macOS confirmation that asks whether to open Ping Warden, an app downloaded from the internet](../docs/images/setup-gatekeeper-open.png) -->
-<p><strong>Behind the scenes:</strong> Gatekeeper checks the notarization before the first launch. Ping Warden's background helper must start from the copy in Applications. If you run the app from another folder, setup stops with <strong>Move Ping Warden to Applications</strong> instead of registering a helper that macOS would refuse to start. If macOS cannot verify the copy at all, Ping Warden shows <strong>macOS Could Not Verify Ping Warden</strong> with a button to open the official Releases page. See <a href="/docs/troubleshooting#macos-could-not-verify-ping-warden">Troubleshooting</a>.</p>
+<p><strong>Behind the scenes:</strong> Gatekeeper checks the notarization before the first launch. Ping Warden's background helper must start from the copy in Applications. If you open the app from Downloads, Desktop, or Documents, or macOS runs it from a temporary location because it was never moved, setup stops with <strong>Move Ping Warden to Applications</strong> instead of registering a helper that macOS would refuse to start. Ping Warden does not check other folders outside Applications, so setup can fail there without that message. Keep the app in Applications. If macOS cannot verify the copy at all, Ping Warden shows <strong>macOS Could Not Verify Ping Warden</strong> with a button to open the official Releases page. See <a href="/docs/troubleshooting#macos-could-not-verify-ping-warden">Troubleshooting</a>.</p>
 <h3 id="3-read-the-welcome-window">3. Read the welcome window</h3>
 <p>The welcome window opens automatically on the first launch. It is titled <strong>Welcome to Ping Warden</strong> and lists what the app does. Its buttons depend on whether this Mac can already turn on Ping Protection.</p>
 <!-- Screenshot: ![The Welcome to Ping Warden window for a licensed Mac, with the Turn On Ping Protection button and a Not Now link](../docs/images/setup-welcome-licensed.png) -->
@@ -98,7 +98,7 @@
 <p><strong>What you'll see:</strong></p>
 <ul>
 <li>The welcome window shows &quot;Setup complete. Ping Protection is on.&quot; and an <strong>Open Dashboard</strong> button.</li>
-<li>If you have not entered a license, it shows &quot;Helper ready. Ping Protection is off.&quot; The helper is approved, and protection turns on once you <a href="#4-enter-your-license-key">enter a license</a>.</li>
+<li>If you have not entered a license, it shows &quot;Helper ready. Ping Protection is off.&quot; The helper is approved, but protection stays off. After you <a href="#4-enter-your-license-key">enter a license</a>, choose <strong>Turn On Ping Protection</strong> from the menu bar or the Dashboard. Verifying a key does not turn protection on by itself.</li>
 </ul>
 <p><strong>What to do:</strong> Check any of these.</p>
 <ul>
@@ -130,7 +130,7 @@
 <p>The control uses the same helper, so it needs the approval from step 5. If <strong>Control Center Only</strong> shows <strong>Unavailable</strong>, the footer below it explains why. See <a href="/docs/troubleshooting#the-control-center-widget-does-not-appear">The Control Center widget does not appear</a>.</p>
 <h2 id="everyday-controls">Everyday controls</h2>
 <ul>
-<li>Choose <strong>Pause for 10 Minutes</strong> from the menu bar when you need AirDrop, AirPlay, or Handoff briefly. The menu shows <strong>Status: Paused</strong> and offers <strong>Resume Ping Protection</strong>. Protection comes back by itself after 10 minutes. Pausing also ends a running Latency Session.</li>
+<li>Choose <strong>Pause for 10 Minutes</strong> from the menu bar when you need AirDrop, AirPlay, or Handoff briefly. The menu shows <strong>Status: Paused</strong> and offers <strong>Resume Ping Protection</strong>. After 10 minutes, protection returns to your saved choice. Pausing ends a running Latency Session. A Game Mode session starts again after the pause if the game is still running, but a Latency Session you started yourself stays ended.</li>
 <li>Choose <strong>Turn Off Ping Protection</strong> to restore those features until you turn protection on again.</li>
 <li>Start a <strong>Latency Session</strong> from the dashboard when you want a beginning-to-end recap for one game or call. Starting a session enables Ping Protection and requires a license or an active transition. Past recaps remain free to view.</li>
 <li>Turn on <strong>Launch at Login</strong> under <strong>Settings → General</strong> if you want protection available after every restart.</li>

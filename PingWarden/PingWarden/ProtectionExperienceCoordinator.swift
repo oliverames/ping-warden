@@ -40,6 +40,17 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     private var silenceMessage: String?
     private var lastAutomaticRetry: Date?
     private(set) var isTerminating = false
+    /// Set by `finishForTermination` (from `applicationWillTerminate`), the
+    /// point after which the process really exits. Until then a quit that
+    /// `prepareForTermination` began can still be abandoned by macOS.
+    private var terminationCommitted = false
+    /// Identifies the latest `prepareForTermination`, so only its own
+    /// cancellation check can clear `isTerminating`.
+    private var terminationAttempt = 0
+    /// How long after quit was answered `applicationWillTerminate` may take
+    /// before the quit is treated as cancelled. AppKit calls it immediately
+    /// after a .terminateNow or a positive reply, so this is generous.
+    var terminationCancelGrace: TimeInterval = 10
     /// All repair entry points share one operation, including the final
     /// reconciliation. A second caller waits for the same result.
     private var helperRepairTask: Task<HelperTestReport, Never>?
@@ -599,16 +610,30 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// true when the app should wait: `completion` runs once the helper
     /// confirms, or after 1.5 seconds so a silent helper cannot hold quit
     /// hostage. Returns false when nothing needs stopping.
+    ///
+    /// macOS can still abandon the quit after this, for example when a logout
+    /// is cancelled. If `applicationWillTerminate` does not follow within
+    /// `terminationCancelGrace` of the reply, the quit is treated as
+    /// cancelled: controls work again and the saved intent is reconciled.
     func prepareForTermination(completion: @escaping @MainActor @Sendable () -> Void) -> Bool {
         isTerminating = true
+        terminationAttempt += 1
+        let attempt = terminationAttempt
         // Keep the persisted pause: quitting mid-pause expresses no new
         // intent, so a relaunch inside the window must stay paused.
         clearPause(persistStoredPause: false)
         session.finishForTermination()
-        guard protectionMayBeHeld else { return false }
+        guard protectionMayBeHeld else {
+            scheduleTerminationCancelCheck(attempt: attempt)
+            return false
+        }
 
         preferences.effectiveMonitoringEnabled = false
         preferences.lastKnownState = "unknown"
+        let completeAndWatch: @MainActor @Sendable () -> Void = { [weak self] in
+            completion()
+            self?.scheduleTerminationCancelCheck(attempt: attempt)
+        }
         let finished = LockedValue(false)
         let finish: @Sendable () -> Void = {
             let first = finished.withValue { done -> Bool in
@@ -616,7 +641,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
                 return !done
             }
             guard first else { return }
-            Task { @MainActor in completion() }
+            Task { @MainActor in completeAndWatch() }
         }
         monitor.stopMonitoring(persistUserPreference: false) { _ in finish() }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { finish() }
@@ -628,6 +653,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     func finishForTermination() {
         let alreadyPrepared = isTerminating
         isTerminating = true
+        terminationCommitted = true
         clearPause(persistStoredPause: false)
         session.finishForTermination()
         guard !alreadyPrepared, protectionMayBeHeld else { return }
@@ -638,6 +664,28 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         preferences.effectiveMonitoringEnabled = false
         preferences.lastKnownState = "unknown"
         monitor.stopMonitoring(persistUserPreference: false)
+    }
+
+    private func scheduleTerminationCancelCheck(attempt: Int) {
+        let grace = terminationCancelGrace
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(max(0, grace) * 1_000_000_000))
+            self?.recoverIfTerminationCancelled(attempt: attempt)
+        }
+    }
+
+    /// The quit was answered but the app is still running, so macOS
+    /// abandoned it. Without this, `isTerminating` stayed set and every later
+    /// attempt to turn protection on failed silently until relaunch.
+    private func recoverIfTerminationCancelled(attempt: Int) {
+        guard isTerminating, !terminationCommitted, attempt == terminationAttempt else { return }
+        protectionExperienceLog.notice("Quit was cancelled after protection was stopped; restoring normal operation")
+        isTerminating = false
+        // prepareForTermination kept the stored pause; bring it back if it
+        // is still running so a pause in progress is honored.
+        restorePersistedPauseIfActive()
+        objectWillChange.send()
+        Task { await reconcileProtection() }
     }
 
     /// After sleep, a pause may have expired without its timer firing on

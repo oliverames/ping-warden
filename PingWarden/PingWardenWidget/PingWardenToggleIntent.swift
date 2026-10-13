@@ -52,8 +52,12 @@ struct ToggleAWDLMonitoringIntent: AppIntent {
     static var supportedModes: IntentModes { .background }
 
     func perform() async throws -> some IntentResult {
-        let currentState = PingWardenPreferences.shared.isMonitoringEnabled
-        try await PingProtectionIntentHandler.apply(desiredState: !currentState)
+        // Decide from the effective protection state the Control Center toggle
+        // displays, not the saved preference. During a Game Mode session the
+        // saved choice can be off while protection is active; toggling must
+        // turn that active protection off rather than switch it "on".
+        let currentlyProtected = try await PingProtectionValueProvider().currentValue()
+        try await PingProtectionIntentHandler.apply(desiredState: !currentlyProtected)
         return .result()
     }
 }

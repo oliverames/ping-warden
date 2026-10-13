@@ -177,7 +177,7 @@ case "$1" in
 esac
 '''
 
-    def run_validation(self, busy=0, valid_payload=True, attach_output=None):
+    def run_validation(self, busy=0, valid_payload=True, attach_output=None, extra_env=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             bin_dir = root / "bin"
@@ -212,10 +212,11 @@ esac
                 "PW_EXPECTED_APP": str(mount / "Ping Warden.app"),
                 "RELEASE_VALIDATION_DETACH_DELAY": "0",
             }
+            env.update(extra_env or {})
             result = subprocess.run(
                 ["bash", "-c", f'source "$1"\n{overrides}validate_dmg_artifact "$2" 4.3.2 1',
                  "dmg-cleanup-test", str(script), str(dmg)],
-                capture_output=True, text=True, env=env,
+                capture_output=True, text=True, env=env, timeout=60,
             )
             calls = log.read_text().splitlines()
             return result, [call for call in calls if call.startswith("detach")], mount
@@ -241,6 +242,26 @@ esac
         self.assertIn(f'diskutil eject "{mount}"', result.stderr)
         self.assertIn(f'lsof +D "{mount}"', result.stderr)
         self.assertIn("Re-run the release", result.stderr)
+
+    def test_invalid_attempt_overrides_fall_back_to_the_default_bound(self):
+        for value in ("abc", "0"):
+            with self.subTest(attempts=value):
+                result, detaches, mount = self.run_validation(
+                    busy=99, extra_env={"RELEASE_VALIDATION_DETACH_ATTEMPTS": value})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("RELEASE_VALIDATION_DETACH_ATTEMPTS must be a whole number", result.stderr)
+                self.assertEqual(detaches, [f"detach {mount}"] * 5)
+                self.assertIn("after 5 attempts", result.stderr)
+
+    def test_invalid_delay_override_falls_back_to_the_default(self):
+        for value in ("abc", "-1"):
+            with self.subTest(delay=value):
+                result, detaches, mount = self.run_validation(
+                    busy=1, extra_env={"RELEASE_VALIDATION_DETACH_DELAY": value})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("RELEASE_VALIDATION_DETACH_DELAY must be a whole number", result.stderr)
+                self.assertIn("retrying in 2s", result.stderr)
+                self.assertEqual(detaches, [f"detach {mount}"] * 2)
 
     def test_invalid_payload_fails_and_still_detaches(self):
         result, detaches, mount = self.run_validation(valid_payload=False)
@@ -312,6 +333,41 @@ class AppcastTests(unittest.TestCase):
             versions = [appcast.value(i, "shortVersionString") for i in ET.parse(beta).findall("channel/item")]
             self.assertEqual(versions, ["4.1.0-beta.1", "4.0.2"])
             self.assertEqual(len(ET.parse(stable).findall("channel/item")), 1)
+
+    def test_rewrite_drops_signature_trailer_and_release_re_signs_both_feeds(self):
+        # ElementTree drops comments, so the rewrite removes the old trailer.
+        with tempfile.TemporaryDirectory() as directory:
+            stable, beta, entry = (Path(directory) / name for name in ("appcast.xml", "appcast-beta.xml", "item.xml"))
+            ET.ElementTree(self.item("4.0.2", "40002")).write(entry)
+            appcast.update(stable, beta, entry)
+            for feed in (stable, beta):
+                feed.write_text(feed.read_text() + "<!-- sparkle-signatures:\nedSignature: old\nlength: 1\n-->\n")
+            ET.ElementTree(self.item("4.0.3", "40003")).write(entry)
+            appcast.update(stable, beta, entry)
+            for feed in (stable, beta):
+                self.assertNotIn("sparkle-signatures", feed.read_text())
+
+        # So release.sh must sign both feeds after every rewrite, under set -e.
+        script = (Path(__file__).resolve().parents[1] / "PingWarden" / "PingWarden" / "release.sh").read_text()
+        self.assertIn("set -euo pipefail", script)
+        rewrite = '"$PYTHON_BIN" "$APPCAST_UPDATER" "${APPCAST_ARGS[@]}"'
+        self.assertEqual(script.count(rewrite), 1)
+        loop = 'for FEED in "$STABLE_APPCAST" "$BETA_APPCAST"; do'
+        sign = '"$SIGN_TOOL" "$FEED" --account'
+        verify = '"$SIGN_TOOL" --account "$SPARKLE_KEYCHAIN_ACCOUNT" --verify "$FEED"'
+        rewrite_at = script.index(rewrite)
+        loop_at = script.index(loop, rewrite_at)
+        loop_end = script.index("\ndone\n", loop_at)
+        self.assertLess(loop_at, script.index(sign, loop_at), "signing must follow the rewrite")
+        self.assertLess(script.index(sign, loop_at), loop_end)
+        self.assertLess(script.index(verify, loop_at), loop_end)
+        between = script[rewrite_at + len(rewrite):loop_at]
+        self.assertNotIn("APPCAST", between.replace('rm -f "$INSERT_FILE"', ""),
+                         "nothing may touch the feeds between the rewrite and signing")
+        # The only other updater call is the read-only build check.
+        other_calls = [line for line in script.splitlines()
+                       if '"$APPCAST_UPDATER"' in line and rewrite not in line]
+        self.assertEqual(other_calls, ['"$PYTHON_BIN" "$APPCAST_UPDATER" "${BUILD_CHECK_ARGS[@]}"'])
 
     def test_build_comparison_handles_legacy_and_current_formats(self):
         self.assertGreater(appcast.build_key("40002"), appcast.build_key("40001"))

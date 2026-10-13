@@ -29,7 +29,7 @@ On macOS 15 and later the System Settings page is called **Login Items & Extensi
 
 <!-- Screenshot: ![The macOS confirmation that asks whether to open Ping Warden, an app downloaded from the internet](../docs/images/setup-gatekeeper-open.png) -->
 
-**Behind the scenes:** Gatekeeper checks the notarization before the first launch. Ping Warden's background helper must start from the copy in Applications. If you run the app from another folder, setup stops with **Move Ping Warden to Applications** instead of registering a helper that macOS would refuse to start. If macOS cannot verify the copy at all, Ping Warden shows **macOS Could Not Verify Ping Warden** with a button to open the official Releases page. See [Troubleshooting](TROUBLESHOOTING.md#macos-could-not-verify-ping-warden).
+**Behind the scenes:** Gatekeeper checks the notarization before the first launch. Ping Warden's background helper must start from the copy in Applications. If you open the app from Downloads, Desktop, or Documents, or macOS runs it from a temporary location because it was never moved, setup stops with **Move Ping Warden to Applications** instead of registering a helper that macOS would refuse to start. Ping Warden does not check other folders outside Applications, so setup can fail there without that message. Keep the app in Applications. If macOS cannot verify the copy at all, Ping Warden shows **macOS Could Not Verify Ping Warden** with a button to open the official Releases page. See [Troubleshooting](TROUBLESHOOTING.md#macos-could-not-verify-ping-warden).
 
 ### 3. Read the welcome window
 
@@ -132,7 +132,7 @@ You can turn the helper off at any time under **Allow in the Background** in **L
 **What you'll see:**
 
 - The welcome window shows "Setup complete. Ping Protection is on." and an **Open Dashboard** button.
-- If you have not entered a license, it shows "Helper ready. Ping Protection is off." The helper is approved, and protection turns on once you [enter a license](#4-enter-your-license-key).
+- If you have not entered a license, it shows "Helper ready. Ping Protection is off." The helper is approved, but protection stays off. After you [enter a license](#4-enter-your-license-key), choose **Turn On Ping Protection** from the menu bar or the Dashboard. Verifying a key does not turn protection on by itself.
 
 **What to do:** Check any of these.
 
@@ -173,7 +173,7 @@ The control uses the same helper, so it needs the approval from step 5. If **Con
 
 ## Everyday controls
 
-- Choose **Pause for 10 Minutes** from the menu bar when you need AirDrop, AirPlay, or Handoff briefly. The menu shows **Status: Paused** and offers **Resume Ping Protection**. Protection comes back by itself after 10 minutes. Pausing also ends a running Latency Session.
+- Choose **Pause for 10 Minutes** from the menu bar when you need AirDrop, AirPlay, or Handoff briefly. The menu shows **Status: Paused** and offers **Resume Ping Protection**. After 10 minutes, protection returns to your saved choice. Pausing ends a running Latency Session. A Game Mode session starts again after the pause if the game is still running, but a Latency Session you started yourself stays ended.
 - Choose **Turn Off Ping Protection** to restore those features until you turn protection on again.
 - Start a **Latency Session** from the dashboard when you want a beginning-to-end recap for one game or call. Starting a session enables Ping Protection and requires a license or an active transition. Past recaps remain free to view.
 - Turn on **Launch at Login** under **Settings → General** if you want protection available after every restart.

@@ -105,11 +105,11 @@ Your settings and license stay saved.
 
 ### macOS Could Not Verify Ping Warden
 
-**What you'll see:** An alert titled **macOS Could Not Verify Ping Warden**: "Download the current signed and notarized release from the official GitHub Releases page."
+**What you'll see:** First, a macOS warning that Ping Warden cannot be opened because Apple could not verify it. This warning comes from Gatekeeper, before Ping Warden starts. Apple explains it in [Safely open apps on your Mac](https://support.apple.com/102445). If the app is opened anyway, Ping Warden then shows its own alert titled **macOS Could Not Verify Ping Warden**: "Download the current signed and notarized release from the official GitHub Releases page."
 
-**What it means:** This copy was downloaded from the internet and is not signed with Ping Warden's Developer ID. Official releases never show this alert.
+**What it means:** This copy was downloaded from the internet and is not signed with Ping Warden's Developer ID. Official releases never show either warning.
 
-**What to do:** Click **Open Releases**, download the latest DMG, and replace your copy in Applications. If you built this copy yourself, try to open it once, then open **System Settings → Privacy & Security**, scroll to **Security**, and click **Open Anyway** for Ping Warden. On macOS 13 and 14 you can also Control-click the app in Finder and choose **Open**. Ping Warden will never ask you to remove quarantine attributes in Terminal.
+**What to do:** Close the macOS warning without opening the app. Download the latest DMG from the [GitHub Releases page](https://github.com/oliverames/ping-warden/releases) and replace your copy in Applications. If you see Ping Warden's own alert, its **Open Releases** button opens the same page. If you built this copy yourself, try to open it once, then open **System Settings → Privacy & Security**, scroll to **Security**, and click **Open Anyway** for Ping Warden. On macOS 13 and 14 you can also Control-click the app in Finder and choose **Open**. Ping Warden will never ask you to remove quarantine attributes in Terminal.
 
 ### Helper Not Responding
 
@@ -180,7 +180,7 @@ This resets background item approvals for every app on the Mac, so other apps ma
 
 **What you'll see:** After Repair, **Protection Could Not Be Restored**: "The helper is responding again, but Ping Warden could not restore protection. Your saved protection preference has not changed." The Dashboard may say "The helper is responding again, but Ping Warden could not restore your protection preference."
 
-**What to do:** The helper works again. Choose **Turn On Ping Protection** from the menu. If an alert mentions a license, see [License messages](#license-messages).
+**What to do:** The helper works again, but your saved choice is still on, so the menu shows **Turn Off Ping Protection**. Choose **Turn Off Ping Protection**, then choose **Turn On Ping Protection**. If the menu shows **Repair Helper…** or the helper stops responding, run **Repair…** again as described in [Helper Not Responding](#helper-not-responding). If an alert mentions a license, see [License messages](#license-messages).
 
 If Repair reports **Protection Change In Progress**, wait a few seconds and check the status in the menu. If it reports **Helper Repair Could Not Start**, wait for the current protection change to finish, then try Repair again.
 
@@ -190,7 +190,13 @@ If Repair reports **Protection Change In Progress**, wait a few seconds and chec
 
 **What it means:** The helper answered but could not change the interface.
 
-**What to do:** Quit Ping Warden from the menu. When the app disconnects, the helper stops blocking and brings `awdl0` back up. Open Ping Warden again and retry.
+**What to do:** Quit Ping Warden from the menu. The helper brings `awdl0` back up about 60 seconds after the app disconnects. Opening Ping Warden again before then cancels that restore. Wait at least a minute before you reopen the app, or check first that `awdl0` is active:
+
+```bash
+ifconfig awdl0
+```
+
+The flags line includes `UP` when the interface is active. Then open Ping Warden again and retry.
 
 If the message says the helper is not responding, follow [Helper Not Responding](#helper-not-responding). If wireless sharing stays unavailable, restart your Mac.
 
@@ -215,7 +221,14 @@ If the message says the helper is not responding, follow [Helper Not Responding]
 - A cause, followed by "Your previous Ping Warden settings were restored, and no local data was erased."
 - A cause, followed by "Ping Warden could not fully restore the prior state. Open Settings → Advanced, click Repair, and review Launch at Login before retrying. No local data was erased."
 
-**What to do:** Run Repair, then try **Prepare to Remove** again. If the helper is not responding and Repair cannot fix it, use the steps in [Helper Still Not Responding](#helper-still-not-responding) instead of the removal flow.
+**What to do:** Follow the cause named in the alert.
+
+- **"Ping Protection could not be turned off"**: nothing was erased. Quit Ping Warden and wait for wireless sharing to return, as described in [Ping Protection could not turn off or pause](#ping-protection-could-not-turn-off-or-pause). Then open Ping Warden and try **Prepare to Remove** again. If the helper is not responding, run Repair first.
+- **"The helper could not be unregistered"**: run Repair as described in [Helper Not Responding](#helper-not-responding), then try **Prepare to Remove** again. If Repair cannot fix it, use the steps in [Helper Still Not Responding](#helper-still-not-responding) instead of the removal flow.
+- **"Launch at Login could not be unregistered"**: turn off **Launch at Login** under **Settings → General**, or turn off Ping Warden under **Open at Login** in **System Settings → General → Login Items & Extensions**. Then try **Prepare to Remove** again.
+- **"Ping Warden could not clear its latency session history"**: quit and reopen Ping Warden, then try **Prepare to Remove** again. If it still fails, [collect diagnostics](#collect-useful-diagnostics) and report the problem.
+
+If the alert also says Ping Warden could not fully restore the prior state, run Repair and check **Launch at Login** under **Settings → General** before you retry.
 
 ## Reinstall safely
 
@@ -227,6 +240,15 @@ Use the app's removal flow before deleting the application. It stops Ping Protec
 4. Drag Ping Warden to Applications and complete setup again.
 
 **Prepare to Remove** also deletes this Mac's saved license key. Keep your Gumroad receipt so you can enter the key again.
+
+**Prepare to Remove** also ends a **Free Transition**. The transition deadline is erased, and a fresh install does not start a new one. If you are in the transition and have no license key, you lose the rest of your free access. To replace a damaged copy without that loss, skip **Prepare to Remove**:
+
+1. Quit Ping Warden.
+2. Download a fresh DMG from the [latest release](https://github.com/oliverames/ping-warden/releases/latest).
+3. Drag Ping Warden to Applications and choose **Replace**.
+4. Eject the disk image and open Ping Warden from Applications. If the helper does not answer, run Repair as described in [Helper Not Responding](#helper-not-responding).
+
+Replacing the app this way keeps your settings, license, and transition.
 
 If the app cannot open far enough to run its removal flow, do not delete LaunchDaemon files or shared containers by hand. [Open a bug report](https://github.com/oliverames/ping-warden/issues/new?template=bug_report.md) so the helper can be recovered without leaving AWDL in the wrong state.
 

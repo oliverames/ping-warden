@@ -367,12 +367,31 @@ validate_notarized_app() {
 # holds it, so retry a normal detach a few times. Never use -force: a persistent
 # hold is reported with recovery steps instead. The attempt count and delay can
 # be overridden through RELEASE_VALIDATION_DETACH_ATTEMPTS and
-# RELEASE_VALIDATION_DETACH_DELAY (tests use a zero delay).
+# RELEASE_VALIDATION_DETACH_DELAY (tests use a zero delay). An override that is
+# not a whole number (or an attempt count below 1) falls back to the default
+# with a warning, so a typo can never turn the retry into an endless loop.
 detach_validation_volume() {
     local target="$1"
     local attempts="${RELEASE_VALIDATION_DETACH_ATTEMPTS:-5}"
     local delay="${RELEASE_VALIDATION_DETACH_DELAY:-2}"
     local attempt=1 output=""
+
+    case "$attempts" in
+        ''|*[!0-9]*) attempts="" ;;
+    esac
+    if [ -z "$attempts" ] || [ "$((10#$attempts))" -lt 1 ]; then
+        echo "Warning: RELEASE_VALIDATION_DETACH_ATTEMPTS must be a whole number of at least 1; using 5" >&2
+        attempts=5
+    else
+        attempts=$((10#$attempts))
+    fi
+    case "$delay" in
+        ''|*[!0-9]*)
+            echo "Warning: RELEASE_VALIDATION_DETACH_DELAY must be a whole number of seconds; using 2" >&2
+            delay=2
+            ;;
+        *) delay=$((10#$delay)) ;;
+    esac
 
     while :; do
         if output="$(hdiutil detach "$target" 2>&1)"; then

@@ -77,6 +77,11 @@ def update(stable_path, beta_path, item_path=None, beta_release=False):
     additions = [ET.parse(item_path).getroot()] if item_path else []
     replace_items(stable, [] if beta_release else additions)
     replace_items(beta, stable.findall("channel/item") + (additions if beta_release else []))
+    # ElementTree drops XML comments, so this rewrite removes each feed's
+    # <!-- sparkle-signatures: ... --> trailer. That is intended: the old
+    # signature no longer matches the rewritten bytes, and release.sh always
+    # re-signs both feeds with sign_update (which writes a fresh trailer)
+    # immediately after this script. test_release_tools.py asserts that order.
     for tree, path in [(stable, stable_path), (beta, beta_path)]:
         ET.indent(tree, space="  ")
         tree.write(path, encoding="utf-8", xml_declaration=True)
