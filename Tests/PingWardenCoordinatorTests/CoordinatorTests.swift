@@ -955,12 +955,20 @@ do {
     SMAppService.fixtureAllowsRegistration = true
     FakeHelper.autoReplyVersion = "fixture-helper"
     let report = launchReapproval()
-    spin(until: { report.withValue { $0 } != nil }, timeout: 6)
+    // The rebuilt helper answers whatever it is asked, as a live one would,
+    // including the enable that reconciliation may send.
+    let deadline = Date().addingTimeInterval(8)
+    while report.withValue({ $0 }) == nil && Date() < deadline {
+        for connection in NSXPCConnection.instances {
+            while !connection.helper.commands.isEmpty { connection.helper.commands.removeFirst().1(true) }
+        }
+        spin(0.02)
+    }
     settle()
     check(SMAppService.unregisterCalls == 1 && SMAppService.registerCalls == 1,
           "R2: Approve Helper rebuilds the silent registration once")
     check(report.withValue { $0 }?.title == RepairResultCopy.successTitle,
-          "R2: re-approval reports the helper responding")
+          "R2: re-approval reports the helper responding (got \(String(describing: report.withValue { $0 })))")
     check(monitor.isMonitoringActive, "R2: protection follows the saved choice after re-approval")
 }
 
