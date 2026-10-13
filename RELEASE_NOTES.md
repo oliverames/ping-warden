@@ -1,3 +1,18 @@
+# Ping Warden 4.3.3
+
+This update fixes cases where Game Mode or Repair could leave protection in the wrong state, and makes a few helper requests finish reliably.
+
+## Game Mode and Repair
+
+- Turning off **Game Mode Auto-Detect** while a game is in front now ends the Game Mode session. Previously, protection could stay on until Ping Warden quit.
+- **Repair…** on the Dashboard now uses the same path as the menu and Settings. It no longer ends a running Game Mode session or cancels a pause when it reconnects the helper.
+- Stopping a Latency Session and starting a new one right away no longer cancels the new session.
+
+## Reliability
+
+- Resetting the intervention counter now reports a result even if the helper can't be reached.
+- A slow DNS lookup for a hostname target is reused by the next probe instead of being started again on every probe.
+
 # Ping Warden 4.3.2
 
 This update makes helper Repair easier to reach and keeps it from overriding changes you make while it runs. It also checks current protection state when Control Center requests a fresh value.
