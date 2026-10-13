@@ -924,7 +924,7 @@ class PingWardenMonitor: @unchecked Sendable {
 
             if attempts > maxRegistrationAttempts {
                 log.error("Max registration attempts (\(self.maxRegistrationAttempts)) exceeded, giving up")
-                lastSetupFailureMessage = "Ping Warden could not register its helper after several attempts. Open Settings → Advanced and click Repair, or check \(SystemSettingsCopy.loginItemsPath)."
+                lastSetupFailureMessage = "Ping Warden could not register its helper after several attempts. Open Settings → Advanced and click Repair… If that fails, check \(SystemSettingsCopy.loginItemsPath)."
                 abandonEnable(operationID)
                 completion?(false)
                 return

@@ -15,9 +15,9 @@ enum ProtectionFailureCopy {
         case startSession
     }
 
-    static let helperNotResponding = "Ping Warden's helper is not responding. Open Settings → Advanced and click Repair."
+    static let helperNotResponding = "Ping Warden's helper is not responding. Open Settings → Advanced and click Repair…"
 
-    static let repairHint = "Open Settings → Advanced and click Repair."
+    static let repairHint = "Open Settings → Advanced and click Repair…"
 
     static func message(for action: Action, failure: HelperCommandFailure?) -> String {
         let helperSilent = failure?.helperDidNotAnswer ?? false
@@ -51,7 +51,7 @@ enum ProtectionFailureCopy {
 
     /// Shown when a saved intent to protect waits on a helper that is not
     /// approved yet. Launch never opens Login Items on its own.
-    static let setupIncomplete = "Ping Protection is waiting for setup. Choose Finish Setup to approve the helper in \(SystemSettingsCopy.loginItemsPaneName)."
+    static let setupIncomplete = "Ping Protection is waiting for setup. Choose Finish Setup… to approve the helper in \(SystemSettingsCopy.loginItemsPaneName)."
 }
 
 /// Names of System Settings panes that the app points people to. macOS 15
@@ -70,7 +70,7 @@ enum SystemSettingsCopy {
     static let loginItemsPaneName = loginItemsPaneName(osMajorVersion: currentMajorVersion)
     static let loginItemsPath = loginItemsPath(osMajorVersion: currentMajorVersion)
 
-    private static var currentMajorVersion: Int {
+    static var currentMajorVersion: Int {
         ProcessInfo.processInfo.operatingSystemVersion.majorVersion
     }
 }

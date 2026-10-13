@@ -38,6 +38,8 @@ struct WelcomeView: View {
         return .idle
 #endif
     }()
+    /// The monitor's last setup failure, captured when setup fails.
+    @State private var failureMessage: String?
 
     var body: some View {
         Group {
@@ -139,7 +141,19 @@ struct WelcomeView: View {
         .frame(maxWidth: .infinity)
     }
 
+    @ViewBuilder
     private var licenseLine: some View {
+        // After setup, the license button already leads the buttons above.
+        if setupState == .complete {
+            licenseLineText
+                .font(.callout)
+                .multilineTextAlignment(.center)
+        } else {
+            licenseLineWithButton
+        }
+    }
+
+    private var licenseLineWithButton: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 4) {
                 licenseLineText
@@ -166,13 +180,27 @@ struct WelcomeView: View {
 
     @ViewBuilder
     private var setupCallout: some View {
+        VStack(spacing: 10) {
+            setupStateCallout
+            if setupState != .complete {
+                helperCaption
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var setupStateCallout: some View {
         switch setupState {
         case .idle:
-            Text("Setup asks for one approval in \(SystemSettingsCopy.loginItemsPaneName).")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+            if PingWardenMonitor.shared.isHelperRegistered {
+                Text("Ping Warden will check that its approved helper responds.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                SetupStepsList()
+            }
         case .checking:
             progressCallout(
                 title: "Checking the helper…",
@@ -180,34 +208,49 @@ struct WelcomeView: View {
             )
         case .waiting:
             progressCallout(
-                title: "Waiting for approval",
-                detail: "In System Settings, allow Ping Warden under \(SystemSettingsCopy.loginItemsPaneName), then return here."
+                title: SetupGuideCopy.waitingTitle,
+                detail: SetupGuideCopy.waitingDetail,
+                footnote: SetupGuideCopy.timeoutHint
             )
         case .complete:
-            Label(PingWardenMonitor.shared.isMonitoringActive
-                ? "Setup complete. Ping Protection is on."
-                : "Helper ready. Ping Protection is off.", systemImage: "checkmark.circle.fill")
+            Label(WelcomeSetupPolicy.completionMessage(
+                    canEnableProtection: license.canEnableProtection,
+                    protectionOn: PingWardenMonitor.shared.isMonitoringActive
+                  ), systemImage: "checkmark.circle.fill")
                 .font(.headline)
                 .foregroundStyle(.green)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         case .failed:
             VStack(spacing: 4) {
-                Label("Setup did not finish", systemImage: "exclamationmark.triangle.fill")
+                Label(SetupGuideCopy.failedTitle, systemImage: "exclamationmark.triangle.fill")
                     .font(.headline)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Follow the instructions in the setup error, then click Try Again.")
+                Text(failureMessage ?? SetupGuideCopy.failedFallback)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                Link(HelpLinks.troubleshootingTitle, destination: HelpLinks.setupDidNotFinish)
+                    .font(.callout)
             }
             .multilineTextAlignment(.center)
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .contain)
         }
     }
 
-    private func progressCallout(title: String, detail: String) -> some View {
+    private var helperCaption: some View {
+        VStack(spacing: 2) {
+            Text(SetupGuideCopy.helperCaption)
+                .fixedSize(horizontal: false, vertical: true)
+            Link(SetupGuideCopy.helperLinkTitle, destination: HelpLinks.whatTheHelperDoes)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+    }
+
+    private func progressCallout(title: String, detail: String, footnote: String? = nil) -> some View {
         VStack(spacing: 4) {
             HStack(spacing: 8) {
                 ProgressView()
@@ -220,6 +263,12 @@ struct WelcomeView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if let footnote {
+                Text(footnote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .multilineTextAlignment(.center)
         .accessibilityElement(children: .combine)
@@ -233,7 +282,13 @@ struct WelcomeView: View {
         VStack(spacing: 12) {
             switch setupState {
             case .complete:
-                openDashboardButton(prominent: true)
+                switch WelcomeSetupPolicy.completionAction(canEnableProtection: license.canEnableProtection) {
+                case .openDashboard:
+                    openDashboardButton(prominent: true)
+                case .enterLicense:
+                    enterLicenseButton
+                    openDashboardButton(prominent: false)
+                }
             case .waiting:
                 openLoginItemsButton
                 laterButton
@@ -249,6 +304,19 @@ struct WelcomeView: View {
             }
         }
         .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 240)
+    }
+
+    private var enterLicenseButton: some View {
+        Button(action: onOpenLicenseSettings) {
+            Text("Enter or Buy a License…")
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+        }
+        .keyboardShortcut(.defaultAction)
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .accessibilityIdentifier("welcome.enterLicense")
     }
 
     private var laterButton: some View {
@@ -299,8 +367,12 @@ struct WelcomeView: View {
         case .waitingForApproval:
             setupState = .waiting
         }
+        failureMessage = nil
         onSetup { success in
             DispatchQueue.main.async {
+                // Read after the attempt, so the welcome window names the
+                // same cause as the alert that accompanied it.
+                failureMessage = success ? nil : PingWardenMonitor.shared.lastSetupFailureMessage
                 setupState = success ? .complete : .failed
             }
         }
@@ -357,6 +429,37 @@ struct WelcomeView: View {
             button
                 .buttonStyle(.bordered)
         }
+    }
+}
+
+/// The numbered approval steps, shown before setup starts in the welcome
+/// window, Settings → General, and the Dashboard.
+struct SetupStepsList: View {
+    var alignment: HorizontalAlignment = .center
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(SetupGuideCopy.stepsTitle)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            ForEach(Array(SetupGuideCopy.steps.enumerated()), id: \.offset) { index, step in
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(index + 1).")
+                        .monospacedDigit()
+                    Text(step)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Text(SetupGuideCopy.timeoutHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
+        .accessibilityElement(children: .combine)
     }
 }
 

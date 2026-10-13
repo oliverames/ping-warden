@@ -38,6 +38,25 @@ enum WelcomeSetupPolicy {
         canEnableProtection ? .setUpProtection : .openDashboard
     }
 
+    enum CompletionAction: Equatable {
+        /// Protection can turn on, so the dashboard is the next step.
+        case openDashboard
+        /// The helper is ready but protection needs a license first.
+        case enterLicense
+    }
+
+    /// After a successful setup without a license, the license is the only
+    /// thing left between the person and protection, so it leads.
+    static func completionAction(canEnableProtection: Bool) -> CompletionAction {
+        canEnableProtection ? .openDashboard : .enterLicense
+    }
+
+    /// What the welcome window says once the helper answered.
+    static func completionMessage(canEnableProtection: Bool, protectionOn: Bool) -> String {
+        if protectionOn { return SetupGuideCopy.completeProtectionOn }
+        return canEnableProtection ? SetupGuideCopy.completeProtectionOff : SetupGuideCopy.completeLicenseNeeded
+    }
+
     enum Progress: Equatable {
         /// Repair is rebuilding or confirming an approved helper.
         case checkingHelper
