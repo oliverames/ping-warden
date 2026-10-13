@@ -59,8 +59,8 @@ function head(title, description, path, schema) {
 <meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${origin}${path}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="Ping Warden">
 <meta property="og:title" content="${escape(title)} | Ping Warden"><meta property="og:description" content="${escape(description)}">
-<meta property="og:url" content="${origin}${path}"><meta property="og:image" content="${origin}/app-icon.png"><meta property="og:image:alt" content="Ping Warden app icon">
-<meta name="twitter:card" content="summary"><meta name="twitter:title" content="${escape(title)} | Ping Warden"><meta name="twitter:description" content="${escape(description)}"><meta name="twitter:image" content="${origin}/app-icon.png">
+<meta property="og:url" content="${origin}${path}"><meta property="og:image" content="${origin}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Ping Warden: stop Wi-Fi lag spikes in GeForce NOW and cloud gaming on Mac, with a latency graph showing spikes when protection is off">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escape(title)} | Ping Warden"><meta name="twitter:description" content="${escape(description)}"><meta name="twitter:image" content="${origin}/og.png">
 ${icons}<link rel="stylesheet" href="${stylesheet}">${structured(schema)}`;
 }
 const header = `<a class="skip" href="#main">Skip to content</a><header class="wrap"><a class="brand" href="/">Ping Warden</a><nav aria-label="Main navigation"><a href="/docs/">Docs</a><a href="/docs/setup">Setup</a><a href="${gumroad}?referrer=pingwarden-nav">Buy a license</a></nav></header>`;

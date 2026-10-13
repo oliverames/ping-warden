@@ -8,6 +8,10 @@
   Cache-Control: public, max-age=86400
 /apple-touch-icon.png
   Cache-Control: public, max-age=86400
+/before-after-1200.webp
+  Cache-Control: public, max-age=86400
+/before-after-stacked.webp
+  Cache-Control: public, max-age=86400
 /before-after.png
   Cache-Control: public, max-age=86400
 /before-after.webp
