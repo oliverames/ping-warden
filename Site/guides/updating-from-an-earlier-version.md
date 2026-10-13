@@ -4,7 +4,7 @@
 
 Versions through 2.0.4 have no working in-app updater. Version 2.0.5 introduced Sparkle, but its updater configuration was incomplete. Waiting for a prompt will not reliably bring these installations up to date.
 
-Version 4 introduced a one-time $15 license for Ping Protection. Downloading the update is free. Eligible existing users receive a 90-day transition, as described below. The dashboard, diagnostics, and past session recaps remain free.
+Version 4 introduced a one-time $15 license for Ping Protection (plus VAT or sales tax where applicable). Downloading the update is free. Eligible existing users receive a 90-day transition, as described below. The dashboard, diagnostics, and past session recaps remain free.
 
 ## What happens when you update
 

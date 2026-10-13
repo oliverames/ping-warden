@@ -26,6 +26,15 @@ troubleshooting, security policy, and release notes into static HTML. It rewrite
 guide links, generates heading anchors, structured data, and the sitemap. Edit
 the source Markdown and `home.html`, then rebuild the committed pages. The build
 is deterministic, and Website Verification checks that source and output agree.
+`404.html` is a template in this directory (the shared header and footer are
+filled in at build time). `public/.well-known/security.txt` is a committed static
+file with an `Expires` date; renew it before then (the check fails after it passes).
+
+Each page's `updated` date, its JSON-LD `dateModified`, and its sitemap `lastmod`
+are the author date of the last commit that touched its source file. So commit
+the source change first, then rebuild and commit `public/`. Without full git
+history (no git, or a shallow clone) the build falls back to the `updated` values
+in `build.mjs`, which is why CI checks out with `fetch-depth: 0`.
 
 The home page version and the release-notes sitemap date come from the newest
 item in the root `appcast.xml`, so rebuild the site after each release. Gumroad

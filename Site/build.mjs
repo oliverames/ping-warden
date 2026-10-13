@@ -2,19 +2,38 @@ import { readFile, writeFile, mkdir, copyFile, readdir } from 'node:fs/promises'
 import { dirname, resolve, relative, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import MarkdownIt from 'markdown-it';
 
 const site = dirname(fileURLToPath(import.meta.url));
 const root = resolve(site, '..');
 const output = resolve(site, 'public');
 const origin = 'https://pingwarden.app';
+const gumroadProduct = 'https://amesconsulting.gumroad.com/l/pingwarden';
+const githubRepo = 'https://github.com/oliverames/ping-warden';
+const publisher = { '@type': 'Organization', name: 'Ames Consulting LLC', url: 'https://ames.consulting' };
+// Each page's date is the author date of the last commit that touched its source
+// file. Author dates survive rebases and amends, so the build stays reproducible
+// for a given source state. The hand-maintained `updated` values below are only
+// the fallback when git history is unavailable (no git, or a shallow clone where
+// every file would otherwise look as new as the clone's boundary commit).
+function git(...args) {
+  try { return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
+  catch { return ''; }
+}
+const fullHistory = git('rev-parse', '--is-shallow-repository') === 'false';
+function lastCommitDate(source) {
+  if (!fullHistory) return undefined;
+  const date = git('log', '-1', '--format=%as', '--', source);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
+}
 const pages = [
   { source: 'README.md', slug: 'overview', updated: '2026-10-07', title: 'Features, Pricing, and Privacy', description: 'Explore Ping Warden features, the $15 Ping Protection license, the existing-user transition, privacy, system requirements, and source builds.' },
   { source: 'PingWarden/QUICKSTART.md', slug: 'setup', updated: '2026-09-29', title: 'Setup Guide', description: 'Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center.' },
   { source: 'PingWarden/README.md', slug: 'technical', updated: '2026-09-28', title: 'Technical Documentation', description: 'How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates.' },
   { source: 'PingWarden/TROUBLESHOOTING.md', slug: 'troubleshooting', updated: '2026-09-29', title: 'Troubleshooting and Removal', description: 'Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app.' },
   { source: 'Site/guides/updating-from-an-earlier-version.md', slug: 'updating-from-an-earlier-version', title: 'Updating from Ping Warden 2 or 3', updated: '2026-09-11', description: 'Updating to version 4 costs nothing and your protection keeps working. How the 90-day transition starts, what stays free, and what the $15 covers.' },
-  { source: 'Site/guides/geforce-now-mac-stutter.md', slug: 'geforce-now-mac-stutter', updated: '2026-09-21', title: 'Why GeForce NOW Stutters on a MacBook', description: 'AWDL can contribute to GeForce NOW stutter on a Mac. Compare latency with the interface on and off, explore free options, and understand the sharing tradeoff.' },
+  { source: 'Site/guides/geforce-now-mac-stutter.md', slug: 'geforce-now-mac-stutter', updated: '2026-09-21', title: 'GeForce NOW Stutter on Mac: Causes and Fixes (AWDL, Wi-Fi)', description: 'GeForce NOW stuttering on your Mac over Wi-Fi? See how AWDL can contribute, how to test it in minutes, the free fixes, and what each one costs you.' },
   { source: 'Site/guides/awdl0-ping-spikes.md', slug: 'awdl0-ping-spikes', updated: '2026-09-25', title: 'Mac Wi-Fi Ping Spikes and the awdl0 Fix', description: "Investigate whether awdl0 contributes to Mac Wi-Fi ping spikes. Compare measurements, understand why the interface returns, and learn the sharing tradeoff." },
   { source: 'Site/guides/airdrop-wifi-lag.md', slug: 'airdrop-wifi-lag', updated: '2026-09-21', title: 'Is AirDrop Causing Your Wi-Fi Lag?', description: 'AirDrop is not moving files in the background, but the interface behind it can interrupt calls and remote sessions. Here is how to test it in a minute.' },
   { source: 'RELEASE_NOTES.md', slug: 'releases', updated: 'latest-release', title: 'Release Notes', description: 'Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.' },
@@ -33,10 +52,13 @@ if (!releases.length) throw new Error('appcast.xml has no release with a version
 const latest = releases.reduce((a, b) => (b.build > a.build ? b : a));
 const latestVersion = latest.version;
 const latestDate = latest.date.toISOString().slice(0, 10);
-for (const page of pages) if (page.updated === 'latest-release') page.updated = latestDate;
+for (const page of pages) {
+  if (page.updated === 'latest-release') page.updated = latestDate;
+  else page.updated = lastCommitDate(page.source) ?? page.updated;
+}
 // Tag Gumroad links so each site surface is its own referrer row in Gumroad
 // Analytics (https://gumroad.com/help/article/270-url-parameters).
-const gumroad = 'https://amesconsulting.gumroad.com/l/pingwarden';
+const gumroad = gumroadProduct;
 function referred(href, referrer) {
   if (!href.startsWith(gumroad) || /[?&]referrer=/.test(href)) return href;
   const [base, anchor] = href.split('#');
@@ -76,11 +98,10 @@ function link(href, source) {
   if (mapped) return mapped + (anchor ? `#${anchor}` : '');
   return `https://github.com/oliverames/ping-warden/blob/main/${target}` + (anchor ? `#${anchor}` : '');
 }
-// `updated` is maintained by hand so the generated sitemap stays stable.
-// Deriving it from git commit dates would change the moment a source file
-// is committed, which breaks the CI check that committed pages match the build.
-const siteUpdated = '2026-09-28';
-const urls = [{ loc: '/', lastmod: latestDate > siteUpdated ? latestDate : siteUpdated }, { loc: '/docs/', lastmod: siteUpdated }];
+const newest = dates => dates.filter(Boolean).reduce((a, b) => (b > a ? b : a));
+const homeUpdated = newest([lastCommitDate('Site/home.html') ?? '2026-10-13', latestDate]);
+const hubUpdated = newest(pages.map(p => p.updated));
+const urls = [{ loc: '/', lastmod: homeUpdated }, { loc: '/docs/', lastmod: hubUpdated }];
 await mkdir(resolve(output, 'docs'), { recursive: true });
 // Keep the website screenshot identical to the user-supplied version 4 capture.
 await copyFile(resolve(root, 'docs/images/ping-warden-4-dashboard.png'), resolve(output, 'dashboard-v4.png'));
@@ -112,7 +133,7 @@ for (const page of pages) {
   const path = `/docs/${page.slug}`;
   urls.push({ loc: path, lastmod: page.updated });
   const schema = { '@context': 'https://schema.org', '@graph': [
-    { '@type': 'TechArticle', headline: page.title, description: page.description, url: origin + path, author: { '@type': 'Person', name: 'Oliver Ames' }, inLanguage: 'en' },
+    { '@type': 'TechArticle', headline: page.title, description: page.description, url: origin + path, dateModified: page.updated, author: { '@type': 'Person', name: 'Oliver Ames' }, publisher, inLanguage: 'en' },
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Ping Warden', item: origin + '/' },
       { '@type': 'ListItem', position: 2, name: 'Documentation', item: origin + '/docs/' },
@@ -128,9 +149,9 @@ const hubDescription = 'The complete Ping Warden documentation: setup, features,
 await writeFile(resolve(output, 'docs/index.html'), `<!doctype html><html lang="en"><head>${head(hubTitle, hubDescription, '/docs/', { '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Ping Warden Documentation', url: origin + '/docs/', description: hubDescription })}</head><body>${header}<main id="main" class="wrap docs-index"><h1>Everything you need<br>to know.</h1><p class="intro">From your first install to the details of how Ping Warden works.</p><div class="doc-list">${pages.map(p => `<article><h2><a href="/docs/${p.slug}">${escape(p.title)}</a></h2><p>${escape(p.description)}</p></article>`).join('')}</div></main>${footer}</body></html>\n`);
 const appSchema = { '@context': 'https://schema.org', '@graph': [
   { '@type': 'WebSite', '@id': origin + '/#website', name: 'Ping Warden', url: origin + '/', inLanguage: 'en' },
-  { '@type': 'SoftwareApplication', name: 'Ping Warden', url: origin + '/', operatingSystem: 'macOS 13 or later', softwareVersion: latestVersion, applicationCategory: 'UtilitiesApplication', image: origin + '/app-icon.png', screenshot: origin + '/dashboard-v4.png', description: 'A macOS menu bar app that monitors latency and pauses AWDL to reduce related Wi-Fi interruptions. The dashboard is free; enabling Ping Protection requires a one-time $15 license.', author: { '@type': 'Person', name: 'Oliver Ames' }, downloadUrl: 'https://github.com/oliverames/ping-warden/releases/latest', softwareHelp: { '@type': 'WebPage', url: origin + '/docs/' }, offers: [
-    { '@type': 'Offer', name: 'Free dashboard', price: '0', priceCurrency: 'USD', url: 'https://github.com/oliverames/ping-warden/releases/latest' },
-    { '@type': 'Offer', name: 'Ping Protection license', price: '15', priceCurrency: 'USD', url: 'https://amesconsulting.gumroad.com/l/pingwarden' }
+  { '@type': 'SoftwareApplication', name: 'Ping Warden', url: origin + '/', operatingSystem: 'macOS 13 or later', softwareVersion: latestVersion, applicationCategory: 'UtilitiesApplication', image: origin + '/app-icon.png', screenshot: origin + '/dashboard-v4.png', description: 'A macOS menu bar app that monitors latency and pauses AWDL to reduce related Wi-Fi interruptions. The dashboard is free; enabling Ping Protection requires a one-time $15 license.', author: { '@type': 'Person', name: 'Oliver Ames' }, publisher, sameAs: [githubRepo, gumroadProduct], downloadUrl: 'https://github.com/oliverames/ping-warden/releases/latest', softwareHelp: { '@type': 'WebPage', url: origin + '/docs/' }, offers: [
+    { '@type': 'Offer', name: 'Free dashboard', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: 'https://github.com/oliverames/ping-warden/releases/latest' },
+    { '@type': 'Offer', name: 'Ping Protection license', price: '15', priceCurrency: 'USD', availability: 'https://schema.org/InStock', url: gumroadProduct }
   ] }
 ] };
 const styled = html => html.replace(/href="\/styles\.css(?:\?v=[0-9a-f]+)?"/g, `href="${stylesheet}"`);
@@ -138,7 +159,9 @@ const home = (await readFile(resolve(site, 'home.html'), 'utf8'))
   .replace('<!-- structured-data -->', structured(appSchema))
   .replaceAll('<!-- latest-version -->', escape(latestVersion));
 await writeFile(resolve(output, 'index.html'), styled(home));
-await writeFile(resolve(output, '404.html'), styled(await readFile(resolve(output, '404.html'), 'utf8')));
+const notFound = (await readFile(resolve(site, '404.html'), 'utf8'))
+  .replace('<!-- header -->', header).replace('<!-- footer -->', footer);
+await writeFile(resolve(output, '404.html'), styled(notFound));
 await writeFile(resolve(output, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `  <url><loc>${origin}${u.loc}</loc><lastmod>${u.lastmod}</lastmod></url>`).join('\n')}\n</urlset>\n`);
 // Static images and the versioned stylesheet may be cached for a day. HTML keeps
 // the platform default (revalidate every time) so deploys show up immediately.
