@@ -18,7 +18,6 @@ final class ProtectedSessionCoordinator: ObservableObject {
     @Published private(set) var lastError: String?
     @Published private(set) var phase: ProtectionSessionPhase = .idle
 
-    var onSessionCompleted: ((ProtectedSessionSummary) -> Void)?
     var onSessionStateChanged: (() -> Void)?
 
     var isActive: Bool { accumulator != nil }
@@ -225,7 +224,6 @@ final class ProtectedSessionCoordinator: ObservableObject {
         sessionLog.info(
             "Protected session ended: \(summary.sampleCount) samples, \(summary.interventionCount) interventions"
         )
-        onSessionCompleted?(summary)
     }
 
     private func startSessionTimers() {
