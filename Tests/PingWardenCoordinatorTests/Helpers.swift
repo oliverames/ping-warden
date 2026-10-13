@@ -110,6 +110,27 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
     else if ProcessInfo.processInfo.environment["PING_WARDEN_TEST_VERBOSE"] == "1" { print("PASS: " + message) }
 }
 
+/// Removes the oldest pending helper request, waiting (bounded) for it to
+/// arrive instead of assuming a fixed spin was long enough. A loaded machine
+/// can outrun any fixed delay; a missing request is reported as a failure
+/// and ends the run cleanly rather than trapping on an empty array.
+func take<T>(
+    _ helper: FakeHelper,
+    _ queue: ReferenceWritableKeyPath<FakeHelper, [T]>,
+    timeout: Double = 3,
+    line: UInt = #line
+) -> T {
+    spin(until: { !helper[keyPath: queue].isEmpty }, timeout: timeout)
+    guard !helper[keyPath: queue].isEmpty else {
+        checks += 1
+        failures.append("harness: no pending \(queue) request at line \(line)")
+        print("FAIL: harness: expected a pending \(queue) request at line \(line) within \(timeout)s")
+        print("Coordinator checks complete. Checks: \(checks). Failures: \(failures.count)")
+        exit(1)
+    }
+    return helper[keyPath: queue].removeFirst()
+}
+
 let monitor = PingWardenMonitor.shared
 let coordinator = MainActor.assumeIsolated { ProtectionExperienceCoordinator.shared }
 let session = MainActor.assumeIsolated { ProtectedSessionCoordinator.shared }
@@ -205,7 +226,7 @@ func launchRepair() -> LockedValue<HelperTestReport?> {
     awaitCommands(on: connection)
     connection.helper.versions.forEach { $0("fixture-helper") }
     connection.helper.versions.removeAll()
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { result.withValue { $0 } != nil }, timeout: 2)
     precondition(result.withValue { $0 } == true && monitor.isMonitoringActive, "setup failed")
     spin(0.05)
