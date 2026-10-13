@@ -24,7 +24,9 @@ class Page(HTMLParser):
         if tag == 'title': self.in_title = True
         if tag == 'meta' and a.get('name') == 'description': self.descriptions.append(a.get('content'))
         if tag == 'link' and a.get('rel') == 'canonical': self.canonicals.append(a['href'])
-        if tag == 'link' and a.get('rel') in ('stylesheet', 'icon'): self.assets.append(a['href'])
+        if tag == 'link' and a.get('rel') in ('stylesheet', 'icon', 'apple-touch-icon'): self.assets.append(a['href'])
+        if tag == 'source' and 'srcset' in a:
+            self.assets.extend(c.split()[0] for c in a['srcset'].split(',') if c.strip())
         if tag == 'img':
             assert 'alt' in a and 'width' in a and 'height' in a, (self.path, 'image metadata')
             self.assets.append(a['src'])
@@ -71,6 +73,9 @@ for path, page in pages.items():
         if dest is None: continue
         assert dest.is_file(), (path, 'Broken local link', url)
         if fragment: assert dest in pages and fragment in pages[dest].ids, (path, 'Broken anchor', url)
+
+home = (root / 'index.html').read_text()
+assert '<!-- latest-version -->' not in home and '<!-- structured-data -->' not in home, 'Unfilled home placeholder'
 
 sitemap = ET.parse(root / 'sitemap.xml')
 locations = [e.text for e in sitemap.findall('.//{*}loc')]

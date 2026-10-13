@@ -2,9 +2,9 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['Site/**', 'README.md', 'PingWarden/*.md', 'RELEASE_NOTES.md', 'SECURITY.md', '.github/workflows/site.yml']
+    paths: ['Site/**', 'README.md', 'PingWarden/*.md', 'RELEASE_NOTES.md', 'SECURITY.md', 'appcast.xml', '.github/workflows/site.yml']
   pull_request:
-    paths: ['Site/**', 'README.md', 'PingWarden/*.md', 'RELEASE_NOTES.md', 'SECURITY.md', '.github/workflows/site.yml']
+    paths: ['Site/**', 'README.md', 'PingWarden/*.md', 'RELEASE_NOTES.md', 'SECURITY.md', 'appcast.xml', '.github/workflows/site.yml']
   workflow_dispatch:
 permissions:
   contents: read

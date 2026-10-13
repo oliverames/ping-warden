@@ -27,9 +27,26 @@ guide links, generates heading anchors, structured data, and the sitemap. Edit
 the source Markdown and `home.html`, then rebuild the committed pages. The build
 is deterministic, and Website Verification checks that source and output agree.
 
+The home page version and the release-notes sitemap date come from the newest
+item in the root `appcast.xml`, so rebuild the site after each release. Gumroad
+links carry a `referrer` parameter per surface (`pingwarden-hero`,
+`pingwarden-reviews`, `pingwarden-nav`, `pingwarden-docs`, `pingwarden-guide`)
+so Gumroad Analytics separates them.
+
 There is no browser JavaScript, external font request, or analytics. The only
-Worker code redirects www to the canonical apex and passes requests to static
-assets. The dashboard image comes from `docs/images/ping-warden-3-dashboard.png`.
+Worker code redirects HTTP and www to the canonical HTTPS apex, redirects the
+retired `/dashboard.png` address, and passes requests to static assets. The
+dashboard image comes from `docs/images/ping-warden-4-dashboard.png`. The build
+copies it to `dashboard-v4.png`. When the screenshot changes, regenerate the
+committed WebP variants from `public/`:
+
+```sh
+cwebp -q 82 -resize 2000 0 dashboard-v4.png -o dashboard-v4-2000.webp
+cwebp -q 82 -resize 1000 0 dashboard-v4.png -o dashboard-v4-1000.webp
+```
+
+`favicon.ico`, `favicon-32x32.png`, and `apple-touch-icon.png` (180 px on a
+white background) are derived from `app-icon.png`.
 The app icon comes from the existing Gumroad landing page. The generated design
 concept is a visual reference only and is not shipped as product imagery.
 

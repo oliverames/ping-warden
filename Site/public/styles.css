@@ -33,7 +33,7 @@ p { color: var(--muted); margin: 0; }
 .subtle { margin-top: 13px; font-size: 15px; }
 .product { max-width: 1000px; margin: 14px auto 45px; text-align: center; }
 .product a { display: block; border-radius: 12px; }
-.product img { display: block; width: 100%; height: auto; }
+.product picture, .product img { display: block; width: 100%; height: auto; }
 figcaption { font-size: 15px; color: var(--muted); margin-top: 0; }
 h2 { font-size: clamp(27px, 2.6vw, 34px); line-height: 1.14; letter-spacing: -.04em; font-weight: 700; margin: 0 0 15px; }
 h3 { font-size: 19px; line-height: 1.3; letter-spacing: -.018em; margin: 0 0 6px; }
