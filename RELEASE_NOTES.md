@@ -12,6 +12,8 @@ This update fixes cases where Game Mode or Repair could leave protection in the 
 
 - Resetting the intervention counter now reports a result even if the helper can't be reached.
 - A slow DNS lookup for a hostname target is reused by the next probe instead of being started again on every probe.
+- The **Toggle Ping Protection** shortcut now acts on whether protection is actually on. During a Game Mode session it turns protection off instead of on.
+- If macOS cancels a quit after Ping Warden has stopped protection, such as a cancelled logout, Ping Warden restores protection within about 10 seconds. Previously, protection couldn't be turned on again until Ping Warden was relaunched. A damaged session history file also no longer blocks new session recaps; Ping Warden sets the file aside and starts a new history.
 
 # Ping Warden 4.3.2
 
