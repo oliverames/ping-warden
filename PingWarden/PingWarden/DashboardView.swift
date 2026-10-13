@@ -1521,17 +1521,23 @@ struct InterventionsCard: View {
         }
     }
 
-    /// The same repair path as the menu and Settings → Advanced: rebuild the
-    /// helper's registration, then reconcile current protection policy. The
+    /// The same repair path as the menu and Settings → Advanced: check that
+    /// the helper answers and reconcile current protection policy, or open
+    /// the setup window's approval step when it must be approved again. The
     /// coordinator owns single-flight and the reassertion deferral, and a
     /// pause, running session or newer Off still wins over any saved preference.
     private func repairHelper() {
         repairError = nil
         Task { @MainActor in
-            let report = await protectionExperience.repairHelperConnection()
+            let check = await protectionExperience.checkHelperForRepair()
             guard !protectionExperience.isTerminating else { return }
-            if report.title != RepairResultCopy.successTitle {
-                repairError = report.message
+            switch check {
+            case .finished(let report):
+                if report.title != RepairResultCopy.successTitle {
+                    repairError = report.message
+                }
+            case .needsApproval:
+                OnboardingPresenter.present(.repair)
             }
         }
     }
@@ -1541,14 +1547,9 @@ struct InterventionsCard: View {
     private func changeProtectionState() {
         switch protectionExperience.toggleAction() {
         case .finishSetup:
-            // Repair registers a new helper, and also rebuilds one that is
-            // approved but silent; registering alone could not fix that.
-            PingWardenMonitor.shared.repairHelperRegistration { success in
-                guard success else { return }
-                Task { @MainActor in
-                    await protectionExperience.setPersistentProtection(true)
-                }
-            }
+            // The setup window resumes at the first incomplete step and
+            // explains the approval before macOS shows anything.
+            OnboardingPresenter.present(.finishSetup)
         case .turnOn:
             Task {
                 await protectionExperience.setPersistentProtection(true)

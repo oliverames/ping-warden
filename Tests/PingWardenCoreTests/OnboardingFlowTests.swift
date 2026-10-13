@@ -194,6 +194,32 @@ final class HelperApprovalTrackerTests: XCTestCase {
         XCTAssertEqual(tracker.elapsed, 0)
     }
 
+    func testRepairOfASilentHelperWaitsForApproveHelper() {
+        var tracker = HelperApprovalTracker(status: .enabled, variant: modern, needsNewRegistration: true)
+        XCTAssertFalse(tracker.confirmsOnEntry, "a silent helper's Enabled status is not an approval")
+        XCTAssertEqual(tracker.phase, .ready)
+        XCTAssertEqual(tracker.primaryAction, .approveHelper, "the person is warned before macOS shows anything")
+        XCTAssertEqual(tracker.cards, [.upcoming, .upcoming, .upcoming])
+        XCTAssertEqual(tracker.update(status: .enabled, now: 1), .none, "polling the old registration starts nothing")
+        tracker.start(now: 10)
+        XCTAssertEqual(tracker.phase, .waiting)
+        XCTAssertFalse(tracker.resumedEarlierRequest)
+        tracker.update(status: .enabled, now: 11)
+        XCTAssertEqual(tracker.phase, .waiting, "the old registration is not mistaken for approval")
+        tracker.update(status: .notRegistered, now: 12)
+        XCTAssertFalse(tracker.needsNewRegistration)
+        tracker.update(status: .requiresApproval, now: 13)
+        XCTAssertEqual(tracker.cards, [.complete, .current, .upcoming])
+        tracker.update(status: .enabled, now: 20)
+        XCTAssertEqual(tracker.phase, .confirming, "the rebuilt registration's approval counts")
+    }
+
+    func testRepairOfAnUnapprovedHelperIsAnOrdinaryApproval() {
+        let tracker = HelperApprovalTracker(status: .requiresApproval, variant: modern, needsNewRegistration: true)
+        XCTAssertFalse(tracker.needsNewRegistration)
+        XCTAssertEqual(tracker.primaryAction, .openSystemSettings)
+    }
+
     func testFailureWhileApprovalPendingIsATimeout() {
         var tracker = HelperApprovalTracker(status: .notRegistered, variant: modern)
         tracker.start(now: 0)

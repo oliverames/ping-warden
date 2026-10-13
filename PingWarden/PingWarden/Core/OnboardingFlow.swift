@@ -213,14 +213,30 @@ struct HelperApprovalTracker: Equatable, Sendable {
     /// at once and no new notification appears.
     private(set) var resumedEarlierRequest = false
     private(set) var loginItemsOpened = false
+    /// Repair found an enabled registration whose helper never answers, so
+    /// it must be registered again. Until macOS reports the old
+    /// registration gone, an Enabled status is not an approval.
+    private(set) var needsNewRegistration: Bool
     let variant: SystemSettingsCopy.Variant
 
     /// An already enabled helper skips the approval itself: the step only
-    /// confirms that it answers.
-    init(status: HelperRegistrationState, variant: SystemSettingsCopy.Variant = SystemSettingsCopy.variant) {
+    /// confirms that it answers. Repair passes `needsNewRegistration` for a
+    /// silent helper, whose Enabled status proves nothing.
+    init(
+        status: HelperRegistrationState,
+        variant: SystemSettingsCopy.Variant = SystemSettingsCopy.variant,
+        needsNewRegistration: Bool = false
+    ) {
         self.status = status
         self.variant = variant
-        self.phase = status == .enabled ? .confirming : .ready
+        self.needsNewRegistration = needsNewRegistration && status == .enabled
+        self.phase = status == .enabled && !self.needsNewRegistration ? .confirming : .ready
+    }
+
+    /// The status as the step presents it. A silent registration awaiting
+    /// rebuild reads as not registered.
+    var effectiveStatus: HelperRegistrationState {
+        needsNewRegistration && status == .enabled ? .notRegistered : status
     }
 
     /// Whether entering the step should confirm the helper right away.
@@ -231,11 +247,11 @@ struct HelperApprovalTracker: Equatable, Sendable {
     mutating func start(now: TimeInterval) {
         startedAt = now
         elapsed = 0
-        if status == .enabled {
+        if effectiveStatus == .enabled {
             phase = .confirming
             return
         }
-        resumedEarlierRequest = status == .requiresApproval
+        resumedEarlierRequest = effectiveStatus == .requiresApproval
         // registerHelper() opens Login Items at once for an earlier request.
         loginItemsOpened = resumedEarlierRequest
         phase = .waiting
@@ -257,6 +273,17 @@ struct HelperApprovalTracker: Equatable, Sendable {
         monitorOpenedLoginItems: Bool = false
     ) -> Reaction {
         status = newStatus
+        if needsNewRegistration {
+            if newStatus == .enabled {
+                // The old registration is still in place; keep counting.
+                if phase == .waiting, let startedAt {
+                    elapsed = max(0, now - startedAt)
+                    if elapsed >= Self.timeout { phase = .timedOut }
+                }
+                return .none
+            }
+            needsNewRegistration = false
+        }
         switch phase {
         case .waiting:
             if let startedAt { elapsed = max(0, now - startedAt) }
@@ -285,7 +312,7 @@ struct HelperApprovalTracker: Equatable, Sendable {
     mutating func registrationFailed(message: String?) {
         switch phase {
         case .waiting, .confirming:
-            if status == .requiresApproval || elapsed >= Self.timeout {
+            if effectiveStatus == .requiresApproval || elapsed >= Self.timeout {
                 phase = .timedOut
             } else {
                 phase = .failed(message: message ?? "Ping Warden could not register its helper. Try again.")
@@ -301,10 +328,10 @@ struct HelperApprovalTracker: Equatable, Sendable {
     /// The three preview cards: macOS announces the helper, turn on the
     /// switch, confirm with Touch ID or a password.
     var cards: [CardState] {
-        if phase == .confirming || status == .enabled {
+        if phase == .confirming || effectiveStatus == .enabled {
             return [.complete, .complete, .complete]
         }
-        if status == .requiresApproval {
+        if effectiveStatus == .requiresApproval {
             return [.complete, .current, .upcoming]
         }
         if phase == .waiting {
@@ -318,7 +345,7 @@ struct HelperApprovalTracker: Equatable, Sendable {
 
     var primaryAction: PrimaryAction {
         switch phase {
-        case .ready: return status == .requiresApproval ? .openSystemSettings : .approveHelper
+        case .ready: return effectiveStatus == .requiresApproval ? .openSystemSettings : .approveHelper
         case .waiting: return .openSystemSettings
         case .confirming: return .checking
         case .timedOut, .failed: return .tryAgain
@@ -339,7 +366,7 @@ struct HelperApprovalTracker: Equatable, Sendable {
         case .ready:
             return StatusLine(
                 title: nil,
-                detail: status == .requiresApproval
+                detail: effectiveStatus == .requiresApproval
                     ? "An earlier request is waiting. It only needs the switch turned on."
                     : "Ready when you are. Nothing changes until you click Approve Helper.",
                 tone: .neutral

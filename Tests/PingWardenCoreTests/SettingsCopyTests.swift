@@ -157,21 +157,6 @@ final class SettingsCopyStyleTests: XCTestCase {
     }
 }
 
-final class WelcomeSetupPolicyTests: XCTestCase {
-    func testUnlicensedFirstRunLeadsWithTheDashboard() {
-        XCTAssertEqual(WelcomeSetupPolicy.primaryAction(canEnableProtection: false), .openDashboard)
-    }
-
-    func testLicenseOrTransitionKeepsSetupFirst() {
-        XCTAssertEqual(WelcomeSetupPolicy.primaryAction(canEnableProtection: true), .setUpProtection)
-    }
-
-    func testApprovedHelperIsCheckedRatherThanAwaitingApproval() {
-        XCTAssertEqual(WelcomeSetupPolicy.progress(helperRegistered: true), .checkingHelper)
-        XCTAssertEqual(WelcomeSetupPolicy.progress(helperRegistered: false), .waitingForApproval)
-    }
-}
-
 /// The Game Mode detector replaces its idle timer only when the interval
 /// for the next tick differs from the running one, so a quiet streak must
 /// change tier exactly once, at the threshold.
