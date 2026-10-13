@@ -1,3 +1,20 @@
+# Ping Warden 4.3.4-beta.1
+
+This beta walks you through setting up Ping Protection one step at a time, and Repair now checks the helper before it asks macOS for anything.
+
+## Guided setup
+
+- The Welcome window looks the same as before. When you click **Set Up Ping Protection** or **Turn On Ping Protection**, Ping Warden walks through what Ping Protection does, your license if you still need one, and helper approval in the same window.
+- Ping Warden only asks you to approve the helper after a license is active. The latency dashboard doesn't use the helper, so if you skip the license step you go straight to the free dashboard, and a valid key takes you right into helper approval.
+- The approval step shows what macOS will put on screen and names the exact place in System Settings for your version of macOS: **Login Items** or **Login Items & Extensions**, and **Allow in the Background** or **App Background Activity**.
+- While you approve, the window follows along and moves on when the helper is approved. It tells you when it opens System Settings for you, and if approval doesn't arrive within a minute it offers **Try Again** while it keeps watching, so a late approval still finishes setup.
+- **Finish Setup…** in the menu, Settings, and the Dashboard picks up at the first step you haven't done yet instead of starting over.
+
+## Repair
+
+- **Repair…** first checks whether the helper answers. If it does, you see **Helper Is Responding** as before, and the helper's registration is left alone.
+- If the helper has to be approved again, Repair opens the approval step and waits for you to click **Approve Helper**, so macOS doesn't show its notification before you know why. Your protection setting, pause, and session history stay as they are.
+
 # Ping Warden 4.3.3
 
 This update fixes cases where Game Mode, Repair, or a cancelled quit could leave Ping Protection in the wrong state, and makes several helper requests finish reliably.
