@@ -3576,8 +3576,12 @@ final class GameModeDetector: @unchecked Sendable {
 
             if isGameModeActive {
                 isGameModeActive = false
-                DispatchQueue.main.async { [weak self] in
-                    self?.onGameModeChange?(false)
+                // Capture the handler instead of self: callers release the
+                // detector right after stop(), and a weak-self block would
+                // then drop this report and leave Game Mode stuck active.
+                let handler = onGameModeChange
+                DispatchQueue.main.async {
+                    handler?(false)
                 }
             }
         }
