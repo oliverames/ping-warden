@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(os)
 import os
+#endif
 
 enum ProtectedSessionTrigger: String, Codable, CaseIterable, Sendable {
     case manual
@@ -353,14 +355,28 @@ final class ProtectedSessionStore: @unchecked Sendable {
         }
         do {
             try fileManager.moveItem(at: fileURL, to: destination)
-            Self.logger.error("Protected session history could not be decoded; moved it to \(destination.lastPathComponent, privacy: .public) and started a new history")
+            Self.logMovedAside(destination.lastPathComponent)
         } catch {
-            Self.logger.error("Protected session history could not be decoded and could not be moved aside: \(error.localizedDescription, privacy: .public)")
+            Self.logMoveFailed(error)
             throw error
         }
     }
 
+    // PingWardenCore also builds on Linux for CI, where os.Logger is missing.
+    #if canImport(os)
     private static let logger = Logger(subsystem: "com.amesvt.pingwarden", category: "ProtectedSessionStore")
+
+    private static func logMovedAside(_ name: String) {
+        logger.error("Protected session history could not be decoded; moved it to \(name, privacy: .public) and started a new history")
+    }
+
+    private static func logMoveFailed(_ error: Error) {
+        logger.error("Protected session history could not be decoded and could not be moved aside: \(error.localizedDescription, privacy: .public)")
+    }
+    #else
+    private static func logMovedAside(_ name: String) {}
+    private static func logMoveFailed(_ error: Error) {}
+    #endif
 
     private func loadUnlocked() throws -> [ProtectedSessionSummary] {
         guard fileManager.fileExists(atPath: fileURL.path) else { return [] }
