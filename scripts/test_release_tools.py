@@ -313,6 +313,41 @@ class AppcastTests(unittest.TestCase):
             self.assertEqual(versions, ["4.1.0-beta.1", "4.0.2"])
             self.assertEqual(len(ET.parse(stable).findall("channel/item")), 1)
 
+    def test_rewrite_drops_signature_trailer_and_release_re_signs_both_feeds(self):
+        # ElementTree drops comments, so the rewrite removes the old trailer.
+        with tempfile.TemporaryDirectory() as directory:
+            stable, beta, entry = (Path(directory) / name for name in ("appcast.xml", "appcast-beta.xml", "item.xml"))
+            ET.ElementTree(self.item("4.0.2", "40002")).write(entry)
+            appcast.update(stable, beta, entry)
+            for feed in (stable, beta):
+                feed.write_text(feed.read_text() + "<!-- sparkle-signatures:\nedSignature: old\nlength: 1\n-->\n")
+            ET.ElementTree(self.item("4.0.3", "40003")).write(entry)
+            appcast.update(stable, beta, entry)
+            for feed in (stable, beta):
+                self.assertNotIn("sparkle-signatures", feed.read_text())
+
+        # So release.sh must sign both feeds after every rewrite, under set -e.
+        script = (Path(__file__).resolve().parents[1] / "PingWarden" / "PingWarden" / "release.sh").read_text()
+        self.assertIn("set -euo pipefail", script)
+        rewrite = '"$PYTHON_BIN" "$APPCAST_UPDATER" "${APPCAST_ARGS[@]}"'
+        self.assertEqual(script.count(rewrite), 1)
+        loop = 'for FEED in "$STABLE_APPCAST" "$BETA_APPCAST"; do'
+        sign = '"$SIGN_TOOL" "$FEED" --account'
+        verify = '"$SIGN_TOOL" --account "$SPARKLE_KEYCHAIN_ACCOUNT" --verify "$FEED"'
+        rewrite_at = script.index(rewrite)
+        loop_at = script.index(loop, rewrite_at)
+        loop_end = script.index("\ndone\n", loop_at)
+        self.assertLess(loop_at, script.index(sign, loop_at), "signing must follow the rewrite")
+        self.assertLess(script.index(sign, loop_at), loop_end)
+        self.assertLess(script.index(verify, loop_at), loop_end)
+        between = script[rewrite_at + len(rewrite):loop_at]
+        self.assertNotIn("APPCAST", between.replace('rm -f "$INSERT_FILE"', ""),
+                         "nothing may touch the feeds between the rewrite and signing")
+        # The only other updater call is the read-only build check.
+        other_calls = [line for line in script.splitlines()
+                       if '"$APPCAST_UPDATER"' in line and rewrite not in line]
+        self.assertEqual(other_calls, ['"$PYTHON_BIN" "$APPCAST_UPDATER" "${BUILD_CHECK_ARGS[@]}"'])
+
     def test_build_comparison_handles_legacy_and_current_formats(self):
         self.assertGreater(appcast.build_key("40002"), appcast.build_key("40001"))
         self.assertGreater(appcast.build_key("40000"), appcast.build_key("3.1.0"))

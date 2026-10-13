@@ -445,6 +445,9 @@ INSERT_FILE=$(mktemp -t pingwarden-appcast-item)
 printf "%s\n" "$NEW_ITEM" > "$INSERT_FILE"
 APPCAST_ARGS=(--stable "$STABLE_APPCAST" --beta "$BETA_APPCAST" --item "$INSERT_FILE")
 if [ "${BETA_CHANNEL:-0}" = "1" ]; then APPCAST_ARGS+=(--beta-release); fi
+# update_appcast.py rewrites both feeds and drops their sparkle-signatures
+# comment trailers; the loop below must re-sign both feeds after it, every
+# time. scripts/test_release_tools.py checks this order.
 "$PYTHON_BIN" "$APPCAST_UPDATER" "${APPCAST_ARGS[@]}"
 rm -f "$INSERT_FILE"
 for FEED in "$STABLE_APPCAST" "$BETA_APPCAST"; do
