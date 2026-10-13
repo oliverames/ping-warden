@@ -177,7 +177,7 @@ case "$1" in
 esac
 '''
 
-    def run_validation(self, busy=0, valid_payload=True, attach_output=None):
+    def run_validation(self, busy=0, valid_payload=True, attach_output=None, extra_env=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             bin_dir = root / "bin"
@@ -212,10 +212,11 @@ esac
                 "PW_EXPECTED_APP": str(mount / "Ping Warden.app"),
                 "RELEASE_VALIDATION_DETACH_DELAY": "0",
             }
+            env.update(extra_env or {})
             result = subprocess.run(
                 ["bash", "-c", f'source "$1"\n{overrides}validate_dmg_artifact "$2" 4.3.2 1',
                  "dmg-cleanup-test", str(script), str(dmg)],
-                capture_output=True, text=True, env=env,
+                capture_output=True, text=True, env=env, timeout=60,
             )
             calls = log.read_text().splitlines()
             return result, [call for call in calls if call.startswith("detach")], mount
@@ -241,6 +242,26 @@ esac
         self.assertIn(f'diskutil eject "{mount}"', result.stderr)
         self.assertIn(f'lsof +D "{mount}"', result.stderr)
         self.assertIn("Re-run the release", result.stderr)
+
+    def test_invalid_attempt_overrides_fall_back_to_the_default_bound(self):
+        for value in ("abc", "0"):
+            with self.subTest(attempts=value):
+                result, detaches, mount = self.run_validation(
+                    busy=99, extra_env={"RELEASE_VALIDATION_DETACH_ATTEMPTS": value})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("RELEASE_VALIDATION_DETACH_ATTEMPTS must be a whole number", result.stderr)
+                self.assertEqual(detaches, [f"detach {mount}"] * 5)
+                self.assertIn("after 5 attempts", result.stderr)
+
+    def test_invalid_delay_override_falls_back_to_the_default(self):
+        for value in ("abc", "-1"):
+            with self.subTest(delay=value):
+                result, detaches, mount = self.run_validation(
+                    busy=1, extra_env={"RELEASE_VALIDATION_DETACH_DELAY": value})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("RELEASE_VALIDATION_DETACH_DELAY must be a whole number", result.stderr)
+                self.assertIn("retrying in 2s", result.stderr)
+                self.assertEqual(detaches, [f"detach {mount}"] * 2)
 
     def test_invalid_payload_fails_and_still_detaches(self):
         result, detaches, mount = self.run_validation(valid_payload=False)
