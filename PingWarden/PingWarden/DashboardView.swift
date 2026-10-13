@@ -14,7 +14,6 @@ import SwiftUI
 import Charts
 import AppKit
 import Accessibility
-import ServiceManagement
 
 struct PingTarget: Identifiable, Hashable {
     enum Source: Int {
@@ -1409,8 +1408,7 @@ struct InterventionsCard: View {
     @ObservedObject var viewModel: DashboardViewModel
     @ObservedObject private var protectionExperience = ProtectionExperienceCoordinator.shared
     @ScaledMetric(relativeTo: .largeTitle) private var heroCountSize: CGFloat = 48
-    @State private var showingRepairConfirmation = false
-    @State private var repairResult: HelperTestReport?
+    @State private var repairError: String?
 
     var body: some View {
         // Read once per redraw; each read assembles the whole policy state.
@@ -1419,7 +1417,7 @@ struct InterventionsCard: View {
         let isProtectionActive = state.effectiveProtectionEnabled
         let helperIsSilent = state.helperAvailable && !state.helperResponding
 
-        return repairAlerts(VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("Ping Protection")
                     .font(.headline)
@@ -1449,28 +1447,7 @@ struct InterventionsCard: View {
                 }
             }
 
-            if toggleAction == .finishSetup {
-                if protectionExperience.isRepairingHelper {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(SetupGuideCopy.waitingTitle)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                        Text(SetupGuideCopy.waitingDetail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("Open \(SystemSettingsCopy.loginItemsPaneName)") {
-                            SMAppService.openSystemSettingsLoginItems()
-                        }
-                        .buttonStyle(.link)
-                        .font(.caption)
-                    }
-                } else {
-                    SetupStepsList(alignment: .leading)
-                }
-            }
-
-            if helperIsSilent {
+            if helperIsSilent || repairError != nil {
                 repairRow(helperIsSilent: helperIsSilent)
             }
 
@@ -1492,7 +1469,7 @@ struct InterventionsCard: View {
                 }
             }
         }
-        .dashboardCardStyle())
+        .dashboardCardStyle()
     }
 
     /// The visible titles are short ("Turn On"); VoiceOver hears what they
@@ -1512,7 +1489,7 @@ struct InterventionsCard: View {
             if helperIsSilent {
                 HStack(spacing: 8) {
                     Button {
-                        showingRepairConfirmation = true
+                        repairHelper()
                     } label: {
                         if protectionExperience.isRepairingHelper {
                             HStack(spacing: 6) {
@@ -1535,40 +1512,12 @@ struct InterventionsCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-        }
-    }
-
-    /// Same confirmation and result alerts as the menu and Settings. Hung on
-    /// the card, not the Repair row, so a success result still appears after
-    /// the row hides.
-    private func repairAlerts<Content: View>(_ content: Content) -> some View {
-        content
-        .confirmationDialog(
-            RepairResultCopy.confirmationTitle,
-            isPresented: $showingRepairConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Repair") { repairHelper() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(RepairResultCopy.confirmationMessage)
-        }
-        .alert(
-            repairResult?.title ?? "",
-            isPresented: Binding(
-                get: { repairResult != nil },
-                set: { if !$0 { repairResult = nil } }
-            )
-        ) {
-            Button("OK") { repairResult = nil }
-            if repairResult?.title == RepairResultCopy.failureTitle {
-                Button(HelpLinks.troubleshootingTitle) {
-                    repairResult = nil
-                    NSWorkspace.shared.open(HelpLinks.helperStillNotResponding)
-                }
+            if let repairError {
+                Label(repairError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        } message: {
-            Text(repairResult?.message ?? "")
         }
     }
 
@@ -1577,10 +1526,13 @@ struct InterventionsCard: View {
     /// coordinator owns single-flight and the reassertion deferral, and a
     /// pause, running session or newer Off still wins over any saved preference.
     private func repairHelper() {
+        repairError = nil
         Task { @MainActor in
             let report = await protectionExperience.repairHelperConnection()
             guard !protectionExperience.isTerminating else { return }
-            repairResult = report
+            if report.title != RepairResultCopy.successTitle {
+                repairError = report.message
+            }
         }
     }
 

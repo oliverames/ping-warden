@@ -850,19 +850,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         statusMenuItem.isEnabled = false
         statusMenu?.addItem(statusMenuItem)
 
-        // Directly under the status, so "Helper Not Responding" sits next to
-        // its fix. Hidden unless the helper stopped answering.
-        let repairItem = NSMenuItem(
-            title: "Repair Helper…",
-            action: #selector(repairHelperFromMenu),
-            keyEquivalent: ""
-        )
-        repairItem.target = self
-        repairItem.tag = 141
-        repairItem.image = menuSymbol("wrench.and.screwdriver")
-        repairItem.toolTip = RepairResultCopy.accessibilityHint
-        statusMenu?.addItem(repairItem)
-
         let pingMenuItem = NSMenuItem(title: "Current Ping: --", action: nil, keyEquivalent: "")
         pingMenuItem.tag = 101
         pingMenuItem.isEnabled = false
@@ -906,6 +893,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         toggleItem.tag = 140
         toggleItem.image = protectionMenuImage()
         statusMenu?.addItem(toggleItem)
+
+        let repairItem = NSMenuItem(
+            title: "Repair Helper…",
+            action: #selector(repairHelperFromMenu),
+            keyEquivalent: ""
+        )
+        repairItem.target = self
+        repairItem.tag = 141
+        repairItem.image = menuSymbol("wrench.and.screwdriver")
+        repairItem.toolTip = RepairResultCopy.accessibilityHint
+        statusMenu?.addItem(repairItem)
 
         let pauseItem = NSMenuItem(
             title: initialPresentation.pauseTitle ?? "Pause for 10 Minutes",
@@ -1613,15 +1611,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             let result = NSAlert()
             result.messageText = report.title
             result.informativeText = report.message
-            let failed = report.title == RepairResultCopy.failureTitle
-            result.alertStyle = failed ? .warning : .informational
+            result.alertStyle = .informational
             result.addButton(withTitle: "OK")
-            if failed {
-                result.addButton(withTitle: HelpLinks.troubleshootingTitle)
-            }
-            if result.runModal() == .alertSecondButtonReturn {
-                NSWorkspace.shared.open(HelpLinks.helperStillNotResponding)
-            }
+            result.runModal()
         }
     }
 
@@ -2141,12 +2133,6 @@ private struct HelperRepairControl: View {
             )
         ) {
             Button("OK") { result = nil }
-            if result?.title == RepairResultCopy.failureTitle {
-                Button(HelpLinks.troubleshootingTitle) {
-                    result = nil
-                    NSWorkspace.shared.open(HelpLinks.helperStillNotResponding)
-                }
-            }
         } message: {
             Text(result?.message ?? "")
         }
@@ -2164,10 +2150,6 @@ struct GeneralSettingsContent: View {
     @State private var controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
     @State private var showingControlCenterConfirm = false
     @State private var settingsErrorMessage: String?
-    /// Set together with `settingsErrorMessage` when a failure has its own
-    /// title or help page; cleared when the alert closes.
-    @State private var settingsErrorTitle: String?
-    @State private var settingsErrorHelpURL: URL?
     @State private var isFinishingSetup = false
 
     init(onCheckForUpdates: @escaping () -> Void = {}) {
@@ -2259,24 +2241,6 @@ struct GeneralSettingsContent: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    if isFinishingSetup {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(SetupGuideCopy.waitingTitle)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            Text(SetupGuideCopy.waitingDetail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Button("Open \(SystemSettingsCopy.loginItemsPaneName)") {
-                                SMAppService.openSystemSettingsLoginItems()
-                            }
-                            .buttonStyle(.link)
-                            .font(.caption)
-                        }
-                    } else {
-                        SetupStepsList(alignment: .leading)
-                    }
                 }
 
                 HelperRepairControl(onlyWhenNeeded: true)
@@ -2326,7 +2290,7 @@ struct GeneralSettingsContent: View {
                                         if success {
                                             monitorState.refresh()
                                         } else {
-                                            settingsErrorMessage = "The helper could not reset the intervention counter. Open Settings → Advanced, click Repair…, then try again."
+                                            settingsErrorMessage = "The helper could not reset the intervention counter. Open Settings → Advanced, click Repair, and try again."
                                         }
                                     }
                                 }
@@ -2519,19 +2483,13 @@ struct GeneralSettingsContent: View {
             Text(InterfaceVisibilityCopy.confirmationMessage)
         }
         .alert(
-            settingsErrorTitle ?? "Setting Could Not Be Changed",
+            "Setting Could Not Be Changed",
             isPresented: Binding(
                 get: { settingsErrorMessage != nil },
-                set: { if !$0 { clearSettingsError() } }
+                set: { if !$0 { settingsErrorMessage = nil } }
             )
         ) {
-            Button("OK") { clearSettingsError() }
-            if let helpURL = settingsErrorHelpURL {
-                Button(HelpLinks.troubleshootingTitle) {
-                    clearSettingsError()
-                    NSWorkspace.shared.open(helpURL)
-                }
-            }
+            Button("OK") { settingsErrorMessage = nil }
         } message: {
             Text(settingsErrorMessage ?? "Try again.")
         }
@@ -2555,12 +2513,6 @@ struct GeneralSettingsContent: View {
         isFinishingSetup || protectionExperience.isRepairingHelper
     }
 
-    private func clearSettingsError() {
-        settingsErrorMessage = nil
-        settingsErrorTitle = nil
-        settingsErrorHelpURL = nil
-    }
-
     private func finishSetup() {
         guard !setupInProgress else { return }
         isFinishingSetup = true
@@ -2568,11 +2520,9 @@ struct GeneralSettingsContent: View {
             Task { @MainActor in
                 guard success else {
                     isFinishingSetup = false
-                    settingsErrorTitle = SetupGuideCopy.finishSetupFailedTitle
-                    settingsErrorHelpURL = HelpLinks.setupDidNotFinish
                     settingsErrorMessage = PingWardenMonitor.shared.lastSetupFailureMessage
                         ?? (PingWardenMonitor.shared.isHelperRegistered
-                            ? "The helper was approved but is not responding. Restart your Mac, then open Settings → Advanced and click Repair…"
+                            ? "The helper was approved but is not responding. Restart your Mac, then open Settings → Advanced and click Repair."
                             : "Ping Warden is still waiting for approval in \(SystemSettingsCopy.loginItemsPath).")
                     return
                 }
@@ -2580,7 +2530,7 @@ struct GeneralSettingsContent: View {
                 isFinishingSetup = false
                 if !enabled {
                     settingsErrorMessage = protectionExperience.lastError
-                        ?? "The helper was approved, but Ping Protection could not turn on. Open Settings → Advanced and click Repair…"
+                        ?? "The helper was approved, but Ping Protection could not turn on. Open Settings → Advanced and click Repair."
                 }
             }
         }
@@ -2886,8 +2836,6 @@ struct AdvancedSettingsContent: View {
     @State private var isRunningHelperTest = false
     @State private var isExportingDiagnostics = false
     @State private var maintenanceErrorMessage: String?
-    /// Removal failures link to their troubleshooting section.
-    @State private var maintenanceErrorHelpURL: URL?
     /// A second confirmation while removal runs would start a second
     /// unregister and restore sequence on top of the first.
     @State private var isPreparingRemoval = false
@@ -3059,16 +3007,10 @@ struct AdvancedSettingsContent: View {
             "Maintenance Could Not Finish",
             isPresented: Binding(
                 get: { maintenanceErrorMessage != nil },
-                set: { if !$0 { clearMaintenanceError() } }
+                set: { if !$0 { maintenanceErrorMessage = nil } }
             )
         ) {
-            Button("OK") { clearMaintenanceError() }
-            if let helpURL = maintenanceErrorHelpURL {
-                Button(HelpLinks.troubleshootingTitle) {
-                    clearMaintenanceError()
-                    NSWorkspace.shared.open(helpURL)
-                }
-            }
+            Button("OK") { maintenanceErrorMessage = nil }
         } message: {
             Text(maintenanceErrorMessage ?? "Try again.")
         }
@@ -3116,11 +3058,6 @@ struct AdvancedSettingsContent: View {
         }
     }
 
-    private func clearMaintenanceError() {
-        maintenanceErrorMessage = nil
-        maintenanceErrorHelpURL = nil
-    }
-
     private func prepareForRemoval() {
         guard !isPreparingRemoval else {
             settingsLog.info("Ignoring Prepare to Remove while a removal is already running")
@@ -3144,14 +3081,7 @@ struct AdvancedSettingsContent: View {
 
             let stopped = await protectionExperience.setPersistentProtection(false)
             guard stopped else {
-                // A silent helper is not restored by quitting, so it gets
-                // the Repair path instead of the quit advice.
-                if protectionExperience.shouldOfferHelperRepair {
-                    maintenanceErrorHelpURL = HelpLinks.maintenanceCouldNotFinish
-                    maintenanceErrorMessage = RemovalCopy.helperSilent
-                } else {
-                    maintenanceErrorMessage = RemovalCopy.couldNotTurnOff
-                }
+                maintenanceErrorMessage = "Ping Protection could not be turned off, so no settings were erased. Quit Ping Warden to restore wireless sharing, then try again."
                 return
             }
 
@@ -3166,7 +3096,6 @@ struct AdvancedSettingsContent: View {
                     restoreLaunchAtLogin: false,
                     restoreHelper: false
                 )
-                maintenanceErrorHelpURL = HelpLinks.maintenanceCouldNotFinish
                 maintenanceErrorMessage = removalFailureMessage(
                     "Launch at Login could not be unregistered. \(error.localizedDescription)",
                     restored: restored
@@ -3186,7 +3115,6 @@ struct AdvancedSettingsContent: View {
                     restoreLaunchAtLogin: launchAtLoginWasEnabled,
                     restoreHelper: false
                 )
-                maintenanceErrorHelpURL = HelpLinks.maintenanceCouldNotFinish
                 maintenanceErrorMessage = removalFailureMessage(
                     "The helper could not be unregistered. \(error.localizedDescription)",
                     restored: restored
@@ -3203,7 +3131,6 @@ struct AdvancedSettingsContent: View {
                     restoreLaunchAtLogin: launchAtLoginWasEnabled,
                     restoreHelper: helperWasEnabled
                 )
-                maintenanceErrorHelpURL = HelpLinks.maintenanceCouldNotFinish
                 maintenanceErrorMessage = removalFailureMessage(
                     "Ping Warden could not clear its latency session history. \(error.localizedDescription)",
                     restored: restored
@@ -3270,7 +3197,7 @@ struct AdvancedSettingsContent: View {
         if restored {
             return "\(cause) Your previous Ping Warden settings were restored, and no local data was erased."
         }
-        return "\(cause) Ping Warden could not fully restore the prior state. Open Settings → Advanced, click Repair…, and review Launch at Login before retrying. No local data was erased."
+        return "\(cause) Ping Warden could not fully restore the prior state. Open Settings → Advanced, click Repair, and review Launch at Login before retrying. No local data was erased."
     }
 
     private func clearLocalDataForRemoval() throws {

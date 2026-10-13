@@ -84,75 +84,9 @@ final class HelperTestReportTests: XCTestCase {
     }
 
     func testRepairCopyMatchesProtectionState() {
-        XCTAssertTrue(RepairResultCopy.successMessage(protectionOn: true).hasPrefix("Ping Protection is on."))
-        XCTAssertTrue(RepairResultCopy.successMessage(protectionOn: true).contains("crossed-out antenna"))
+        XCTAssertEqual(RepairResultCopy.successMessage(protectionOn: true), "Ping Protection is on.")
         XCTAssertEqual(RepairResultCopy.successMessage(protectionOn: false), "Ping Protection is off.")
         XCTAssertTrue(RepairResultCopy.failureMessage.contains(SystemSettingsCopy.loginItemsPath))
-        XCTAssertTrue(RepairResultCopy.failureMessage.contains("Troubleshooting Guide"))
-    }
-
-    func testRepairConfirmationNamesWhatMacOSMayShow() {
-        for version in [14, 15] {
-            let copy = RepairResultCopy.confirmationMessage(osMajorVersion: version)
-            XCTAssertTrue(copy.contains("Background Items Added"), copy)
-            XCTAssertTrue(copy.contains(SystemSettingsCopy.loginItemsPaneName(osMajorVersion: version)), copy)
-            XCTAssertTrue(copy.contains("Allow in the Background"), copy)
-            XCTAssertTrue(copy.contains("stay as they are"), copy)
-        }
-        XCTAssertFalse(RepairResultCopy.confirmationMessage(osMajorVersion: 14).contains("Extensions"))
-    }
-
-    func testRepairButtonReferencesMatchTheRealLabels() {
-        XCTAssertTrue(ProtectionFailureCopy.repairHint.hasSuffix("click Repair…"))
-        XCTAssertTrue(ProtectionFailureCopy.setupIncomplete.contains("Finish Setup…"))
-        XCTAssertTrue(HelperTestReport.notResponding.message.contains("Repair… below"))
-        XCTAssertEqual(HelperTestReport.awdlStillActive.message,
-                       "Ping Protection is on, but AWDL read as active. Run the test again. If it repeats, click Repair…")
-    }
-}
-
-final class SetupGuideCopyTests: XCTestCase {
-    func testStepsUseThePaneNameForEachMacOSRelease() {
-        let sonoma = SetupGuideCopy.steps(osMajorVersion: 14)
-        let sequoia = SetupGuideCopy.steps(osMajorVersion: 15)
-        XCTAssertEqual(sonoma.count, 5)
-        XCTAssertTrue(sonoma[1].contains("System Settings → General → Login Items."))
-        XCTAssertTrue(sequoia[1].contains("System Settings → General → Login Items & Extensions."))
-        XCTAssertTrue(sonoma[0].contains("Background Items Added"))
-        XCTAssertTrue(sonoma[2].contains("Allow in the Background"))
-        XCTAssertTrue(SetupGuideCopy.timeoutHint.contains("a minute"))
-    }
-
-    func testWaitingAndFailureCopy() {
-        XCTAssertEqual(
-            SetupGuideCopy.waitingDetail(osMajorVersion: 15),
-            "macOS shows a Background Items Added notification. In System Settings → General → Login Items & Extensions, turn on Ping Warden under Allow in the Background. macOS may ask for your password. Then come back here."
-        )
-        XCTAssertTrue(SetupGuideCopy.waitingDetail(osMajorVersion: 13).contains("→ Login Items, turn on"))
-        XCTAssertEqual(
-            SetupGuideCopy.failedFallback(osMajorVersion: 15),
-            "macOS did not finish approving the helper. Check Login Items & Extensions, then click Try Again."
-        )
-        XCTAssertEqual(SetupGuideCopy.finishSetupFailedTitle, "Setup Did Not Finish")
-    }
-
-    func testHelpLinksPointAtDocumentedAnchors() {
-        XCTAssertEqual(HelpLinks.messages.fragment, "messages-you-might-see")
-        XCTAssertEqual(HelpLinks.helperStillNotResponding.fragment, "helper-still-not-responding")
-        XCTAssertEqual(HelpLinks.setupDidNotFinish.fragment, "setup-did-not-finish")
-        XCTAssertEqual(HelpLinks.maintenanceCouldNotFinish.fragment, "maintenance-could-not-finish")
-        XCTAssertEqual(HelpLinks.whatTheHelperDoes.fragment, "what-the-helper-is-and-why-it-needs-approval")
-        for url in [HelpLinks.messages, HelpLinks.helperStillNotResponding, HelpLinks.setupDidNotFinish,
-                    HelpLinks.maintenanceCouldNotFinish, HelpLinks.whatTheHelperDoes] {
-            XCTAssertEqual(url.host, "pingwarden.app")
-        }
-    }
-
-    func testRemovalCopyPointsASilentHelperToRepair() {
-        XCTAssertTrue(RemovalCopy.helperSilent.contains("not responding"))
-        XCTAssertTrue(RemovalCopy.helperSilent.contains("Repair…"))
-        XCTAssertFalse(RemovalCopy.helperSilent.contains("Quit"))
-        XCTAssertTrue(RemovalCopy.couldNotTurnOff.contains("Quit"))
     }
 }
 
@@ -178,12 +112,8 @@ final class SettingsCopyStyleTests: XCTestCase {
             LicenseCopy.required, LicenseCopy.transitionEnded, LicenseCopy.revoked, LicenseCopy.keyNotAccepted,
             HelperTestReport.notSetUp.message, HelperTestReport.notResponding.message,
             HelperTestReport.awdlStillActive.message, RepairResultCopy.failureMessage,
-            GatekeeperCopy.message(osMajorVersion: 14), GatekeeperCopy.message(osMajorVersion: 15),
-            RepairResultCopy.confirmationMessage, RepairResultCopy.successMessage(protectionOn: true),
-            SetupGuideCopy.waitingDetail, SetupGuideCopy.failedFallback, SetupGuideCopy.timeoutHint,
-            SetupGuideCopy.completeProtectionOn, SetupGuideCopy.completeLicenseNeeded,
-            SetupGuideCopy.helperCaption, RemovalCopy.helperSilent, RemovalCopy.couldNotTurnOff
-        ] + SetupGuideCopy.steps
+            GatekeeperCopy.message(osMajorVersion: 14), GatekeeperCopy.message(osMajorVersion: 15)
+        ]
         for copy in copies {
             XCTAssertFalse(copy.contains("\u{2014}"), copy)
             XCTAssertFalse(copy.contains("..."), copy)
@@ -198,17 +128,6 @@ final class WelcomeSetupPolicyTests: XCTestCase {
 
     func testLicenseOrTransitionKeepsSetupFirst() {
         XCTAssertEqual(WelcomeSetupPolicy.primaryAction(canEnableProtection: true), .setUpProtection)
-    }
-
-    func testUnlicensedCompletionLeadsWithTheLicense() {
-        XCTAssertEqual(WelcomeSetupPolicy.completionAction(canEnableProtection: false), .enterLicense)
-        XCTAssertEqual(WelcomeSetupPolicy.completionAction(canEnableProtection: true), .openDashboard)
-        XCTAssertEqual(WelcomeSetupPolicy.completionMessage(canEnableProtection: false, protectionOn: false),
-                       "Helper ready. Enter a license to turn on Ping Protection.")
-        XCTAssertEqual(WelcomeSetupPolicy.completionMessage(canEnableProtection: true, protectionOn: false),
-                       "Helper ready. Ping Protection is off.")
-        XCTAssertTrue(WelcomeSetupPolicy.completionMessage(canEnableProtection: true, protectionOn: true)
-            .hasPrefix("Setup complete. Ping Protection is on."))
     }
 
     func testApprovedHelperIsCheckedRatherThanAwaitingApproval() {
