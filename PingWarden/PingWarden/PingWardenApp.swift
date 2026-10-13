@@ -689,18 +689,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             rootView = AnyView(rootView.preferredColorScheme(.dark))
         }
         let hostingController = NSHostingController(rootView: rootView)
-        let initialSize = ProcessInfo.processInfo.arguments.contains("--welcome-min-size")
-            ? OnboardingView.minimumSize
-            : OnboardingView.defaultSize
 #else
         let hostingController = NSHostingController(rootView: setupView)
-        let initialSize = OnboardingView.defaultSize
 #endif
+        // The window takes each screen's height as the steps change.
+        hostingController.sizingOptions = [.preferredContentSize]
+        let initialSize = hostingController.view.fittingSize
         hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
 
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: initialSize),
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -710,7 +709,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
-        window.contentMinSize = OnboardingView.minimumSize
         window.center()
         window.isReleasedWhenClosed = false
         window.delegate = self

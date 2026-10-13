@@ -3,33 +3,59 @@
 
 import SwiftUI
 
+// MARK: - Layout scale
+
+/// One spacing scale for every screen, so gaps read as related or separate
+/// at a glance: 4 inside a label pair, 8 between a title and its line, 16
+/// between items, 24 between groups.
+enum OnboardingSpacing {
+    static let tight: CGFloat = 4
+    static let small: CGFloat = 8
+    static let medium: CGFloat = 16
+    static let large: CGFloat = 24
+    static let gutter: CGFloat = 40
+    /// The readable column for body text and cards.
+    static let column: CGFloat = 420
+}
+
 // MARK: - Window content
 
-/// The setup window: the first-run introduction, Finish Setup, and Repair's
-/// approval step. One window, one primary button per screen.
+/// The setup window: the first-run Welcome (the 4.3 layout), the guided
+/// steps that follow it, Finish Setup, and Repair's approval step. Each
+/// guided screen centers its content vertically between the title bar and
+/// the button row, so no screen strands content at the top or bottom.
 struct OnboardingView: View {
-    static let defaultSize = NSSize(width: 540, height: 600)
-    static let minimumSize = NSSize(width: 480, height: 560)
+    /// The window is 540 points wide and as tall as the current screen's
+    /// content, so no screen carries a band of empty space. Shorter screens
+    /// keep a floor height so the window does not jump far between steps.
+    static let width: CGFloat = 540
+    static let minimumContentHeight: CGFloat = 400
+    /// Accessibility text sizes scroll inside a window of this height.
+    static let accessibilityHeight: CGFloat = 680
 
     @ObservedObject var model: OnboardingModel
     @ObservedObject private var license = LicenseManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(spacing: 0) {
-            GeometryReader { geometry in
-                ScrollView {
-                    screen
-                        .padding(.horizontal, 40)
-                        .padding(.bottom, 8)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: geometry.size.height)
+        Group {
+            if model.step == .welcome {
+                WelcomeScreen(model: model)
+            } else {
+                VStack(spacing: 0) {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        ScrollView { steppedContent }
+                    } else {
+                        steppedContent
+                    }
+                    footer
                 }
             }
-            footer
         }
-        .frame(minWidth: Self.minimumSize.width, idealWidth: Self.defaultSize.width,
-               minHeight: Self.minimumSize.height, idealHeight: Self.defaultSize.height)
+        .frame(width: Self.width)
+        .frame(height: dynamicTypeSize.isAccessibilitySize ? Self.accessibilityHeight : nil)
+        .fixedSize(horizontal: false, vertical: !dynamicTypeSize.isAccessibilitySize)
         .background(.background)
         .overlay(alignment: .topTrailing) {
             if model.mode == .repair {
@@ -43,11 +69,21 @@ struct OnboardingView: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: model.step)
     }
 
+    /// The current screen, centered in at least the floor height.
+    private var steppedContent: some View {
+        screen
+            .padding(.horizontal, OnboardingSpacing.gutter)
+            .padding(.top, OnboardingSpacing.small)
+            .padding(.bottom, OnboardingSpacing.large)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: Self.minimumContentHeight)
+    }
+
     @ViewBuilder
     private var screen: some View {
         Group {
             switch model.step {
-            case .welcome: WelcomeScreen()
+            case .welcome: EmptyView()
             case .protection: ProtectionScreen(model: model)
             case .license: LicenseScreen(model: model)
             case .approve: ApproveScreen(model: model)
@@ -73,7 +109,7 @@ struct OnboardingView: View {
                 }
             }
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, OnboardingSpacing.large)
         .frame(height: 76)
     }
 
@@ -87,10 +123,7 @@ struct OnboardingView: View {
     private var leadingButtons: some View {
         switch model.step {
         case .welcome:
-            Button("Not Now") { model.closeTapped() }
-                .onboardingSecondary()
-                .keyboardShortcut(.cancelAction)
-                .accessibilityIdentifier("onboarding.notNow")
+            EmptyView()
         case .protection, .license, .freeDashboard:
             Button(backTitle) { model.backTapped() }
                 .onboardingSecondary()
@@ -99,10 +132,7 @@ struct OnboardingView: View {
         case .approve:
             approveSecondaryButton
         case .done:
-            if model.mode != .repair && !license.canEnableProtection {
-                Button("Enter License Key…") { model.enterLicenseTapped() }
-                    .onboardingSecondary()
-            }
+            EmptyView()
         case .repairFailed:
             Button("Open System Settings") { model.openLoginItems() }
                 .onboardingSecondary()
@@ -112,14 +142,17 @@ struct OnboardingView: View {
     @ViewBuilder
     private var trailingButtons: some View {
         switch model.step {
-        case .welcome, .protection:
+        case .welcome:
+            EmptyView()
+        case .protection:
             Button("Continue") { model.continueTapped() }
                 .onboardingPrimary()
                 .accessibilityIdentifier("onboarding.continue")
         case .license:
-            if license.canEnableProtection {
+            if model.canEnableProtection {
                 Button("Continue") { model.continueTapped() }
                     .onboardingPrimary()
+                    .accessibilityIdentifier("onboarding.continue")
             } else {
                 Button("Skip for Now") { model.continueTapped() }
                     .onboardingSecondary()
@@ -262,7 +295,7 @@ private struct ScreenTitle: View {
     var large = false
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: OnboardingSpacing.small) {
             Text(title)
                 .font(large ? .largeTitle : .title)
                 .fontWeight(.bold)
@@ -271,11 +304,11 @@ private struct ScreenTitle: View {
                 .accessibilityAddTraits(.isHeader)
             if let subtitle {
                 Text(subtitle)
-                    .font(.title3)
+                    .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 410)
+                    .frame(maxWidth: OnboardingSpacing.column)
             }
         }
     }
@@ -294,39 +327,147 @@ private struct Caption: View {
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: 400)
+            .frame(maxWidth: OnboardingSpacing.column)
     }
 }
 
 private struct LargeAppIcon: View {
+    var size: CGFloat = 80
+
     var body: some View {
         Image(nsImage: NSApplication.shared.applicationIconImage)
             .resizable()
             .interpolation(.high)
-            .frame(width: 92, height: 92)
-            .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+            .frame(width: size, height: size)
             .accessibilityHidden(true)
     }
 }
 
+/// The 4.3 Welcome, kept as people know it: icon, title, tagline, three
+/// feature rows, then the setup action area and the crash-report note.
+/// The guided steps start from its setup button.
 private struct WelcomeScreen: View {
+    @ObservedObject var model: OnboardingModel
+    @ObservedObject private var license = LicenseManager.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        VStack(spacing: 0) {
-            LargeAppIcon()
-                .padding(.top, 18)
-            ScreenTitle(title: OnboardingCopy.welcomeTitle, subtitle: OnboardingCopy.welcomeLine, large: true)
-                .padding(.top, 22)
-            Label(OnboardingCopy.welcomeReassurance, systemImage: "clock")
-                .font(.body)
+        VStack(spacing: OnboardingSpacing.large) {
+            welcomeContent
+                .padding(.horizontal, OnboardingSpacing.gutter)
+                .padding(.top, OnboardingSpacing.medium)
+                .frame(maxWidth: .infinity)
+            actionArea
+        }
+    }
+
+    private var welcomeContent: some View {
+        VStack(spacing: OnboardingSpacing.large) {
+            VStack(spacing: 12) {
+                LargeAppIcon()
+                Text(OnboardingCopy.welcomeTitle)
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Text(OnboardingCopy.welcomeLine)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 20) {
+                ForEach(OnboardingCopy.welcomeBenefits, id: \.title) { benefit in
+                    WelcomeBenefitRow(benefit: benefit)
+                }
+            }
+            .frame(maxWidth: 400)
+        }
+    }
+
+    /// The setup action area, as in 4.3: one line about what setup asks
+    /// for, the primary action, Not Now, and the crash-report note.
+    private var actionArea: some View {
+        VStack(spacing: 14) {
+            Text(model.canEnableProtection
+                 ? "Setup asks for one approval in \(SystemSettingsCopy.loginItemsPaneName)."
+                 : OnboardingCopy.welcomeUnlicensedLine)
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 400)
-                .padding(.top, 18)
-            Spacer(minLength: 16)
+
+            OnboardingGlassGroup(spacing: 12) {
+                VStack(spacing: 12) {
+                    if model.canEnableProtection {
+                        welcomeButton("Turn On Ping Protection", prominent: true) { model.continueTapped() }
+                            .accessibilityIdentifier("onboarding.continue")
+                    } else {
+                        // Without a license, the free dashboard leads and
+                        // setup starts with the license.
+                        welcomeButton("Open Dashboard", prominent: true) { model.openDashboardTapped() }
+                            .accessibilityIdentifier("onboarding.openDashboard")
+                        welcomeButton("Set Up Ping Protection", prominent: false) { model.continueTapped() }
+                            .accessibilityIdentifier("onboarding.continue")
+                    }
+                }
+            }
+            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 240)
+
+            Button("Not Now") { model.closeTapped() }
+                .buttonStyle(.link)
+                .font(.callout)
+                .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("onboarding.notNow")
+
             Caption(OnboardingCopy.crashReportCaption)
-                .padding(.bottom, 6)
         }
+        .padding(.horizontal, OnboardingSpacing.gutter)
+        .padding(.top, OnboardingSpacing.small)
+        .padding(.bottom, OnboardingSpacing.large)
+    }
+
+    @ViewBuilder
+    private func welcomeButton(_ title: String, prominent: Bool, action: @escaping () -> Void) -> some View {
+        let button = Button(action: action) {
+            Text(title)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
+        }
+        if prominent {
+            button.onboardingPrimary()
+        } else {
+            button.onboardingSecondary()
+        }
+    }
+}
+
+private struct WelcomeBenefitRow: View {
+    let benefit: OnboardingCopy.Benefit
+
+    var body: some View {
+        HStack(alignment: .top, spacing: OnboardingSpacing.medium) {
+            Image(systemName: benefit.symbol)
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .frame(width: 32)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: OnboardingSpacing.tight) {
+                Text(benefit.title)
+                    .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(benefit.detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -335,11 +476,10 @@ private struct ProtectionScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: OnboardingSpacing.large) {
             ScreenTitle(title: OnboardingCopy.protectionTitle, subtitle: OnboardingCopy.protectionBody)
-                .padding(.top, 6)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: OnboardingSpacing.small) {
                 Picker("Compare", selection: Binding(
                     get: { model.showsProtectionIllustration },
                     set: { newValue in
@@ -370,87 +510,94 @@ private struct ProtectionScreen: View {
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 12)
-            .padding(.bottom, 10)
+            .padding(OnboardingSpacing.medium)
             .frame(maxWidth: 444)
             .modifier(OnboardingCardBackground())
-            .padding(.top, 18)
 
-            Spacer(minLength: 16)
             Caption(OnboardingCopy.protectionCaption)
-                .padding(.bottom, 6)
         }
     }
 }
 
+/// The license field, Activate, and the purchase option share one card,
+/// with the donor note directly beneath it.
 private struct LicenseScreen: View {
     @ObservedObject var model: OnboardingModel
     @ObservedObject private var license = LicenseManager.shared
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: OnboardingSpacing.large) {
             ScreenTitle(title: OnboardingCopy.licenseTitle, subtitle: OnboardingCopy.licenseBody)
-                .padding(.top, 6)
 
-            VStack(alignment: .leading, spacing: 12) {
-                if license.canEnableProtection {
+            VStack(alignment: .leading, spacing: OnboardingSpacing.medium) {
+                if model.canEnableProtection {
                     Label("License active", systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(.green)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
                 } else {
-                    HStack(spacing: 8) {
-                        TextField("License Key", text: $model.licenseKey,
-                                  prompt: Text("Paste your key from the Gumroad receipt"))
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                            .autocorrectionDisabled()
-                            .onSubmit { model.activateLicense() }
-                            .accessibilityLabel("License Key")
-                        Button {
-                            model.activateLicense()
-                        } label: {
-                            if license.isVerifying {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Text("Activate")
-                            }
-                        }
-                        .disabled(license.isVerifying
-                                  || model.licenseKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Ping Protection, $15")
-                            .font(.headline)
-                        Text("One purchase, no subscription.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Button("Buy a License…") { model.buyLicense() }
-                            .padding(.top, 6)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                    .modifier(OnboardingCardBackground())
-                }
-
-                if let message = model.licenseMessage {
-                    Label(message, systemImage: model.licenseMessageIsError
-                          ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(model.licenseMessageIsError ? .red : .secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    keyEntry
+                    Divider()
+                    purchaseRow
                 }
             }
-            .frame(maxWidth: 380)
-            .padding(.top, 20)
+            .padding(OnboardingSpacing.medium)
+            .frame(maxWidth: OnboardingSpacing.column)
+            .modifier(OnboardingCardBackground())
 
-            Spacer(minLength: 16)
             Caption(OnboardingCopy.licenseDonorNote)
-                .padding(.bottom, 6)
+        }
+    }
+
+    private var keyEntry: some View {
+        VStack(alignment: .leading, spacing: OnboardingSpacing.small) {
+            Text("License key")
+                .font(.headline)
+                .accessibilityHidden(true)
+            HStack(spacing: OnboardingSpacing.small) {
+                TextField("License Key", text: $model.licenseKey, prompt: Text(OnboardingCopy.licenseFieldPrompt))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.large)
+                    .autocorrectionDisabled()
+                    .onSubmit { model.activateLicense() }
+                    .accessibilityLabel("License Key")
+                Button {
+                    model.activateLicense()
+                } label: {
+                    if license.isVerifying {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Activate")
+                    }
+                }
+                .controlSize(.large)
+                .disabled(license.isVerifying
+                          || model.licenseKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("onboarding.activate")
+            }
+            if let message = model.licenseMessage {
+                Label(message, systemImage: model.licenseMessageIsError
+                      ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(model.licenseMessageIsError ? .red : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var purchaseRow: some View {
+        HStack(alignment: .center, spacing: OnboardingSpacing.medium) {
+            VStack(alignment: .leading, spacing: OnboardingSpacing.tight) {
+                Text("Ping Protection, $15")
+                    .font(.headline)
+                Text("One purchase, no subscription.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: OnboardingSpacing.small)
+            Button("Buy a License…") { model.buyLicense() }
+                .controlSize(.large)
         }
     }
 }
@@ -461,66 +608,43 @@ private struct ApproveScreen: View {
     private var tracker: HelperApprovalTracker { model.tracker }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: OnboardingSpacing.large) {
             ScreenTitle(
                 title: OnboardingCopy.approveTitle(mode: model.mode),
                 subtitle: OnboardingCopy.approveSubtitle(mode: model.mode)
             )
-            .padding(.top, 6)
 
-            OnboardingGlassGroup(spacing: 10) {
-                HStack(alignment: .top, spacing: 10) {
-                    ApprovalPreviewCard(caption: OnboardingCopy.cardCaptions[0], state: tracker.cards[0]) {
-                        NotificationBannerArt()
+            VStack(spacing: OnboardingSpacing.medium) {
+                OnboardingGlassGroup(spacing: 10) {
+                    HStack(alignment: .top, spacing: 10) {
+                        ApprovalPreviewCard(caption: OnboardingCopy.cardCaptions[0], state: tracker.cards[0]) {
+                            NotificationBannerArt()
+                        }
+                        .frame(width: 118)
+                        ApprovalPreviewCard(caption: OnboardingCopy.cardCaptions[1], state: tracker.cards[1]) {
+                            SwitchSectionArt(
+                                sectionName: tracker.variant.backgroundSectionName,
+                                animatesHint: tracker.animatesSwitchHint,
+                                isApproved: tracker.cards[1] == .complete
+                            )
+                        }
+                        .frame(maxWidth: .infinity)
+                        ApprovalPreviewCard(caption: OnboardingCopy.cardCaptions[2], state: tracker.cards[2]) {
+                            AuthenticationSheetArt()
+                        }
+                        .frame(width: 118)
                     }
-                    .frame(width: 118)
-                    ApprovalPreviewCard(caption: OnboardingCopy.cardCaptions[1], state: tracker.cards[1]) {
-                        SwitchSectionArt(
-                            sectionName: tracker.variant.backgroundSectionName,
-                            animatesHint: tracker.animatesSwitchHint,
-                            isApproved: tracker.cards[1] == .complete
-                        )
-                    }
-                    .frame(maxWidth: .infinity)
-                    ApprovalPreviewCard(caption: OnboardingCopy.cardCaptions[2], state: tracker.cards[2]) {
-                        AuthenticationSheetArt()
-                    }
-                    .frame(width: 118)
                 }
-            }
-            .padding(.top, 18)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("What macOS will show")
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("What macOS will show")
 
-            Breadcrumb(levels: SystemSettingsCopy.switchBreadcrumb(osMajorVersion: Self.osMajorVersion(for: tracker.variant)))
-                .padding(.top, 12)
+                Breadcrumb(levels: SystemSettingsCopy.switchBreadcrumb(osMajorVersion: Self.osMajorVersion(for: tracker.variant)))
+            }
 
             ApprovalStatusView(line: tracker.statusLine)
-                .frame(minHeight: 56)
-                .padding(.top, 10)
+                .frame(minHeight: 44)
 
-            Spacer(minLength: 10)
-
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "lock")
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                (Text(OnboardingCopy.trustLine) + Text(" "))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .layoutPriority(1)
-            }
-            .frame(maxWidth: 410, alignment: .leading)
-            Button("More about the helper") { model.showsHelperInfo = true }
-                .buttonStyle(.link)
-                .font(.caption)
-                .frame(maxWidth: 410, alignment: .leading)
-                .padding(.leading, 24)
-                .padding(.bottom, 4)
-                .popover(isPresented: $model.showsHelperInfo, arrowEdge: .top) {
-                    HelperFactsView { model.showsHelperInfo = false }
-                }
+            TrustCaption(showsHelperInfo: $model.showsHelperInfo)
         }
     }
 
@@ -531,6 +655,44 @@ private struct ApproveScreen: View {
         case .loginItems: return 14
         case .loginItemsAndExtensions: return 15
         case .appBackgroundActivity: return 26
+        }
+    }
+}
+
+/// The lock, one sentence, and an inline "More about the helper" link in the
+/// same caption style, wrapping as one paragraph beside the lock.
+private struct TrustCaption: View {
+    @Binding var showsHelperInfo: Bool
+
+    private static let infoURL = URL(string: "pingwarden-onboarding://helper-info")!
+
+    private var caption: AttributedString {
+        var text = AttributedString(OnboardingCopy.trustLine + " ")
+        var link = AttributedString("More about the helper")
+        link.link = Self.infoURL
+        text.append(link)
+        return text
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: OnboardingSpacing.small) {
+            Image(systemName: "lock")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: 400)
+        .environment(\.openURL, OpenURLAction { url in
+            guard url == Self.infoURL else { return .systemAction }
+            showsHelperInfo = true
+            return .handled
+        })
+        .popover(isPresented: $showsHelperInfo, arrowEdge: .top) {
+            HelperFactsView { showsHelperInfo = false }
         }
     }
 }
@@ -558,9 +720,9 @@ private struct ApprovalStatusView: View {
     let line: HelperApprovalTracker.StatusLine
 
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: OnboardingSpacing.tight) {
             if let title = line.title {
-                HStack(spacing: 8) {
+                HStack(spacing: OnboardingSpacing.small) {
                     switch line.tone {
                     case .progress:
                         ProgressView().controlSize(.small)
@@ -582,7 +744,7 @@ private struct ApprovalStatusView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: 420)
+        .frame(maxWidth: OnboardingSpacing.column)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.updatesFrequently)
     }
@@ -635,32 +797,25 @@ private struct DoneScreen: View {
         return OnboardingCopy.done(
             mode: model.mode,
             protectionOn: model.protectionOnAtDone,
-            canEnableProtection: license.canEnableProtection
+            canEnableProtection: model.canEnableProtection
         )
     }
 
     var body: some View {
         let copy = copy
-        VStack(spacing: 0) {
+        VStack(spacing: OnboardingSpacing.large) {
             DrawnStatusMark(kind: copy.isComplete ? .success : .attention)
-                .padding(.top, 26)
             ScreenTitle(title: copy.title, subtitle: copy.body, large: true)
-                .padding(.top, 20)
             MenuBarHint(protectionOn: model.protectionOnAtDone)
-                .padding(.top, 20)
-            Spacer(minLength: 16)
         }
     }
 }
 
 private struct FreeDashboardScreen: View {
     var body: some View {
-        VStack(spacing: 0) {
-            LargeAppIcon()
-                .padding(.top, 18)
+        VStack(spacing: OnboardingSpacing.large) {
+            LargeAppIcon(size: 92)
             ScreenTitle(title: OnboardingCopy.freeDashboardTitle, subtitle: OnboardingCopy.freeDashboardBody, large: true)
-                .padding(.top, 22)
-            Spacer(minLength: 16)
         }
     }
 }
@@ -669,15 +824,13 @@ private struct RepairFailedScreen: View {
     @ObservedObject var model: OnboardingModel
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: OnboardingSpacing.large) {
             DrawnStatusMark(kind: .failure)
-                .padding(.top, 26)
             ScreenTitle(
                 title: OnboardingCopy.repairFailedTitle,
-                subtitle: model.repairReport?.message ?? RepairResultCopy.failureMessage
+                subtitle: model.repairReport?.message ?? RepairResultCopy.failureMessage,
+                large: true
             )
-            .padding(.top, 20)
-            Spacer(minLength: 16)
         }
     }
 }
@@ -702,6 +855,8 @@ extension OnboardingModel {
         let ready = tracker(.notRegistered)
         switch name {
         case "welcome":
+            return OnboardingModel(preview: .firstRun, step: .welcome, tracker: ready, canEnableProtection: false)
+        case "welcome-licensed":
             return OnboardingModel(preview: .firstRun, step: .welcome, tracker: ready, canEnableProtection: true)
         case "protection":
             return OnboardingModel(preview: .firstRun, step: .protection, tracker: ready, canEnableProtection: true)
@@ -741,7 +896,7 @@ extension OnboardingModel {
     }
 
     static let previewNames = [
-        "welcome", "protection", "license", "approve", "approve-earlier", "approve-waiting", "approve-handoff",
+        "welcome", "welcome-licensed", "protection", "license", "approve", "approve-earlier", "approve-waiting", "approve-handoff",
         "approve-late", "approve-timeout", "approve-approved", "done", "done-unlicensed", "free-dashboard",
         "repair", "repair-done", "repair-failed",
     ]

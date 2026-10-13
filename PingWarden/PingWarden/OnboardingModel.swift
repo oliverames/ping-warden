@@ -46,6 +46,14 @@ final class OnboardingModel: ObservableObject {
     /// second press joins it instead of starting another.
     private var operationInFlight = false
     private let isPreview: Bool
+    /// A preview's fixed license state; nil follows the live license.
+    private let previewCanEnableProtection: Bool?
+
+    /// Whether protection can be turned on: a valid license or an active
+    /// transition. Views observe `LicenseManager` for changes.
+    var canEnableProtection: Bool {
+        previewCanEnableProtection ?? LicenseManager.shared.canEnableProtection
+    }
 
     var mode: OnboardingMode { navigator.mode }
     var step: OnboardingStep { navigator.step }
@@ -53,6 +61,7 @@ final class OnboardingModel: ObservableObject {
     init(mode: OnboardingMode, actions: Actions = Actions()) {
         self.actions = actions
         self.isPreview = false
+        self.previewCanEnableProtection = nil
         self.navigator = OnboardingNavigator(mode: mode, canEnableProtection: LicenseManager.shared.canEnableProtection)
         self.tracker = Self.freshTracker(mode: mode)
         stepDidChange()
@@ -64,6 +73,7 @@ final class OnboardingModel: ObservableObject {
          canEnableProtection: Bool, protectionOn: Bool = false, repairReport: HelperTestReport? = nil) {
         self.actions = Actions()
         self.isPreview = true
+        self.previewCanEnableProtection = canEnableProtection
         var navigator = OnboardingNavigator(mode: mode, canEnableProtection: canEnableProtection)
         navigator.show(step)
         self.navigator = navigator
@@ -146,6 +156,11 @@ final class OnboardingModel: ObservableObject {
         chartTimer = nil
         switch step {
         case .approve:
+            // Approval only follows a license or an active transition.
+            if navigator.requireLicenseForApproval(canEnableProtection: LicenseManager.shared.canEnableProtection) {
+                stepDidChange()
+                return
+            }
             enterApproveStep()
         case .protection:
             stopPolling()
@@ -338,6 +353,10 @@ final class OnboardingModel: ObservableObject {
                 licenseMessage = "License verified. Ping Protection is available."
                 licenseMessageIsError = false
                 if licenseKey == key { licenseKey = "" }
+                // A valid key continues straight into helper approval.
+                if step == .license, mode != .repair {
+                    continueTapped()
+                }
             } else {
                 licenseMessage = LicenseSettingsContent.message(for: license.lastVerificationResult)
                 licenseMessageIsError = true
