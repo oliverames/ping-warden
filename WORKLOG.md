@@ -1,5 +1,21 @@
 # Ping Warden Worklog
 
+## 2026-10-13 - Release 4.3.3, site, Gumroad and launch work
+
+**What changed:** Published [4.3.3](https://github.com/oliverames/ping-warden/releases/tag/v4.3.3), build 43300, from `5274efe` ([#123](https://github.com/oliverames/ping-warden/pull/123)). #123 combined #115 and #118 through #121 with reliability fixes and per-surface Gumroad referrer tags, so CI ran once under the strict up-to-date rule; those PRs are closed as superseded and [#103](https://github.com/oliverames/ping-warden/issues/103) is closed. The reliability fixes cover the Shortcuts toggle, a cancelled quit, corrupt session history, XPC completion for intervention-count reads and resets, minimized windows and the removal guard. The changes to in-app setup copy were reverted at Oliver's request. A guided onboarding flow is in progress for 4.4 ([#124](https://github.com/oliverames/ping-warden/issues/124), draft [#125](https://github.com/oliverames/ping-warden/pull/125)).
+
+**Site and Gumroad:** The homepage leads with the protection off/on comparison, adds `og.png`, all three Gumroad reviews, a trust strip, an HTTPS redirect, security headers, `security.txt` and richer JSON-LD, and has new setup and troubleshooting docs. On Gumroad the before/after image is now the first cover, the description is restructured for new buyers, and the product now has its own 30-day refund policy, because Gumroad disabled account-level policies. Rating requests have gone to every buyer through 2026-10-13. The Homebrew tap `oliverames/homebrew-tap` is at 4.3.3, and [awesome-mac#3441](https://github.com/jaywcjlove/awesome-mac/pull/3441) is open.
+
+**Verification:**
+- Local suites: 254 Core tests, 171 coordinator checks, monitor checks run 5 times, 32 release-tool tests and 204 helper checks under the plain, TSan and ASan variants.
+- CI was green on #123 before the merge.
+- The released DMG's SHA-256 starts `8abb5be236b9` and matches GitHub's digest. It is Notarized Developer ID, the staple validated, and it holds a universal 4.3.3 app.
+- Both served feeds lead with 4.3.3 and verify against the app's public key.
+- `release.sh` stopped at its delivery report because GitHub Pages was still serving 4.3.2. After Pages deployed, a retry of `report_linear_release.py` confirmed the Linear release.
+- The Gumroad deliverable was updated with its license-key block preserved.
+
+**Remaining scope:** The cancelled-quit recovery, the Dashboard Repair routing and the Game Mode stop fix were verified by tests and builds only, with no signed on-Mac run. Outreach drafts are in `docs/2026-10-13-outreach-drafts.md` for Oliver to send. The NVIDIA forum permission request from 2026-09-28 has had no reply.
+
 ## 2026-10-09 - Release 4.3.2
 
 **What changed:** Published [4.3.2](https://github.com/oliverames/ping-warden/releases/tag/v4.3.2), build 43200, from `0f583ff682160c5a453e68c32ba25a5e164ffb85`. The release includes accessible helper Repair entry points from [#113](https://github.com/oliverames/ping-warden/pull/113) and the passive Control Center state check from [#112](https://github.com/oliverames/ping-warden/pull/112). Both stable and beta feeds offer the same signed stable DMG. Gumroad's buyer download was verified with license-key content preserved; Linear confirmed the completed production release. Sentry received the six app/helper/widget debug companions and finalized `com.amesvt.pingwarden@4.3.2+43200` against the built commit.
