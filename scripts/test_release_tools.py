@@ -158,6 +158,120 @@ class SentryReleaseTests(unittest.TestCase):
             self.assertEqual(result.stdout, "")
 
 
+class DmgValidationCleanupTests(unittest.TestCase):
+    """validate_dmg_artifact with fake hdiutil, codesign, and xcrun on PATH."""
+
+    FAKE_HDIUTIL = '''#!/bin/bash
+echo "$*" >> "$PW_FAKE_LOG"
+case "$1" in
+    attach) printf '%s\\n' "$PW_FAKE_ATTACH_OUTPUT" ;;
+    detach)
+        busy="$(cat "$PW_FAKE_BUSY")"
+        if [ "$busy" -gt 0 ]; then
+            echo $((busy - 1)) > "$PW_FAKE_BUSY"
+            echo "hdiutil: couldn't unmount \\"disk9\\" - Resource busy" >&2
+            exit 16
+        fi
+        ;;
+    *) exit 2 ;;
+esac
+'''
+
+    def run_validation(self, busy=0, valid_payload=True, attach_output=None):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            for name, body in {"hdiutil": self.FAKE_HDIUTIL,
+                               "codesign": "#!/bin/bash\nexit 0\n",
+                               "xcrun": "#!/bin/bash\nexit 0\n"}.items():
+                path = bin_dir / name
+                path.write_text(body)
+                path.chmod(0o755)
+            mount = root / "Volumes" / "Ping Warden"
+            mount.mkdir(parents=True)
+            dmg = root / "PingWarden-4.3.2.dmg"
+            dmg.write_bytes(b"fixture")
+            log = root / "hdiutil.log"
+            log.write_text("")
+            busy_file = root / "busy"
+            busy_file.write_text(str(busy))
+            if attach_output is None:
+                attach_output = ("/dev/disk9\tGUID_partition_scheme\t\n"
+                                 f"/dev/disk9s1\tApple_HFS\t{mount}")
+            overrides = ""
+            if valid_payload:
+                overrides = ('validate_app_artifact() { [ "$1" = "$PW_EXPECTED_APP" ]; }\n'
+                             'validate_notarized_app() { return 0; }\n')
+            script = Path(__file__).resolve().parent / "release_validation.sh"
+            env = {
+                "PATH": f"{bin_dir}:/usr/bin:/bin",
+                "PW_FAKE_LOG": str(log),
+                "PW_FAKE_BUSY": str(busy_file),
+                "PW_FAKE_ATTACH_OUTPUT": attach_output,
+                "PW_EXPECTED_APP": str(mount / "Ping Warden.app"),
+                "RELEASE_VALIDATION_DETACH_DELAY": "0",
+            }
+            result = subprocess.run(
+                ["bash", "-c", f'source "$1"\n{overrides}validate_dmg_artifact "$2" 4.3.2 1',
+                 "dmg-cleanup-test", str(script), str(dmg)],
+                capture_output=True, text=True, env=env,
+            )
+            calls = log.read_text().splitlines()
+            return result, [call for call in calls if call.startswith("detach")], mount
+
+    def test_successful_validation_detaches_once(self):
+        result, detaches, mount = self.run_validation()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(detaches, [f"detach {mount}"])
+
+    def test_temporarily_busy_volume_is_retried_then_detached(self):
+        result, detaches, mount = self.run_validation(busy=2)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(detaches, [f"detach {mount}"] * 3)
+        self.assertIn("attempt 2 of 5", result.stderr)
+        self.assertNotIn("Error:", result.stderr)
+
+    def test_persistently_busy_volume_fails_with_guidance_and_never_forces(self):
+        result, detaches, mount = self.run_validation(busy=99)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(detaches, [f"detach {mount}"] * 5)
+        self.assertFalse(any("-force" in call for call in detaches))
+        self.assertIn("after 5 attempts", result.stderr)
+        self.assertIn(f'diskutil eject "{mount}"', result.stderr)
+        self.assertIn(f'lsof +D "{mount}"', result.stderr)
+        self.assertIn("Re-run the release", result.stderr)
+
+    def test_invalid_payload_fails_and_still_detaches(self):
+        result, detaches, mount = self.run_validation(valid_payload=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("app Info.plist not found", result.stderr)
+        self.assertIn("DMG payload validation failed", result.stderr)
+        self.assertEqual(detaches, [f"detach {mount}"])
+
+    def test_invalid_payload_is_reported_before_a_cleanup_failure(self):
+        result, detaches, _ = self.run_validation(valid_payload=False, busy=99)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len(detaches), 5)
+        validation = result.stderr.index("DMG payload validation failed")
+        cleanup = result.stderr.index("could not detach validation volume")
+        self.assertLess(validation, cleanup)
+
+    def test_unparseable_attach_output_still_detaches_the_device(self):
+        result, detaches, _ = self.run_validation(
+            attach_output="/dev/disk9\tGUID_partition_scheme\t\n/dev/disk9s1\tApple_HFS\t")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("could not determine mounted volume path", result.stderr)
+        self.assertEqual(detaches, ["detach /dev/disk9"])
+
+    def test_attach_output_without_any_device_reports_manual_cleanup(self):
+        result, detaches, _ = self.run_validation(attach_output="unexpected output")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("could not determine mounted volume path", result.stderr)
+        self.assertIn("hdiutil info", result.stderr)
+        self.assertEqual(detaches, [])
+
+
 class AppcastTests(unittest.TestCase):
     def item(self, version, build):
         return ET.fromstring(f'''<item xmlns:sparkle="{appcast.SPARKLE}">

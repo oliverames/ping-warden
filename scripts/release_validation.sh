@@ -362,11 +362,46 @@ validate_notarized_app() {
     fi
 }
 
+# Detach a read-only validation volume with a bounded, ordinary retry.
+# A volume can stay briefly busy after validation while a system service still
+# holds it, so retry a normal detach a few times. Never use -force: a persistent
+# hold is reported with recovery steps instead. The attempt count and delay can
+# be overridden through RELEASE_VALIDATION_DETACH_ATTEMPTS and
+# RELEASE_VALIDATION_DETACH_DELAY (tests use a zero delay).
+detach_validation_volume() {
+    local target="$1"
+    local attempts="${RELEASE_VALIDATION_DETACH_ATTEMPTS:-5}"
+    local delay="${RELEASE_VALIDATION_DETACH_DELAY:-2}"
+    local attempt=1 output=""
+
+    while :; do
+        if output="$(hdiutil detach "$target" 2>&1)"; then
+            return 0
+        fi
+        if [ "$attempt" -ge "$attempts" ]; then
+            break
+        fi
+        echo "Warning: could not detach $target (attempt $attempt of $attempts): $output; retrying in ${delay}s" >&2
+        sleep "$delay"
+        attempt=$((attempt + 1))
+    done
+
+    release_validation_error "could not detach validation volume $target after $attempts attempts: $output"
+    cat >&2 <<GUIDANCE
+Recovery: the read-only validation volume is still attached. Nothing was forced.
+  1. Find the process holding it:  lsof +D "$target"
+  2. Eject it normally:            diskutil eject "$target"
+  3. Re-run the release from the same committed source so the DMG is
+     rebuilt and validated again. Do not reuse an unvalidated same-version DMG.
+GUIDANCE
+    return 1
+}
+
 validate_dmg_artifact() {
     local dmg_path="$1"
     local release_version="$2"
     local require_notarization="${3:-1}"
-    local attach_output mount_point app_path result
+    local attach_output mount_point device detach_target="" app_path result
 
     if [ ! -f "$dmg_path" ]; then
         release_validation_error "DMG not found at $dmg_path"
@@ -386,21 +421,34 @@ validate_dmg_artifact() {
         return 1
     }
     mount_point="$(printf '%s\n' "$attach_output" | awk '/^\/dev\// { path=$0; sub(/^\/dev\/[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+/, "", path); if (path ~ /^\//) print path }' | tail -1)"
-    if [ -z "$mount_point" ] || [ ! -d "$mount_point" ]; then
-        release_validation_error "could not determine mounted volume path"
-        return 1
-    fi
+    # The first /dev entry is the attached image's whole-disk device. It lets the
+    # image be detached even when no usable mount point could be parsed.
+    device="$(printf '%s\n' "$attach_output" | awk '/^\/dev\// { print $1; exit }')"
 
-    app_path="$mount_point/Ping Warden.app"
     result=0
-    validate_app_artifact "$app_path" "$release_version" 1 || result=$?
-    if [ "$result" = "0" ] && [ "$require_notarization" = "1" ]; then
-        validate_notarized_app "$app_path" || result=$?
+    if [ -n "$mount_point" ] && [ -d "$mount_point" ]; then
+        detach_target="$mount_point"
+        app_path="$mount_point/Ping Warden.app"
+        validate_app_artifact "$app_path" "$release_version" 1 || result=$?
+        if [ "$result" = "0" ] && [ "$require_notarization" = "1" ]; then
+            validate_notarized_app "$app_path" || result=$?
+        fi
+        if [ "$result" != "0" ]; then
+            release_validation_error "DMG payload validation failed for $dmg_path"
+        fi
+    else
+        detach_target="$device"
+        release_validation_error "could not determine mounted volume path"
+        result=1
     fi
 
-    if ! hdiutil detach "$mount_point" >/dev/null; then
-        release_validation_error "could not detach $mount_point"
-        return 1
+    # Detach on every path after the validation outcome is reported, so a
+    # cleanup problem is an additional error and never masks the real result.
+    if [ -z "$detach_target" ]; then
+        release_validation_error "could not identify the attached device for $dmg_path; find it with 'hdiutil info' and eject it with diskutil"
+        [ "$result" != "0" ] || result=1
+    elif ! detach_validation_volume "$detach_target"; then
+        [ "$result" != "0" ] || result=1
     fi
     return "$result"
 }
