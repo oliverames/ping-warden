@@ -1585,7 +1585,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         alert.addButton(withTitle: "Cancel")
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            NSWorkspace.shared.open(LicenseManager.purchaseURL)
+            NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "license-required-alert"))
         case .alertSecondButtonReturn:
             openLicenseSettings()
         default:
@@ -1855,7 +1855,7 @@ struct LicenseTransitionNoticeView: View {
                 VStack(spacing: 10) {
                     Button {
                         onDismiss()
-                        NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                        NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "transition-notice"))
                     } label: {
                         Text("Buy Ping Protection · $15").frame(maxWidth: .infinity)
                     }
@@ -2288,7 +2288,7 @@ struct GeneralSettingsContent: View {
                             .foregroundStyle(.red)
                         if error.localizedCaseInsensitiveContains("license") {
                             Button("Buy a License…") {
-                                NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                                NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "settings-general"))
                             }
                             .buttonStyle(.link)
                             .font(.caption)
@@ -2686,7 +2686,7 @@ struct LicenseSettingsContent: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                     Button("Buy a License…") {
-                        NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                        NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "license-donor"))
                     }
                     .buttonStyle(.link)
                     .font(.caption)
@@ -2745,7 +2745,7 @@ struct LicenseSettingsContent: View {
                 .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                 Button("Buy a License…") {
-                    NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                    NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "license-pane"))
                 }
             }
             Text("$15 once, for the Macs you own. Stays valid offline for 14 days between checks.")
@@ -3443,7 +3443,7 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
         } else {
             Button("Buy a License") {
-                NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "about"))
             }
         }
     }

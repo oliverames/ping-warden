@@ -432,7 +432,7 @@ struct ProtectedSessionCard: View {
     @ViewBuilder
     private var licenseActions: some View {
         Button("Buy a License · $15") {
-            NSWorkspace.shared.open(LicenseManager.purchaseURL)
+            NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "dashboard-unlock"))
         }
         .buttonStyle(.borderedProminent)
 
@@ -1441,7 +1441,7 @@ struct InterventionsCard: View {
                         .foregroundStyle(.red)
                     if error.localizedCaseInsensitiveContains("license") {
                         Button("Buy a License… · $15") {
-                            NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                            NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "dashboard-protection"))
                         }
                         .buttonStyle(.link)
                         .font(.caption)
