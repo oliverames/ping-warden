@@ -243,6 +243,66 @@ final class ProtectedSessionStoreTests: XCTestCase {
         let permissions = try XCTUnwrap(attributes[.posixPermissions] as? NSNumber)
         XCTAssertEqual(permissions.intValue & 0o777, 0o600)
     }
+
+    private func makeSummary(minute: Int) -> ProtectedSessionSummary {
+        ProtectedSessionSummary(
+            id: UUID(),
+            startedAt: Date(timeIntervalSince1970: TimeInterval(minute * 60)),
+            endedAt: Date(timeIntervalSince1970: TimeInterval(minute * 60 + 30)),
+            trigger: .manual,
+            sampleCount: 1,
+            successfulSampleCount: 1,
+            medianLatencyMs: 1,
+            p95LatencyMs: 1,
+            jitterMs: 0,
+            packetLossPercent: 0,
+            interventionCount: 0
+        )
+    }
+
+    private func corruptFiles(in directory: URL) throws -> [URL] {
+        try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("protected-sessions.corrupt-") }
+    }
+
+    func testCorruptHistoryIsMovedAsideAndSaveSucceeds() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ping-warden-session-store-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let store = ProtectedSessionStore(directoryURL: directory, limit: 5)
+        let corruptBytes = Data("{\"not\": \"a session list\"".utf8)
+        try corruptBytes.write(to: store.fileURL)
+
+        let summary = makeSummary(minute: 1)
+        XCTAssertNoThrow(try store.save(summary))
+        XCTAssertEqual(try store.load().map(\.id), [summary.id])
+
+        let quarantined = try corruptFiles(in: directory)
+        XCTAssertEqual(quarantined.count, 1)
+        XCTAssertTrue(quarantined[0].lastPathComponent.hasSuffix(".json"))
+        XCTAssertEqual(try Data(contentsOf: quarantined[0]), corruptBytes)
+
+        // A second save works normally and does not create another quarantine file.
+        XCTAssertNoThrow(try store.save(makeSummary(minute: 2)))
+        XCTAssertEqual(try corruptFiles(in: directory).count, 1)
+    }
+
+    func testValidHistoryIsNotQuarantined() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ping-warden-session-store-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let store = ProtectedSessionStore(directoryURL: directory, limit: 5)
+        let first = makeSummary(minute: 1)
+        let second = makeSummary(minute: 2)
+        try store.save(first)
+        try store.save(second)
+
+        XCTAssertEqual(try store.load().map(\.id), [second.id, first.id])
+        XCTAssertTrue(try corruptFiles(in: directory).isEmpty)
+    }
 }
 
 final class DiagnosticsPrivacyTests: XCTestCase {

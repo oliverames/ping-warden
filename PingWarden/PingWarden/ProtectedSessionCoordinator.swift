@@ -18,7 +18,6 @@ final class ProtectedSessionCoordinator: ObservableObject {
     @Published private(set) var lastError: String?
     @Published private(set) var phase: ProtectionSessionPhase = .idle
 
-    var onSessionCompleted: ((ProtectedSessionSummary) -> Void)?
     var onSessionStateChanged: (() -> Void)?
 
     var isActive: Bool { accumulator != nil }
@@ -76,6 +75,9 @@ final class ProtectedSessionCoordinator: ObservableObject {
 
         let startedAt = Date()
         guard let startingInterventionCount = await fetchInterventionCount() else {
+            // A stop during the fetch cancelled this attempt, and a newer start
+            // may already own the phase. Only the current attempt may fail it.
+            guard phase == .starting, startOperationID == operationID else { return }
             lastError = "The helper did not return its intervention counter, so the latency session did not start."
             phase = .idle
             startOperationID = nil
@@ -222,7 +224,6 @@ final class ProtectedSessionCoordinator: ObservableObject {
         sessionLog.info(
             "Protected session ended: \(summary.sampleCount) samples, \(summary.interventionCount) interventions"
         )
-        onSessionCompleted?(summary)
     }
 
     private func startSessionTimers() {

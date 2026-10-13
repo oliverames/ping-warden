@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Validate generated pages, structured data, local navigation, and crawl metadata."""
 from html.parser import HTMLParser
+from datetime import datetime, timedelta, timezone
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
 import xml.etree.ElementTree as ET
@@ -83,5 +85,44 @@ assert len(locations) == len(set(locations)), 'Duplicate sitemap URLs'
 assert set(locations) == canonical_urls, 'Sitemap does not match canonical pages'
 assert 'Sitemap: https://pingwarden.app/sitemap.xml' in (root / 'robots.txt').read_text()
 assert 'Disallow: /' not in (root / 'robots.txt').read_text()
+
+# RFC 9116 security.txt: contacts, a future Expires within a year, and a canonical URL.
+security = (root / '.well-known' / 'security.txt').read_text()
+fields = [line.split(': ', 1) for line in security.splitlines() if line and not line.startswith('#')]
+def field(name): return [value for key, value in fields if key == name]
+assert len(field('Contact')) >= 1 and all(c.startswith(('https://', 'mailto:')) for c in field('Contact')), 'security.txt Contact'
+assert field('Canonical') == ['https://pingwarden.app/.well-known/security.txt'], 'security.txt Canonical'
+assert len(field('Expires')) == 1, 'security.txt Expires'
+expires = datetime.fromisoformat(field('Expires')[0].replace('Z', '+00:00'))
+now = datetime.now(timezone.utc)
+assert now < expires <= now + timedelta(days=366), f'security.txt Expires must be in the future and under a year out (found {expires:%Y-%m-%d}); renew it'
+assert target(field('Policy')[0], root / 'index.html')[0] in pages, 'security.txt Policy page'
+
+# Structured data: article freshness, publisher, and availability on the product offers.
+graphs = {id(s): s for page in pages.values() for s in page.scripts}
+nodes = [n for s in graphs.values() for n in (s.get('@graph') or [s])]
+articles = [n for n in nodes if n.get('@type') == 'TechArticle']
+assert len(articles) == len([p for p in pages if p.parent.name == 'docs' and p.name != 'index.html']), 'TechArticle per guide'
+for a in articles:
+    assert re.fullmatch(r'\d{4}-\d{2}-\d{2}', a.get('dateModified', '')), (a['url'], 'dateModified')
+    assert a.get('publisher', {}).get('name') == 'Ames Consulting LLC', (a['url'], 'publisher')
+modified = {a['url']: a['dateModified'] for a in articles}
+for e in sitemap.findall('.//{*}url'):
+    loc, lastmod = e.find('{*}loc').text, e.find('{*}lastmod').text
+    if loc in modified: assert modified[loc] == lastmod, (loc, 'sitemap lastmod differs from dateModified')
+app = next(n for n in nodes if n.get('@type') == 'SoftwareApplication')
+assert app['publisher']['name'] == 'Ames Consulting LLC' and len(app['sameAs']) == 2, 'SoftwareApplication publisher/sameAs'
+assert all(o['availability'] == 'https://schema.org/InStock' for o in app['offers']), 'Offer availability'
+assert not any(k in json.dumps(nodes) for k in ('aggregateRating', '"Review"')), 'No rating or review markup'
+
+assert 'Plus VAT or sales tax where applicable.' in home, 'Home price tax note'
+
+# The 404 page carries the site navigation and points readers at help.
+missing = pages[root / '404.html'].links
+assert all(href in missing for href in ('/', '/docs/', '/docs/setup', '/docs/troubleshooting', 'mailto:oliver@ames.consulting')), '404 navigation'
+
+# GeForce NOW guide metadata stays within search-snippet limits.
+gfn = pages[root / 'docs' / 'geforce-now-mac-stutter.html']
+assert len(gfn.title.split(' | ')[0]) <= 60 and len(gfn.descriptions[0]) <= 155, 'GeForce NOW title/description length'
 assert not any(p.suffix in ('.md', '.mjs', '.jsonc', '.map') for p in root.rglob('*') if p.is_file()), 'Build source exposed'
 print(f'Validated {len(pages)} HTML pages, structured JSON, all local links and anchors, and {len(locations)} sitemap URLs.')

@@ -1126,6 +1126,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func showSettingsWindow() {
         if let settingsWindow {
+            // Without a Dock icon a minimized window has nowhere to be
+            // restored from, so Settings… and Open Dashboard… restore it.
+            // Open Dashboard… reaches here through openSettings().
+            if settingsWindow.isMiniaturized {
+                settingsWindow.deminiaturize(nil)
+            }
             settingsWindow.makeKeyAndOrderFront(nil)
             updateDockIconVisibility()
             return
@@ -1577,7 +1583,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         alert.addButton(withTitle: "Cancel")
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            NSWorkspace.shared.open(LicenseManager.purchaseURL)
+            NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "license-required-alert"))
         case .alertSecondButtonReturn:
             openLicenseSettings()
         default:
@@ -1841,7 +1847,7 @@ struct LicenseTransitionNoticeView: View {
                 VStack(spacing: 10) {
                     Button {
                         onDismiss()
-                        NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                        NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "transition-notice"))
                     } label: {
                         Text("Buy Ping Protection · $15").frame(maxWidth: .infinity)
                     }
@@ -2246,7 +2252,7 @@ struct GeneralSettingsContent: View {
                             .foregroundStyle(.red)
                         if error.localizedCaseInsensitiveContains("license") {
                             Button("Buy a License…") {
-                                NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                                NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "settings-general"))
                             }
                             .buttonStyle(.link)
                             .font(.caption)
@@ -2630,7 +2636,7 @@ struct LicenseSettingsContent: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                     Button("Buy a License…") {
-                        NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                        NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "license-donor"))
                     }
                     .buttonStyle(.link)
                     .font(.caption)
@@ -2689,7 +2695,7 @@ struct LicenseSettingsContent: View {
                 .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                 Button("Buy a License…") {
-                    NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                    NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "license-pane"))
                 }
             }
             Text("$15 once, for the Macs you own. Stays valid offline for 14 days between checks.")
@@ -2830,6 +2836,9 @@ struct AdvancedSettingsContent: View {
     @State private var isRunningHelperTest = false
     @State private var isExportingDiagnostics = false
     @State private var maintenanceErrorMessage: String?
+    /// A second confirmation while removal runs would start a second
+    /// unregister and restore sequence on top of the first.
+    @State private var isPreparingRemoval = false
     @State private var crashReportingRelaunchRequired = CrashReporter.relaunchRequired
     @State private var crashReportingEnabled = PingWardenPreferences.shared.isCrashReportingEnabled
     @State private var betaChannelEnabled = PingWardenPreferences.shared.betaChannelEnabled
@@ -2939,9 +2948,19 @@ struct AdvancedSettingsContent: View {
                 HelperRepairControl()
 
                 LabeledContent {
-                    Button("Prepare to Remove…") { showingRemovalConfirm = true }
+                    Button {
+                        showingRemovalConfirm = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isPreparingRemoval {
+                                ProgressView().controlSize(.small)
+                            }
+                            Text("Prepare to Remove…")
+                        }
+                    }
                         .buttonStyle(.bordered)
                         .tint(.red)
+                        .disabled(isPreparingRemoval)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Remove Ping Warden")
@@ -3040,8 +3059,19 @@ struct AdvancedSettingsContent: View {
     }
 
     private func prepareForRemoval() {
+        guard !isPreparingRemoval else {
+            settingsLog.info("Ignoring Prepare to Remove while a removal is already running")
+            return
+        }
+        isPreparingRemoval = true
         settingsLog.info("Preparing Ping Warden for removal")
         Task { @MainActor in
+            // Every failure path below returns and re-enables the button.
+            // Success keeps it disabled while the app quits.
+            var quitting = false
+            defer {
+                if !quitting { isPreparingRemoval = false }
+            }
             let previousProtectionEnabled = PingWardenPreferences.shared.isMonitoringEnabled
             let launchAtLoginWasEnabled = SMAppService.mainApp.status == .enabled
             let helperService = SMAppService.daemon(
@@ -3107,6 +3137,7 @@ struct AdvancedSettingsContent: View {
                 )
                 return
             }
+            quitting = true
             NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 NSApplication.shared.terminate(nil)
@@ -3339,7 +3370,7 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
         } else {
             Button("Buy a License") {
-                NSWorkspace.shared.open(LicenseManager.purchaseURL)
+                NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "about"))
             }
         }
     }
@@ -3576,8 +3607,12 @@ final class GameModeDetector: @unchecked Sendable {
 
             if isGameModeActive {
                 isGameModeActive = false
-                DispatchQueue.main.async { [weak self] in
-                    self?.onGameModeChange?(false)
+                // Capture the handler instead of self: callers release the
+                // detector right after stop(), and a weak-self block would
+                // then drop this report and leave Game Mode stuck active.
+                let handler = onGameModeChange
+                DispatchQueue.main.async {
+                    handler?(false)
                 }
             }
         }

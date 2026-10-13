@@ -79,7 +79,6 @@ class PingMonitor: @unchecked Sendable {
     private let connectionTimeoutSeconds: Int = 1
     private var activeSessionID: UInt64 = 0
     private var inFlightSessionID: UInt64?
-    private let legacyConsumerID = UUID()
     private var telemetryDemands: [UUID: TelemetryDemand] = [:]
     private var demandRevision: UInt64 = 0
     private var observers: [UUID: (Snapshot) -> Void] = [:]
@@ -96,40 +95,8 @@ class PingMonitor: @unchecked Sendable {
     /// Interval between pings (in seconds)
     var interval: TimeInterval = 2.0
     
-    /// Callback when new ping result is available
-    var onPingResult: ((PingResult) -> Void)?
-    
-    /// Callback when statistics are updated
-    var onStatsUpdate: ((NetworkStatistics) -> Void)?
-    
-    // MARK: - Computed Properties
-    
-    var isMonitoring: Bool {
-        return timer != nil
-    }
-    
-    var currentPing: TimeInterval? {
-        withHistoryLock {
-            // Failed probes store the timeout as their latency; reporting
-            // that as "current ping" would show e.g. 1000 ms instead of
-            // signaling loss. Surface the last *successful* measurement.
-            history.last(where: { $0.success })?.latency
-        }
-    }
-    
     // MARK: - Public Methods
     
-    /// Legacy single-owner entry point. New callers should use the consumer
-    /// overload so several UI surfaces can share one physical probe stream.
-    func start(server: String? = nil, port: UInt16? = nil, interval: TimeInterval? = nil) {
-        start(
-            consumerID: legacyConsumerID,
-            server: server ?? self.server,
-            port: port ?? self.port,
-            interval: interval ?? self.interval
-        )
-    }
-
     /// Register or update one consumer's telemetry demand. All consumers that
     /// request the selected target share a single timer and use the fastest
     /// requested interval. Higher-priority consumers choose the target.
@@ -156,11 +123,6 @@ class PingMonitor: @unchecked Sendable {
         }
     }
     
-    /// Stop monitoring
-    func stop() {
-        stop(consumerID: legacyConsumerID)
-    }
-
     func stop(consumerID: UUID) {
         runOnMainThreadSync { [weak self] in
             guard let self else { return }
@@ -260,8 +222,6 @@ class PingMonitor: @unchecked Sendable {
             // Notify callbacks on main thread
             DispatchQueue.main.async {
                 guard self.isSessionCurrent(sessionID) else { return }
-                self.onPingResult?(result)
-                self.onStatsUpdate?(snapshot.statistics)
                 self.observerCallbacks().forEach { $0(snapshot) }
             }
 
@@ -362,13 +322,6 @@ class PingMonitor: @unchecked Sendable {
         }
     }
     
-    private func snapshotRecentResults() -> [PingResult] {
-        withHistoryLock {
-            let cutoff = Date().addingTimeInterval(-statsWindowSeconds)
-            return history.elements.filter { $0.timestamp > cutoff }
-        }
-    }
-
     private func makeSnapshot(latestResult: PingResult) -> Snapshot {
         let retainedHistory = withHistoryLock { history.elements }
         let cutoff = Date().addingTimeInterval(-statsWindowSeconds)

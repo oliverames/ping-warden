@@ -42,6 +42,9 @@ extension PingWardenMonitor {
     func harnessEndRegistration() {
         finishRegistrationPolling(success: false, reason: "fixture cleanup")
     }
+    var harnessLastPolledStatus: SMAppService.Status? { registrationLastPolledStatus }
+    var harnessNotRegisteredSince: TimeInterval? { registrationNotRegisteredSince }
+    func harnessSetNotRegisteredGrace(_ seconds: TimeInterval) { notRegisteredGraceSeconds = seconds }
     var harnessRetries: Int { _xpcRetryCount }
     var harnessConnection: NSXPCConnection? { _xpcConnection }
     func harnessReassert() { reassertMonitoringStateIfNeeded() }
@@ -54,11 +57,31 @@ var failures: [String] = []
 func check(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() { failures.append(message); print("FAIL: " + message) }
 }
+/// Removes the oldest pending helper request, waiting (bounded) for it to
+/// arrive instead of assuming a fixed spin was long enough. A loaded machine
+/// can outrun any fixed delay; a missing request is reported as a failure
+/// and ends the run cleanly rather than trapping on an empty array.
+func take<T>(
+    _ helper: FakeHelper,
+    _ queue: ReferenceWritableKeyPath<FakeHelper, [T]>,
+    timeout: Double = 3,
+    line: UInt = #line
+) -> T {
+    let deadline = Date().addingTimeInterval(timeout)
+    while helper[keyPath: queue].isEmpty && Date() < deadline { spin(0.01) }
+    guard !helper[keyPath: queue].isEmpty else {
+        failures.append("harness: no pending \(queue) request at line \(line)")
+        print("FAIL: harness: expected a pending \(queue) request at line \(line) within \(timeout)s")
+        print("Monitor checks complete. Failures: \(failures.count)")
+        exit(1)
+    }
+    return helper[keyPath: queue].removeFirst()
+}
 func confirmed(_ monitor: PingWardenMonitor) -> NSXPCConnection {
     let connection = monitor.harnessConnectRequested()
-    connection.helper.versions.removeFirst()("fixture-helper")
+    take(connection.helper, \.versions)("fixture-helper")
     spin()
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin()
     check(monitor.isMonitoringActive, "setup must be confirmed")
     return connection
@@ -80,10 +103,10 @@ do {
     let new = monitor.harnessConnection!
     check(new !== old, "interruption creates a replacement")
     check(!monitor.isMonitoringActive && new.helper.commands.isEmpty, "replacement must validate before reporting protected")
-    new.helper.versions.removeFirst()("fixture-helper")
+    take(new.helper, \.versions)("fixture-helper")
     spin()
     check(new.helper.commands.count == 1 && new.helper.commands[0].0 == false, "validated connection reasserts protection exactly once")
-    new.helper.commands.removeFirst().1(true)
+    take(new.helper, \.commands).1(true)
     spin()
     check(monitor.isMonitoringActive, "successful reassert restores confirmation")
     old.interruptionHandler?()
@@ -103,8 +126,8 @@ do {
     monitor.stopMonitoring(persistUserPreference: false) { value in completions.withValue { $0.append(value) } }
     let off = monitor.harnessConnection!
     check(off.helper.commands.map(\.0) == [true], "stop during reconnect must only request AWDL on")
-    off.helper.commands.removeFirst().1(true)
-    off.helper.versions.removeFirst()("fixture-helper")
+    take(off.helper, \.commands).1(true)
+    take(off.helper, \.versions)("fixture-helper")
     spin(1.1)
     check(NSXPCConnection.instances.count == count + 1, "stale retry timer must not replace the stop connection")
     check(off.helper.commands.isEmpty && !monitor.isMonitoringActive && !monitor.isMonitoringRequested, "paused/stopped state must not reassert")
@@ -116,9 +139,9 @@ do {
     let monitor = PingWardenMonitor.harnessMonitor()
     defer { monitor.harnessDispose() }
     let old = monitor.harnessConnectRequested()
-    old.helper.versions.removeFirst()("fixture-helper")
+    take(old.helper, \.versions)("fixture-helper")
     spin()
-    let staleReply = old.helper.commands.removeFirst().1
+    let staleReply = take(old.helper, \.commands).1
     old.interruptionHandler?()
     spin()
     staleReply(true)
@@ -133,7 +156,7 @@ do {
     let old = confirmed(monitor)
     let results = LockedValue<[Bool]>([])
     monitor.stopMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
-    let staleStop = old.helper.commands.removeFirst().1
+    let staleStop = take(old.helper, \.commands).1
     old.interruptionHandler?()
     spin()
     staleStop(true)
@@ -150,7 +173,7 @@ do {
     defer { monitor.harnessDispose() }
     monitor.defersProtectionReassertion = true
     let connection = monitor.harnessConnectRequested()
-    connection.helper.versions.removeFirst()("fixture-helper")
+    take(connection.helper, \.versions)("fixture-helper")
     spin()
     check(connection.helper.commands.isEmpty,
           "Repair deferral must suppress validation's automatic reassert")
@@ -194,7 +217,7 @@ do {
     defer { monitor.harnessDispose() }
     let connection = confirmed(monitor)
     monitor.harnessReassert()
-    connection.helper.commands.removeFirst().1(false)
+    take(connection.helper, \.commands).1(false)
     spin()
     check(!monitor.isMonitoringActive, "failed reassert must clear prior confirmation")
 }
@@ -245,12 +268,12 @@ do {
     check(monitor.isMonitoringActive && observedStates.withValue { $0 } == [true],
           "same-state notification cannot demote confirmed protection before a delayed helper reply")
     check(connection.helper.commands.isEmpty, "same-state adoption must only query the helper")
-    connection.helper.states.removeFirst()(false)
+    take(connection.helper, \.states)(false)
     spin()
     check(monitor.isMonitoringActive && observedStates.withValue { $0.allSatisfy { $0 } },
           "positive confirmation must preserve every active-state notification")
     monitor.adoptExternallyAppliedMonitoringState(true)
-    connection.helper.states.removeFirst()(true)
+    take(connection.helper, \.states)(true)
     spin()
     check(!monitor.isMonitoringActive && !monitor.isMonitoringRequested,
           "authoritative negative reply must clear an earlier confirmation")
@@ -279,17 +302,17 @@ for versionFirst in [true, false] {
           "adopted active hint must remain unconfirmed")
     check(connection.helper.commands.isEmpty, "adoption must begin with queries only")
     if versionFirst {
-        connection.helper.versions.removeFirst()("fixture-helper")
+        take(connection.helper, \.versions)("fixture-helper")
         spin()
         check(connection.helper.commands.isEmpty,
               "version-before-state must not reassert the untrusted active hint")
-        connection.helper.states.removeFirst()(true)
+        take(connection.helper, \.states)(true)
     } else {
-        connection.helper.states.removeFirst()(true)
+        take(connection.helper, \.states)(true)
         spin()
         check(!monitor.isMonitoringActive && !monitor.isMonitoringRequested,
               "authoritative off state must replace the provisional hint")
-        connection.helper.versions.removeFirst()("fixture-helper")
+        take(connection.helper, \.versions)("fixture-helper")
     }
     spin()
     check(connection.helper.commands.isEmpty,
@@ -307,16 +330,16 @@ for versionFirst in [true, false] {
     monitor.adoptExternallyAppliedMonitoringState(true)
     let connection = monitor.harnessConnection!
     if versionFirst {
-        connection.helper.versions.removeFirst()("fixture-helper")
+        take(connection.helper, \.versions)("fixture-helper")
         spin()
         check(connection.helper.commands.isEmpty,
               "validated connection alone must not confirm or reassert shared state")
-        connection.helper.states.removeFirst()(false)
+        take(connection.helper, \.states)(false)
     } else {
-        connection.helper.states.removeFirst()(false)
+        take(connection.helper, \.states)(false)
         spin()
         check(monitor.isMonitoringActive, "helper-confirmed protection must become active")
-        connection.helper.versions.removeFirst()("fixture-helper")
+        take(connection.helper, \.versions)("fixture-helper")
     }
     spin()
     check(monitor.isMonitoringActive && monitor.isMonitoringRequested &&
@@ -337,7 +360,7 @@ do {
     let results = LockedValue<[Bool]>([])
     monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
     let connection = monitor.harnessConnection!
-    let delayedStart = connection.helper.commands.removeFirst().1
+    let delayedStart = take(connection.helper, \.commands).1
     connection.interruptionHandler?()
     spin()
     delayedStart(true)
@@ -383,7 +406,7 @@ do {
     monitor.repairHelperRegistration { value in results.withValue { $0.append(value) } }
     spin()
     check(results.withValue { $0 }.isEmpty, "repair must wait for the helper's reply")
-    NSXPCConnection.instances.last!.helper.versions.removeFirst()("fixture-helper")
+    take(NSXPCConnection.instances.last!.helper, \.versions)("fixture-helper")
     spin()
     check(results.withValue { $0 } == [true], "an answering helper repairs as success exactly once")
     check(SMAppService.unregisterCalls == 0 && SMAppService.registerCalls == 0,
@@ -688,8 +711,17 @@ do {
 }
 
 // A brief Not Registered read while approval is processed is not a failure.
+// Each status change waits until a registration poll has read it. Fixed
+// wall-clock windows let a slow runner skip the short Requires Approval read
+// between the two Not Registered windows, which merged them into one long
+// outage and failed the registration. The wider grace period keeps a stalled
+// runner from stretching one brief window past it. Because that wider grace
+// alone would tolerate a monitor that never resets the Not Registered clock,
+// the test also asserts directly that each polled Requires Approval read
+// clears the grace timestamp and each polled Not Registered read starts it.
 do {
     let monitor = PingWardenMonitor.harnessMonitor()
+    monitor.harnessSetNotRegisteredGrace(1.0)
     defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
     setFixtureHelperBundle(installed: true)
     SMAppService.fixtureAllowsRegistration = true
@@ -697,13 +729,24 @@ do {
     SMAppService.fixtureStatusAfterRegistration = .requiresApproval
     let results = LockedValue<[Bool]>([])
     monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
-    spin(0.05)
-    SMAppService.fixtureStatus = .notRegistered
-    spin(0.1)
-    SMAppService.fixtureStatus = .requiresApproval
-    spin(0.05)
-    SMAppService.fixtureStatus = .notRegistered
-    spin(0.1)
+    for window in 1...2 {
+        spin(until: { monitor.harnessLastPolledStatus == .requiresApproval }, timeout: 1.5)
+        check(monitor.harnessLastPolledStatus == .requiresApproval,
+              "pending approval is read before transient window \(window)")
+        check(monitor.harnessNotRegisteredSince == nil,
+              "a polled Requires Approval read clears the Not Registered grace before window \(window)")
+        SMAppService.fixtureStatus = .notRegistered
+        spin(until: { monitor.harnessLastPolledStatus == .notRegistered }, timeout: 1.5)
+        check(monitor.harnessLastPolledStatus == .notRegistered,
+              "transient Not Registered window \(window) is read by a registration poll")
+        check(monitor.harnessNotRegisteredSince != nil,
+              "a polled Not Registered read starts the grace clock in window \(window)")
+        spin(0.1)
+        SMAppService.fixtureStatus = .requiresApproval
+    }
+    spin(until: { monitor.harnessLastPolledStatus == .requiresApproval }, timeout: 1.5)
+    check(monitor.harnessNotRegisteredSince == nil,
+          "a polled Requires Approval read clears the Not Registered grace after the last window")
     SMAppService.fixtureStatus = .enabled
     spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
     check(results.withValue { $0 } == [true], "transient Not Registered reads must not fail a pending approval")
@@ -727,6 +770,58 @@ do {
           "an unregistered service must leave neutral actionable retry guidance")
     check(SMAppService.settingsOpenCalls == 0 && SMAppService.registerCalls == 1,
           "an unregistered service must neither open Settings nor retry automatically")
+}
+
+// A reset request on a failed connection must complete false exactly once;
+// the reply never arrives, so the proxy error handler has to finish it.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); FakeHelper.holdsResetReplies = false }
+    let connection = confirmed(monitor)
+    FakeHelper.holdsResetReplies = true
+    let results = LockedValue<[Bool]>([])
+    monitor.resetInterventionCount { value in results.withValue { $0.append(value) } }
+    spin()
+    check(results.withValue { $0 }.isEmpty && connection.helper.resets.count == 1, "reset waits for the helper reply")
+    connection.errorHandler?(NSError(domain: "fixture", code: 4099))
+    spin()
+    check(results.withValue { $0 } == [false], "a proxy error must complete a pending reset with false")
+    take(connection.helper, \.resets)(true)
+    spin()
+    check(results.withValue { $0 } == [false], "a late reply must not complete the reset twice")
+}
+
+// A count request on a failed connection must complete nil exactly once,
+// promptly, instead of leaving the caller waiting for a reply that never comes.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); FakeHelper.holdsCountReplies = false }
+    let connection = confirmed(monitor)
+    FakeHelper.holdsCountReplies = true
+    let results = LockedValue<[Int?]>([])
+    monitor.getInterventionCount { value in results.withValue { $0.append(value) } }
+    spin()
+    check(results.withValue { $0 }.isEmpty && connection.helper.counts.count == 1, "count waits for the helper reply")
+    connection.errorHandler?(NSError(domain: "fixture", code: 4099))
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    check(results.withValue { $0 } == [nil], "a proxy error must complete a pending count with nil")
+    if !connection.helper.counts.isEmpty { connection.helper.counts.removeFirst()(7) }
+    spin()
+    check(results.withValue { $0 } == [nil], "a late reply must not complete the count twice")
+}
+
+// A count reply still completes normally with the helper's value.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); FakeHelper.holdsCountReplies = false }
+    let connection = confirmed(monitor)
+    FakeHelper.holdsCountReplies = true
+    let results = LockedValue<[Int?]>([])
+    monitor.getInterventionCount { value in results.withValue { $0.append(value) } }
+    spin(until: { !connection.helper.counts.isEmpty }, timeout: 2)
+    if !connection.helper.counts.isEmpty { connection.helper.counts.removeFirst()(3) }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    check(results.withValue { $0 } == [3], "a helper count reply completes once with its value")
 }
 
 print("Monitor checks complete. Failures: \(failures.count)")

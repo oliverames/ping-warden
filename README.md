@@ -83,11 +83,11 @@ Open **Settings → License** and enter the key from your receipt. The app verif
 
 The welcome appears automatically once. Choose **Not Now** to use the free dashboard and finish setup later.
 
-In the welcome window, click **Turn On Ping Protection** after activation. If you already closed it, open **Settings → General** and click **Finish Setup**. Approve Ping Warden in System Settings when macOS asks. This one-time approval lets the app control wireless sharing.
+In the welcome window, click **Turn On Ping Protection** after activation. Before activation, the same window leads with **Open Dashboard** and offers **Set Up Ping Protection**. If you already closed it, choose **Finish Setup…** from the menu bar icon or **Settings → General**. When macOS shows **Background Items Added**, turn on Ping Warden under **Allow in the Background** in **System Settings → General → Login Items & Extensions**. This one-time approval lets the helper keep `awdl0` down. The helper changes nothing else, accepts requests only from Ping Warden, and never connects to the internet. The [Setup Guide](PingWarden/QUICKSTART.md#5-approve-the-helper) walks through each screen.
 
 ### 4. Turn on Ping Protection and verify it
 
-Enable **Ping Protection** from the menu bar or the [Control Center toggle](#control-center-toggle). Without a key (and outside the transition window) the app points you back to **Settings → License** instead of turning protection on. Open the dashboard and confirm that protection is active. The dashboard shows live latency and counts the helper's intervention attempts when macOS reactivates AWDL.
+Setup turns Ping Protection on when it finishes. Later, use the menu bar or the [Control Center toggle](#control-center-toggle) to turn it on or off. Without a key (and outside the transition window) the app points you back to **Settings → License** instead of turning protection on. The menu should read **Status: Protected**, and the Dashboard should show a **Turn Off** button. The dashboard shows live latency and counts the helper's intervention attempts when macOS reactivates AWDL.
 
 The [Quick Start guide](PingWarden/QUICKSTART.md) covers first-run setup and the optional automation features.
 
@@ -111,7 +111,7 @@ Ping targets include common public services, discovered GeForce NOW regions, you
 
 Ping Warden stays open source under MIT. You can build from source, inspect it, and modify it under MIT whether you pay or not. The prebuilt, signed, and notarized app is free to download. The dashboard, latency history, diagnostics, and updates are free to use.
 
-Enabling Ping Protection in the prebuilt app, including starting a Latency Session, requires a license or an active transition. Buy the license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch; verification is offline-friendly for up to 14 days.
+Enabling Ping Protection in the prebuilt app, including starting a Latency Session, requires a license or an active transition. Buy the license at [Gumroad](https://amesconsulting.gumroad.com/l/pingwarden). The price is $15 in USD, plus VAT or sales tax where applicable. One key works on the Macs you own. The app verifies once with Gumroad, then re-checks roughly every 6 hours while it runs and once at launch; verification is offline-friendly for up to 14 days.
 
 **Transition for existing users:** If protection was enabled with an approved helper when you first launched version 4, it remains available for 90 days from that launch. Updates preserve the original deadline. Check the time remaining in **Settings → License**. When the transition ends, enter a license key to keep protection available. The app introduces the transition once and reminds eligible users twice more, when 30 days and 7 days remain, showing the days left. Reminders are held while a detected game or latency session is active, appear the next time you use Ping Warden, and stop after license activation. A reminder missed while the app was closed does not stack with the next one.
 

@@ -1,3 +1,23 @@
+# Ping Warden 4.3.3
+
+This update fixes cases where Game Mode, Repair, or a cancelled quit could leave Ping Protection in the wrong state, and makes several helper requests finish reliably.
+
+## Game Mode and Repair
+
+- Turning off **Game Mode Auto-Detect** while a game is in front now ends the Game Mode session. Previously, protection could stay on until Ping Warden quit.
+- **Repair…** on the Dashboard now uses the same path as the menu and Settings. It no longer ends a running Game Mode session or cancels a pause when it reconnects the helper.
+- Stopping a Latency Session and starting a new one right away no longer cancels the new session.
+- The **Toggle Ping Protection** shortcut now acts on whether protection is actually on. During a Game Mode session it turns protection off instead of on.
+
+## Reliability
+
+- If macOS cancels a quit after Ping Warden has stopped protection, for example when a logout is cancelled, Ping Warden restores protection within about 10 seconds. Previously, protection couldn't be turned on again until you relaunched Ping Warden.
+- A damaged session history file no longer blocks new session recaps. Ping Warden sets the file aside and starts a new history.
+- Resetting the intervention counter, and reading it, now finish even if the helper can't be reached.
+- A slow DNS lookup for a hostname target is reused by the next probe instead of starting again on every probe.
+- **Settings…** and **Open Dashboard…** now bring back a minimized window, so they no longer seem to do nothing when the Dock icon is hidden.
+- Confirming **Prepare to Remove** a second time while removal is running no longer starts a second removal.
+
 # Ping Warden 4.3.2
 
 This update makes helper Repair easier to reach and keeps it from overriding changes you make while it runs. It also checks current protection state when Control Center requests a fresh value.

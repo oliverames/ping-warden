@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(os)
+import os
+#endif
 
 enum ProtectedSessionTrigger: String, Codable, CaseIterable, Sendable {
     case manual
@@ -299,7 +302,7 @@ final class ProtectedSessionStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        var summaries = try loadUnlocked()
+        var summaries = try loadForSaveUnlocked()
         summaries.removeAll { $0.id == summary.id }
         summaries.insert(summary, at: 0)
         summaries = Array(summaries.prefix(limit))
@@ -323,6 +326,57 @@ final class ProtectedSessionStore: @unchecked Sendable {
         guard fileManager.fileExists(atPath: fileURL.path) else { return }
         try fileManager.removeItem(at: fileURL)
     }
+
+    /// Loads existing summaries for a save. An undecodable file is moved aside
+    /// (never deleted) so one corrupt history file cannot make every later
+    /// recap save fail. Read errors other than decoding still throw.
+    private func loadForSaveUnlocked() throws -> [ProtectedSessionSummary] {
+        do {
+            return try loadUnlocked()
+        } catch is DecodingError {
+            // If the move fails, rethrow rather than overwrite the only copy.
+            try quarantineCorruptFileUnlocked()
+            return []
+        }
+    }
+
+    private func quarantineCorruptFileUnlocked() throws {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        let stamp = formatter.string(from: Date())
+        let directory = fileURL.deletingLastPathComponent()
+        var destination = directory.appendingPathComponent("protected-sessions.corrupt-\(stamp).json")
+        var suffix = 1
+        while fileManager.fileExists(atPath: destination.path) {
+            destination = directory.appendingPathComponent("protected-sessions.corrupt-\(stamp)-\(suffix).json")
+            suffix += 1
+        }
+        do {
+            try fileManager.moveItem(at: fileURL, to: destination)
+            Self.logMovedAside(destination.lastPathComponent)
+        } catch {
+            Self.logMoveFailed(error)
+            throw error
+        }
+    }
+
+    // PingWardenCore also builds on Linux for CI, where os.Logger is missing.
+    #if canImport(os)
+    private static let logger = Logger(subsystem: "com.amesvt.pingwarden", category: "ProtectedSessionStore")
+
+    private static func logMovedAside(_ name: String) {
+        logger.error("Protected session history could not be decoded; moved it to \(name, privacy: .public) and started a new history")
+    }
+
+    private static func logMoveFailed(_ error: Error) {
+        logger.error("Protected session history could not be decoded and could not be moved aside: \(error.localizedDescription, privacy: .public)")
+    }
+    #else
+    private static func logMovedAside(_ name: String) {}
+    private static func logMoveFailed(_ error: Error) {}
+    #endif
 
     private func loadUnlocked() throws -> [ProtectedSessionSummary] {
         guard fileManager.fileExists(atPath: fileURL.path) else { return [] }

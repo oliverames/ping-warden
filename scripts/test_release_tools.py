@@ -158,6 +158,141 @@ class SentryReleaseTests(unittest.TestCase):
             self.assertEqual(result.stdout, "")
 
 
+class DmgValidationCleanupTests(unittest.TestCase):
+    """validate_dmg_artifact with fake hdiutil, codesign, and xcrun on PATH."""
+
+    FAKE_HDIUTIL = '''#!/bin/bash
+echo "$*" >> "$PW_FAKE_LOG"
+case "$1" in
+    attach) printf '%s\\n' "$PW_FAKE_ATTACH_OUTPUT" ;;
+    detach)
+        busy="$(cat "$PW_FAKE_BUSY")"
+        if [ "$busy" -gt 0 ]; then
+            echo $((busy - 1)) > "$PW_FAKE_BUSY"
+            echo "hdiutil: couldn't unmount \\"disk9\\" - Resource busy" >&2
+            exit 16
+        fi
+        ;;
+    *) exit 2 ;;
+esac
+'''
+
+    def run_validation(self, busy=0, valid_payload=True, attach_output=None, extra_env=None):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            for name, body in {"hdiutil": self.FAKE_HDIUTIL,
+                               "codesign": "#!/bin/bash\nexit 0\n",
+                               "xcrun": "#!/bin/bash\nexit 0\n"}.items():
+                path = bin_dir / name
+                path.write_text(body)
+                path.chmod(0o755)
+            mount = root / "Volumes" / "Ping Warden"
+            mount.mkdir(parents=True)
+            dmg = root / "PingWarden-4.3.2.dmg"
+            dmg.write_bytes(b"fixture")
+            log = root / "hdiutil.log"
+            log.write_text("")
+            busy_file = root / "busy"
+            busy_file.write_text(str(busy))
+            if attach_output is None:
+                attach_output = ("/dev/disk9\tGUID_partition_scheme\t\n"
+                                 f"/dev/disk9s1\tApple_HFS\t{mount}")
+            overrides = ""
+            if valid_payload:
+                overrides = ('validate_app_artifact() { [ "$1" = "$PW_EXPECTED_APP" ]; }\n'
+                             'validate_notarized_app() { return 0; }\n')
+            script = Path(__file__).resolve().parent / "release_validation.sh"
+            env = {
+                "PATH": f"{bin_dir}:/usr/bin:/bin",
+                "PW_FAKE_LOG": str(log),
+                "PW_FAKE_BUSY": str(busy_file),
+                "PW_FAKE_ATTACH_OUTPUT": attach_output,
+                "PW_EXPECTED_APP": str(mount / "Ping Warden.app"),
+                "RELEASE_VALIDATION_DETACH_DELAY": "0",
+            }
+            env.update(extra_env or {})
+            result = subprocess.run(
+                ["bash", "-c", f'source "$1"\n{overrides}validate_dmg_artifact "$2" 4.3.2 1',
+                 "dmg-cleanup-test", str(script), str(dmg)],
+                capture_output=True, text=True, env=env, timeout=60,
+            )
+            calls = log.read_text().splitlines()
+            return result, [call for call in calls if call.startswith("detach")], mount
+
+    def test_successful_validation_detaches_once(self):
+        result, detaches, mount = self.run_validation()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(detaches, [f"detach {mount}"])
+
+    def test_temporarily_busy_volume_is_retried_then_detached(self):
+        result, detaches, mount = self.run_validation(busy=2)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(detaches, [f"detach {mount}"] * 3)
+        self.assertIn("attempt 2 of 5", result.stderr)
+        self.assertNotIn("Error:", result.stderr)
+
+    def test_persistently_busy_volume_fails_with_guidance_and_never_forces(self):
+        result, detaches, mount = self.run_validation(busy=99)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(detaches, [f"detach {mount}"] * 5)
+        self.assertFalse(any("-force" in call for call in detaches))
+        self.assertIn("after 5 attempts", result.stderr)
+        self.assertIn(f'diskutil eject "{mount}"', result.stderr)
+        self.assertIn(f'lsof +D "{mount}"', result.stderr)
+        self.assertIn("Re-run the release", result.stderr)
+
+    def test_invalid_attempt_overrides_fall_back_to_the_default_bound(self):
+        for value in ("abc", "0"):
+            with self.subTest(attempts=value):
+                result, detaches, mount = self.run_validation(
+                    busy=99, extra_env={"RELEASE_VALIDATION_DETACH_ATTEMPTS": value})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("RELEASE_VALIDATION_DETACH_ATTEMPTS must be a whole number", result.stderr)
+                self.assertEqual(detaches, [f"detach {mount}"] * 5)
+                self.assertIn("after 5 attempts", result.stderr)
+
+    def test_invalid_delay_override_falls_back_to_the_default(self):
+        for value in ("abc", "-1"):
+            with self.subTest(delay=value):
+                result, detaches, mount = self.run_validation(
+                    busy=1, extra_env={"RELEASE_VALIDATION_DETACH_DELAY": value})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("RELEASE_VALIDATION_DETACH_DELAY must be a whole number", result.stderr)
+                self.assertIn("retrying in 2s", result.stderr)
+                self.assertEqual(detaches, [f"detach {mount}"] * 2)
+
+    def test_invalid_payload_fails_and_still_detaches(self):
+        result, detaches, mount = self.run_validation(valid_payload=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("app Info.plist not found", result.stderr)
+        self.assertIn("DMG payload validation failed", result.stderr)
+        self.assertEqual(detaches, [f"detach {mount}"])
+
+    def test_invalid_payload_is_reported_before_a_cleanup_failure(self):
+        result, detaches, _ = self.run_validation(valid_payload=False, busy=99)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len(detaches), 5)
+        validation = result.stderr.index("DMG payload validation failed")
+        cleanup = result.stderr.index("could not detach validation volume")
+        self.assertLess(validation, cleanup)
+
+    def test_unparseable_attach_output_still_detaches_the_device(self):
+        result, detaches, _ = self.run_validation(
+            attach_output="/dev/disk9\tGUID_partition_scheme\t\n/dev/disk9s1\tApple_HFS\t")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("could not determine mounted volume path", result.stderr)
+        self.assertEqual(detaches, ["detach /dev/disk9"])
+
+    def test_attach_output_without_any_device_reports_manual_cleanup(self):
+        result, detaches, _ = self.run_validation(attach_output="unexpected output")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("could not determine mounted volume path", result.stderr)
+        self.assertIn("hdiutil info", result.stderr)
+        self.assertEqual(detaches, [])
+
+
 class AppcastTests(unittest.TestCase):
     def item(self, version, build):
         return ET.fromstring(f'''<item xmlns:sparkle="{appcast.SPARKLE}">
@@ -198,6 +333,41 @@ class AppcastTests(unittest.TestCase):
             versions = [appcast.value(i, "shortVersionString") for i in ET.parse(beta).findall("channel/item")]
             self.assertEqual(versions, ["4.1.0-beta.1", "4.0.2"])
             self.assertEqual(len(ET.parse(stable).findall("channel/item")), 1)
+
+    def test_rewrite_drops_signature_trailer_and_release_re_signs_both_feeds(self):
+        # ElementTree drops comments, so the rewrite removes the old trailer.
+        with tempfile.TemporaryDirectory() as directory:
+            stable, beta, entry = (Path(directory) / name for name in ("appcast.xml", "appcast-beta.xml", "item.xml"))
+            ET.ElementTree(self.item("4.0.2", "40002")).write(entry)
+            appcast.update(stable, beta, entry)
+            for feed in (stable, beta):
+                feed.write_text(feed.read_text() + "<!-- sparkle-signatures:\nedSignature: old\nlength: 1\n-->\n")
+            ET.ElementTree(self.item("4.0.3", "40003")).write(entry)
+            appcast.update(stable, beta, entry)
+            for feed in (stable, beta):
+                self.assertNotIn("sparkle-signatures", feed.read_text())
+
+        # So release.sh must sign both feeds after every rewrite, under set -e.
+        script = (Path(__file__).resolve().parents[1] / "PingWarden" / "PingWarden" / "release.sh").read_text()
+        self.assertIn("set -euo pipefail", script)
+        rewrite = '"$PYTHON_BIN" "$APPCAST_UPDATER" "${APPCAST_ARGS[@]}"'
+        self.assertEqual(script.count(rewrite), 1)
+        loop = 'for FEED in "$STABLE_APPCAST" "$BETA_APPCAST"; do'
+        sign = '"$SIGN_TOOL" "$FEED" --account'
+        verify = '"$SIGN_TOOL" --account "$SPARKLE_KEYCHAIN_ACCOUNT" --verify "$FEED"'
+        rewrite_at = script.index(rewrite)
+        loop_at = script.index(loop, rewrite_at)
+        loop_end = script.index("\ndone\n", loop_at)
+        self.assertLess(loop_at, script.index(sign, loop_at), "signing must follow the rewrite")
+        self.assertLess(script.index(sign, loop_at), loop_end)
+        self.assertLess(script.index(verify, loop_at), loop_end)
+        between = script[rewrite_at + len(rewrite):loop_at]
+        self.assertNotIn("APPCAST", between.replace('rm -f "$INSERT_FILE"', ""),
+                         "nothing may touch the feeds between the rewrite and signing")
+        # The only other updater call is the read-only build check.
+        other_calls = [line for line in script.splitlines()
+                       if '"$APPCAST_UPDATER"' in line and rewrite not in line]
+        self.assertEqual(other_calls, ['"$PYTHON_BIN" "$APPCAST_UPDATER" "${BUILD_CHECK_ARGS[@]}"'])
 
     def test_build_comparison_handles_legacy_and_current_formats(self):
         self.assertGreater(appcast.build_key("40002"), appcast.build_key("40001"))

@@ -1314,18 +1314,29 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Get the AWDL intervention count from the helper
     /// Returns attempts to turn off AWDL, including failed writes.
     func getInterventionCount(completion: @escaping @Sendable (Int?) -> Void) {
+        // A failed connection never delivers the reply, so the XPC error
+        // handler must complete the request too. Whichever arrives first wins.
+        let finished = LockedValue(false)
+        let finish: @Sendable (Int?) -> Void = { count in
+            let first = finished.withValue { done -> Bool in
+                defer { done = true }
+                return !done
+            }
+            guard first else { return }
+            DispatchQueue.main.async {
+                completion(count)
+            }
+        }
         // Polled every few seconds, so a missing connection is routine here
         // and is logged at debug level rather than as a warning per poll.
-        guard let proxy = getHelperProxy(logsMissingConnection: false) else {
+        guard let proxy = getHelperProxy(logsMissingConnection: false, onError: { _ in finish(nil) }) else {
             log.debug("Cannot get intervention count: No helper proxy")
             completion(nil)
             return
         }
-        
+
         proxy.getAWDLInterventionCount(reply: { count in
-            DispatchQueue.main.async {
-                completion(Int(count))
-            }
+            finish(Int(count))
         })
     }
 
@@ -1336,19 +1347,30 @@ class PingWardenMonitor: @unchecked Sendable {
     
     /// Reset the intervention counter in the helper
     func resetInterventionCount(completion: @escaping @Sendable (Bool) -> Void = { _ in }) {
-        guard let proxy = getHelperProxy() else {
-            log.warning("Cannot reset intervention count: No helper proxy")
-            completion(false)
-            return
-        }
-        
-        proxy.resetAWDLInterventionCount(reply: { success in
+        // A failed connection never delivers the reply, so the XPC error
+        // handler must complete the request too. Whichever arrives first wins.
+        let finished = LockedValue(false)
+        let finish: @Sendable (Bool) -> Void = { success in
+            let first = finished.withValue { done -> Bool in
+                defer { done = true }
+                return !done
+            }
+            guard first else { return }
             DispatchQueue.main.async {
                 if success {
                     log.info("Intervention counter reset successfully")
                 }
                 completion(success)
             }
+        }
+        guard let proxy = getHelperProxy(onError: { _ in finish(false) }) else {
+            log.warning("Cannot reset intervention count: No helper proxy")
+            completion(false)
+            return
+        }
+
+        proxy.resetAWDLInterventionCount(reply: { success in
+            finish(success)
         })
     }
 

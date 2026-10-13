@@ -13,7 +13,7 @@ do {
     let connection = awaitConnection()
     awaitCommands(on: connection)
     check(connection.helper.commands.map(\.0) == [true], "B1: Off must send a stop even when awdl0 reads up")
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { first.withValue { $0 } != nil }, timeout: 2)
     check(first.withValue { $0 } == true, "B1: an answered stop reports success")
     check(PingWardenPreferences.shared.lastKnownState == "up", "B1: the helper's reply records awdl0 up")
@@ -26,7 +26,7 @@ do {
     awaitCommands(on: secondConnection)
     check(secondConnection.helper.commands.map(\.0) == [true],
           "B1: a stored lastKnownState of up must not skip the next stop")
-    secondConnection.helper.commands.removeFirst().1(true)
+    take(secondConnection.helper, \.commands).1(true)
     spin(until: { second.withValue { $0 } != nil }, timeout: 2)
 }
 
@@ -182,9 +182,9 @@ do {
     let off = launch { await coordinator.setPersistentProtection(false) }
     spin()
     check(connection.helper.commands.map(\.0) == [false, true], "B12: Off during a pending enable sends a stop")
-    connection.helper.commands.removeFirst().1(true)   // the enable lands late
+    take(connection.helper, \.commands).1(true)   // the enable lands late
     spin()
-    connection.helper.commands.removeFirst().1(true)   // the stop confirms
+    take(connection.helper, \.commands).1(true)   // the stop confirms
     spin(until: { off.withValue { $0 } != nil && a.withValue { $0 } != nil && b.withValue { $0 } != nil }, timeout: 3)
     check(off.withValue { $0 } == true, "B12: the latest Off succeeds")
     check(!monitor.isMonitoringActive && !monitor.isMonitoringRequested, "B12: the late enable must not turn protection back on")
@@ -203,13 +203,13 @@ do {
     let pause = launchVoid { await coordinator.pauseForTenMinutes() }
     spin()
     check(connection.helper.commands.map(\.0) == [true, true], "B12: the Off's stop and the newer pause's stop are queued")
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin()
     check(off.withValue { $0 } != nil, "B12: the superseded Off completes")
     check(MainActor.assumeIsolated { coordinator.transition } == .disablingProtection,
           "B12: the superseded Off must not release the newer pause's transition")
     check(MainActor.assumeIsolated { coordinator.isBusy }, "B12: controls stay disabled while the pause's stop is in flight")
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { pause.withValue { $0 } }, timeout: 2)
     check(MainActor.assumeIsolated { coordinator.transition } == .idle, "B12: the owner releases its transition")
     check(MainActor.assumeIsolated { coordinator.isPauseActive }, "B12: the pause holds")
@@ -226,9 +226,9 @@ do {
     let end = launchVoid { await coordinator.setGameModeActive(false) }
     spin()
     check(connection.helper.commands.map(\.0) == [false, true], "B13: ending Game Mode mid-enable sends a stop")
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin()
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { start.withValue { $0 } && end.withValue { $0 } }, timeout: 2)
     check(!monitor.isMonitoringActive && !monitor.isMonitoringRequested, "B13: the late enable must not leave protection on without an owner")
     check(MainActor.assumeIsolated { session.phase } == .idle, "B13: no session starts after Game Mode ended")
@@ -246,7 +246,7 @@ do {
     let started = launchVoid { await coordinator.setGameModeActive(true) }
     let first = awaitConnection()
     awaitCommands(on: first)
-    first.helper.commands.removeFirst().1(true)
+    take(first.helper, \.commands).1(true)
     spin(until: { started.withValue { $0 } }, timeout: 2)
     check(MainActor.assumeIsolated { session.isActive }, "B3: the Game Mode session starts")
     first.helper.versions.forEach { $0("fixture-helper") }
@@ -261,10 +261,10 @@ do {
     let replacement = awaitConnection(replacing: first)
     check(replacement !== first, "B3: the reconnect builds a replacement connection")
     awaitVersionRequests(on: replacement)
-    replacement.helper.versions.removeFirst()("fixture-helper")
+    take(replacement.helper, \.versions)("fixture-helper")
     spin()
     check(replacement.helper.commands.map(\.0) == [false], "B3: the replacement reasserts protection")
-    replacement.helper.commands.removeFirst().1(true)
+    take(replacement.helper, \.commands).1(true)
     spin()
     check(monitor.isMonitoringActive && MainActor.assumeIsolated { session.isActive },
           "B3: protection and the session both survive the restart")
@@ -280,7 +280,7 @@ do {
     let started = launchVoid { await coordinator.setGameModeActive(true) }
     let first = awaitConnection()
     awaitCommands(on: first)
-    first.helper.commands.removeFirst().1(true)
+    take(first.helper, \.commands).1(true)
     spin(until: { started.withValue { $0 } }, timeout: 2)
     let alerts = NSAlert.messages.count
     first.interruptionHandler?()
@@ -319,7 +319,7 @@ do {
     LicenseManager.shared.canEnableProtection = false
     let done = launchVoid { await coordinator.handleLicenseReverification() }
     spin()
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { done.withValue { $0 } }, timeout: 2)
     let before = MainActor.assumeIsolated { coordinator.lastError }
     let echo = launchVoid {
@@ -438,7 +438,7 @@ do {
     let alerts = NSAlert.messages.count
     let start = launchVoid { await coordinator.setGameModeActive(true) }
     spin()
-    monitor.harnessConnection?.helper.commands.removeFirst().1(false)   // helper refuses
+    take(awaitConnection().helper, \.commands).1(false)   // helper refuses
     spin(until: { start.withValue { $0 } }, timeout: 2)
     check(NSAlert.messages.count == alerts, "B8: a failed Game Mode enable raises no alert")
     check(MainActor.assumeIsolated { coordinator.lastError }?.contains("latency session did not start") == true,
@@ -471,7 +471,7 @@ do {
     monitor.confirmHelperResponds(attempts: 1) { ok in probe.withValue { $0 = ok } }
     let connection = awaitConnection()
     awaitVersionRequests(on: connection)
-    connection.helper.versions.removeFirst()("fixture-helper")
+    take(connection.helper, \.versions)("fixture-helper")
     spin(0.2)
     check(probe.withValue { $0 } == true, "B9: the probe sees the helper answer")
     check(MainActor.assumeIsolated { coordinator.lastError } == nil, "B9: a helper reply clears the not-responding message")
@@ -486,7 +486,7 @@ do {
     PingWardenPreferences.shared.isMonitoringEnabled = true
     let enable = launch { await coordinator.setPersistentProtection(true) }
     spin()
-    monitor.harnessConnection?.helper.commands.removeFirst().1(false)
+    take(awaitConnection().helper, \.commands).1(false)
     spin(until: { enable.withValue { $0 } != nil }, timeout: 2)
     spin(0.2)
     check(monitor.harnessConnection?.helper.commands.isEmpty == true, "B9: a declining helper is not retried automatically")
@@ -507,8 +507,8 @@ do {
     check(connection.helper.commands.map(\.0) == [false, true], "B11: quit sends a stop behind the pending enable")
     spin(0.1)
     check(!quit.withValue { $0 }, "B11: quit waits for the stop's reply")
-    connection.helper.commands.removeFirst().1(true)
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
+    take(connection.helper, \.commands).1(true)
     spin(0.1)
     check(quit.withValue { $0 }, "B11: the stop's reply lets quit proceed")
     spin(until: { pending.withValue { $0 } != nil }, timeout: 2)
@@ -538,6 +538,72 @@ do {
         return coordinator.prepareForTermination { }
     }
     check(!nothingHeld, "B11: quit does not wait when nothing is held")
+    settle()
+}
+
+// B11: a quit that macOS abandons after the stop must not leave the app
+// unable to turn protection on until relaunch.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    let connection = MainActor.assumeIsolated { turnOnThroughCoordinator() }
+    MainActor.assumeIsolated { coordinator.terminationCancelGrace = 0.3 }
+    let quit = LockedValue(false)
+    let waiting = MainActor.assumeIsolated {
+        coordinator.prepareForTermination { quit.withValue { $0 = true } }
+    }
+    check(waiting, "B11-cancel: quit waits while protection is on")
+    awaitCommands(on: connection)
+    check(connection.helper.commands.map(\.0) == [true], "B11-cancel: quit sends a stop")
+    take(connection.helper, \.commands).1(true)
+    spin(until: { quit.withValue { $0 } }, timeout: 2)
+    check(quit.withValue { $0 }, "B11-cancel: the stop's reply lets quit proceed")
+    check(MainActor.assumeIsolated { coordinator.isTerminating }, "B11-cancel: quitting blocks new actions at first")
+    // No applicationWillTerminate follows: the quit was cancelled.
+    spin(until: { !MainActor.assumeIsolated { coordinator.isTerminating } }, timeout: 2)
+    check(!MainActor.assumeIsolated { coordinator.isTerminating },
+          "B11-cancel: a quit without applicationWillTerminate is treated as cancelled")
+    // The saved choice is still On, so the recovered app restores it.
+    awaitCommands(on: connection)
+    check(connection.helper.commands.map(\.0) == [false],
+          "B11-cancel: recovery restores the saved protection choice")
+    if !connection.helper.commands.isEmpty { take(connection.helper, \.commands).1(true) }
+    spin(until: { monitor.isMonitoringActive }, timeout: 2)
+    check(monitor.isMonitoringActive && PingWardenPreferences.shared.isMonitoringEnabled,
+          "B11-cancel: protection is on again after the cancelled quit")
+    settle()
+}
+
+// B11: once applicationWillTerminate runs, the quit is final.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    _ = MainActor.assumeIsolated { turnOnThroughCoordinator() }
+    MainActor.assumeIsolated { coordinator.terminationCancelGrace = 0.2 }
+    let quit = LockedValue(false)
+    _ = MainActor.assumeIsolated {
+        coordinator.prepareForTermination { quit.withValue { $0 = true } }
+    }
+    settle()
+    spin(until: { quit.withValue { $0 } }, timeout: 2)
+    MainActor.assumeIsolated { coordinator.finishForTermination() }
+    spin(0.5)
+    check(MainActor.assumeIsolated { coordinator.isTerminating },
+          "B11-commit: applicationWillTerminate keeps the app quitting")
+    let later = launch { await coordinator.setPersistentProtection(true) }
+    spin(until: { later.withValue { $0 } != nil }, timeout: 1)
+    check(later.withValue { $0 } == false, "B11-commit: no enable starts after a committed quit")
+    settle()
+}
+
+// B11: a quit with nothing to stop answers at once; if it is then
+// abandoned, controls still recover.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    MainActor.assumeIsolated { coordinator.terminationCancelGrace = 0.2 }
+    let waiting = MainActor.assumeIsolated { coordinator.prepareForTermination { } }
+    check(!waiting, "B11-idle: quit does not wait when nothing is held")
+    spin(until: { !MainActor.assumeIsolated { coordinator.isTerminating } }, timeout: 2)
+    check(!MainActor.assumeIsolated { coordinator.isTerminating },
+          "B11-idle: an abandoned immediate quit also recovers")
     settle()
 }
 
@@ -659,7 +725,7 @@ do {
           "107: no Repair success before restoration answers")
     check(connection.helper.commands.map(\.0) == [false],
           "107: helper reply and concurrent callers cause only one enable")
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { first.withValue { $0 } != nil && second.withValue { $0 } != nil }, timeout: 2)
     check(first.withValue { $0 } == second.withValue { $0 }
           && first.withValue { $0 }?.title == RepairResultCopy.successTitle,
@@ -691,7 +757,7 @@ do {
           "107: reconnect validation defers to one tracked Repair restoration")
     check(repaired.withValue { $0 } == nil,
           "107: rebuilt-helper Repair waits for its sole restoration reply")
-    replacement.helper.commands.removeFirst().1(true)
+    take(replacement.helper, \.commands).1(true)
     spin(until: { repaired.withValue { $0 } != nil }, timeout: 2)
     check(repaired.withValue { $0 }?.title == RepairResultCopy.successTitle
           && monitor.isMonitoringActive && replacement.helper.commands.isEmpty,
@@ -735,7 +801,7 @@ do {
     let connection = awaitConnection()
     awaitCommands(on: connection)
     check(connection.helper.commands.map(\.0) == [false], "107: current session demand restores protection")
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { result.withValue { $0 } != nil }, timeout: 2)
     check(MainActor.assumeIsolated { session.phase == .active && session.endings.isEmpty },
           "107: repair does not end a temporary session")
@@ -754,15 +820,21 @@ do {
     let off = launch { await coordinator.setPersistentProtection(false) }
     awaitCommands(on: connection)
     check(connection.helper.commands.map(\.0) == [true], "107: Off remains actionable during Repair")
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { off.withValue { $0 } != nil }, timeout: 2)
     check(off.withValue { $0 } == true,
           "107: the newer Off finishes before the held repair probe replies")
-    connection.helper.versions.forEach { $0("fixture-helper") }
-    connection.helper.versions.removeAll()
-    spin(until: { repaired.withValue { $0 } != nil }, timeout: 2)
+    // Answer every version probe until Repair reports. On a loaded machine
+    // the held probe's validation can lapse and Repair asks again; answering
+    // only the probes that existed at one instant left that retry waiting
+    // out its 10-second reply timeout past this bounded wait.
+    spin(until: {
+        connection.helper.versions.forEach { $0("fixture-helper") }
+        connection.helper.versions.removeAll()
+        return repaired.withValue { $0 } != nil
+    }, timeout: 5)
     check(off.withValue { $0 } == true && repaired.withValue { $0 }?.title == RepairResultCopy.successTitle,
-          "107: Repair completes after the newer Off")
+          "107: Repair completes after the newer Off (got \(repaired.withValue { $0 }?.title ?? "no report"))")
     check(!PingWardenPreferences.shared.isMonitoringEnabled && !monitor.isMonitoringActive
           && connection.helper.commands.isEmpty,
           "107: Repair never restores a stale on preference")
@@ -786,7 +858,7 @@ for desiredState in [false, true] {
           "107: repair never adds a competing command while newer \(desiredState ? "On" : "Off") waits")
     check(repaired.withValue { $0 }?.title == "Protection Change In Progress",
           "107: repair reports pending change rather than final protection success")
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { change.withValue { $0 } != nil }, timeout: 2)
     check(change.withValue { $0 } == true
           && PingWardenPreferences.shared.isMonitoringEnabled == desiredState
@@ -814,7 +886,7 @@ for change in ["license", "pause"] {
     check(connection.helper.commands.map(\.0) == [true]
           && repaired.withValue { $0 }?.title == "Protection Change In Progress",
           "107: Repair does not supersede the pending \(change) stop")
-    connection.helper.commands.removeFirst().1(true)
+    take(connection.helper, \.commands).1(true)
     spin(until: { changed.withValue { $0 } }, timeout: 2)
     check(!monitor.isMonitoringActive
           && PingWardenPreferences.shared.isMonitoringEnabled == (change == "pause"),
@@ -839,7 +911,7 @@ for change in ["license", "pause"] {
         let paused = launchVoid { await coordinator.pauseForTenMinutes() }
         awaitCommands(on: connection)
         check(connection.helper.commands.map(\.0) == [true], "107: new pause sends only a stop during Repair")
-        connection.helper.commands.removeFirst().1(true)
+        take(connection.helper, \.commands).1(true)
         spin(until: { paused.withValue { $0 } }, timeout: 2)
     }
     connection.helper.versions.forEach { $0("fixture-helper") }
