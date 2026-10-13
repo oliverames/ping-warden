@@ -1128,6 +1128,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     private func showSettingsWindow() {
         if let settingsWindow {
+            // Without a Dock icon a minimized window has nowhere to be
+            // restored from, so Settings… and Open Dashboard… restore it.
+            // Open Dashboard… reaches here through openSettings().
+            if settingsWindow.isMiniaturized {
+                settingsWindow.deminiaturize(nil)
+            }
             settingsWindow.makeKeyAndOrderFront(nil)
             updateDockIconVisibility()
             return
