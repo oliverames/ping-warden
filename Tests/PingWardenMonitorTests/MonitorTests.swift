@@ -43,6 +43,7 @@ extension PingWardenMonitor {
         finishRegistrationPolling(success: false, reason: "fixture cleanup")
     }
     var harnessLastPolledStatus: SMAppService.Status? { registrationLastPolledStatus }
+    var harnessNotRegisteredSince: TimeInterval? { registrationNotRegisteredSince }
     func harnessSetNotRegisteredGrace(_ seconds: TimeInterval) { notRegisteredGraceSeconds = seconds }
     var harnessRetries: Int { _xpcRetryCount }
     var harnessConnection: NSXPCConnection? { _xpcConnection }
@@ -714,7 +715,10 @@ do {
 // wall-clock windows let a slow runner skip the short Requires Approval read
 // between the two Not Registered windows, which merged them into one long
 // outage and failed the registration. The wider grace period keeps a stalled
-// runner from stretching one brief window past it.
+// runner from stretching one brief window past it. Because that wider grace
+// alone would tolerate a monitor that never resets the Not Registered clock,
+// the test also asserts directly that each polled Requires Approval read
+// clears the grace timestamp and each polled Not Registered read starts it.
 do {
     let monitor = PingWardenMonitor.harnessMonitor()
     monitor.harnessSetNotRegisteredGrace(1.0)
@@ -729,14 +733,20 @@ do {
         spin(until: { monitor.harnessLastPolledStatus == .requiresApproval }, timeout: 1.5)
         check(monitor.harnessLastPolledStatus == .requiresApproval,
               "pending approval is read before transient window \(window)")
+        check(monitor.harnessNotRegisteredSince == nil,
+              "a polled Requires Approval read clears the Not Registered grace before window \(window)")
         SMAppService.fixtureStatus = .notRegistered
         spin(until: { monitor.harnessLastPolledStatus == .notRegistered }, timeout: 1.5)
         check(monitor.harnessLastPolledStatus == .notRegistered,
               "transient Not Registered window \(window) is read by a registration poll")
+        check(monitor.harnessNotRegisteredSince != nil,
+              "a polled Not Registered read starts the grace clock in window \(window)")
         spin(0.1)
         SMAppService.fixtureStatus = .requiresApproval
     }
     spin(until: { monitor.harnessLastPolledStatus == .requiresApproval }, timeout: 1.5)
+    check(monitor.harnessNotRegisteredSince == nil,
+          "a polled Requires Approval read clears the Not Registered grace after the last window")
     SMAppService.fixtureStatus = .enabled
     spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 1.5)
     check(results.withValue { $0 } == [true], "transient Not Registered reads must not fail a pending approval")
