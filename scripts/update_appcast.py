@@ -4,6 +4,7 @@
 import argparse
 import copy
 import re
+import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -71,6 +72,40 @@ def replace_items(tree, additions):
         channel.append(item)
 
 
+def missing_published_items(local_path, published_path):
+    """Return "version (build N)" labels published remotely but absent locally.
+
+    Items are keyed by sparkle:shortVersionString, the same key replace_items
+    uses, so an item missing here is one the next rewrite would drop.
+    """
+    published = load_feed(published_path).findall("channel/item")
+    local = {value(item, "shortVersionString") for item in load_feed(local_path).findall("channel/item")}
+    return [f"{value(item, 'shortVersionString')} (build {value(item, 'version')})"
+            for item in published if value(item, "shortVersionString") not in local]
+
+
+def check_published(stable_path, beta_path, published_stable, published_beta):
+    """Exit non-zero when a published item would be lost by the next rewrite."""
+    problems = []
+    for local, published in [(stable_path, published_stable), (beta_path, published_beta)]:
+        if published is None:
+            continue
+        missing = missing_published_items(local, published)
+        if missing:
+            problems.append(f"  {local.name} is missing published item(s): {', '.join(missing)}")
+    if not problems:
+        return
+    print("Error: the local appcasts are behind the feeds published on gh-pages.", file=sys.stderr)
+    print("\n".join(problems), file=sys.stderr)
+    print("Publishing now would delete those items from the live feeds.", file=sys.stderr)
+    print("Fix: copy the published feeds from origin/gh-pages into the repo root, commit, push, then re-run:",
+          file=sys.stderr)
+    print("  git fetch origin gh-pages", file=sys.stderr)
+    print("  git show origin/gh-pages:appcast.xml > appcast.xml", file=sys.stderr)
+    print("  git show origin/gh-pages:appcast-beta.xml > appcast-beta.xml", file=sys.stderr)
+    sys.exit(1)
+
+
 def update(stable_path, beta_path, item_path=None, beta_release=False):
     stable = load_feed(stable_path)
     beta = load_feed(beta_path, beta=True)
@@ -96,7 +131,14 @@ def main():
     parser.add_argument("--item", type=Path)
     parser.add_argument("--beta-release", action="store_true")
     parser.add_argument("--check-build")
+    parser.add_argument("--published-stable", type=Path,
+                        help="published appcast.xml whose items must all exist in --stable")
+    parser.add_argument("--published-beta", type=Path,
+                        help="published appcast-beta.xml whose items must all exist in --beta")
     args = parser.parse_args()
+    if args.published_stable or args.published_beta:
+        check_published(args.stable, args.beta, args.published_stable, args.published_beta)
+        return
     if args.check_build:
         existing = load_feed(args.beta if args.beta_release else args.stable).findall("channel/item")
         if any(build_key(value(item, "version")) >= build_key(args.check_build) for item in existing):

@@ -471,3 +471,40 @@ validate_dmg_artifact() {
     fi
     return "$result"
 }
+
+# Stop a release whose local appcasts predate the feeds already published on
+# gh-pages. release.sh rebuilds both feeds from the repo-root copies and
+# pushes them over gh-pages, so a branch cut before the previous release's
+# appcast commit merged would silently delete that release from the live
+# feed. On 2026-10-13 a 4.3.4-beta.1 run from such a branch removed 4.3.3 from
+# the stable feed until it was restored by hand.
+#
+# Usage: verify_local_appcasts_cover_published REPO_ROOT [REMOTE]
+# Every item in REMOTE/gh-pages:appcast.xml must exist in REPO_ROOT/appcast.xml,
+# and likewise for appcast-beta.xml, keyed by sparkle:shortVersionString (the
+# key update_appcast.py's replace_items uses). Extra local items are fine.
+verify_local_appcasts_cover_published() {
+    local repo_root="$1"
+    local remote="${2:-origin}"
+    local python_bin="${PYTHON_BIN:-python3}"
+    local updater work feed status=0
+    updater="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/update_appcast.py"
+
+    if ! git -C "$repo_root" fetch --quiet "$remote" gh-pages; then
+        release_validation_error "could not fetch $remote gh-pages to compare the published appcasts"
+        return 1
+    fi
+    work="$(mktemp -d -t pingwarden-published-feeds.XXXXXX)"
+    for feed in appcast.xml appcast-beta.xml; do
+        if ! git -C "$repo_root" show "$remote/gh-pages:$feed" > "$work/$feed" 2>/dev/null; then
+            # Nothing is published under this name yet, so nothing can be
+            # lost; update_appcast.py treats the absent file as an empty feed.
+            rm -f "$work/$feed"
+        fi
+    done
+    "$python_bin" "$updater" \
+        --stable "$repo_root/appcast.xml" --beta "$repo_root/appcast-beta.xml" \
+        --published-stable "$work/appcast.xml" --published-beta "$work/appcast-beta.xml" || status=$?
+    rm -rf "$work"
+    return "$status"
+}

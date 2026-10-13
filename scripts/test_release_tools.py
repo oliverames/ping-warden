@@ -2,6 +2,7 @@
 """Regression tests using isolated feeds and buyer-content fixtures."""
 import copy
 import io
+import os
 import plistlib
 import subprocess
 import sys
@@ -374,6 +375,91 @@ class AppcastTests(unittest.TestCase):
         self.assertGreater(appcast.build_key("40000"), appcast.build_key("3.1.0"))
         with self.assertRaises(ValueError):
             appcast.build_key("4.0.2-beta")
+
+
+class PublishedFeedGuardTests(unittest.TestCase):
+    """verify_local_appcasts_cover_published against a fake origin/gh-pages."""
+
+    SCRIPT = Path(__file__).resolve().parent / "release_validation.sh"
+
+    def feed(self, *releases):
+        items = "".join(f'''
+    <item>
+      <title>Version {version}</title>
+      <sparkle:version>{build}</sparkle:version>
+      <sparkle:shortVersionString>{version}</sparkle:shortVersionString>
+      <enclosure url="https://example.invalid/PingWarden-{version}.dmg" sparkle:version="{build}"
+        sparkle:shortVersionString="{version}" length="1" type="application/octet-stream" />
+    </item>''' for version, build in releases)
+        return (f'<?xml version="1.0" encoding="utf-8"?>\n<rss version="2.0" xmlns:sparkle="{appcast.SPARKLE}">'
+                f"<channel><title>Ping Warden Updates</title>{items}</channel></rss>\n")
+
+    def git(self, *args, cwd):
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+    def run_guard(self, published_stable, published_beta, local_stable, local_beta):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            origin, publisher, repo = root / "origin.git", root / "publisher", root / "repo"
+            env_args = ["-c", "user.name=Test", "-c", "user.email=test@example.invalid"]
+            self.git("init", "--quiet", "--bare", str(origin), cwd=root)
+            # Publish a gh-pages branch, as release.sh step 8 does.
+            self.git("init", "--quiet", str(publisher), cwd=root)
+            (publisher / "appcast.xml").write_text(self.feed(*published_stable))
+            (publisher / "appcast-beta.xml").write_text(self.feed(*published_beta))
+            self.git("add", "appcast.xml", "appcast-beta.xml", cwd=publisher)
+            self.git(*env_args, "commit", "--quiet", "-m", "feeds", cwd=publisher)
+            self.git("push", "--quiet", str(origin), "HEAD:refs/heads/gh-pages", cwd=publisher)
+            # The release checkout carries its own committed feeds.
+            self.git("init", "--quiet", str(repo), cwd=root)
+            self.git("remote", "add", "origin", str(origin), cwd=repo)
+            (repo / "appcast.xml").write_text(self.feed(*local_stable))
+            (repo / "appcast-beta.xml").write_text(self.feed(*local_beta))
+            # /bin/bash is the Bash 3.2 that release.sh runs under on macOS.
+            bash = "/bin/bash" if Path("/bin/bash").exists() else "bash"
+            return subprocess.run(
+                [bash, "-c", 'set -euo pipefail; source "$1"; verify_local_appcasts_cover_published "$2" origin',
+                 "guard-test", str(self.SCRIPT), str(repo)],
+                capture_output=True, text=True, env={**os.environ, "PYTHON_BIN": sys.executable})
+
+    STABLE = [("4.3.3", "43300"), ("4.3.2", "43200")]
+    BETA = [("4.3.4-beta.1", "43401")] + STABLE
+
+    def test_in_sync_feeds_pass(self):
+        result = self.run_guard(self.STABLE, self.BETA, self.STABLE, self.BETA)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+
+    def test_missing_stable_item_fails_and_names_it(self):
+        # The 2026-10-13 incident: a branch cut before the 4.3.3 appcast commit.
+        stale = self.STABLE[1:]
+        result = self.run_guard(self.STABLE, self.BETA, stale, self.BETA[:1] + stale)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("appcast.xml is missing published item(s): 4.3.3 (build 43300)", result.stderr)
+        self.assertIn("appcast-beta.xml is missing published item(s): 4.3.3 (build 43300)", result.stderr)
+        self.assertIn("copy the published feeds from origin/gh-pages", result.stderr)
+
+    def test_missing_beta_only_item_fails(self):
+        result = self.run_guard(self.STABLE, self.BETA, self.STABLE, self.STABLE)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("appcast-beta.xml is missing published item(s): 4.3.4-beta.1 (build 43401)", result.stderr)
+        self.assertNotIn("  appcast.xml is missing", result.stderr)
+
+    def test_local_extra_new_item_passes(self):
+        newer = [("4.3.4", "43400")] + self.STABLE
+        result = self.run_guard(self.STABLE, self.BETA, newer, self.BETA[:1] + newer)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_release_runs_guard_before_building(self):
+        script = (Path(__file__).resolve().parents[1] / "PingWarden" / "PingWarden" / "release.sh").read_text()
+        guard = script.index('verify_local_appcasts_cover_published "$REPO_ROOT" origin')
+        self.assertLess(guard, script.index("xcodebuild archive"))
+        self.assertLess(guard, script.index('"$NOTARIZE_SCRIPT" "$VERSION"'))
+        # Step 8 checks again right before it overwrites the live feeds.
+        publish = script.index('cp "$STABLE_APPCAST" "$PUBLISH_DIR/appcast.xml"')
+        self.assertLess(script.rindex("verify_local_appcasts_cover_published", 0, publish),
+                        publish)
+        self.assertGreater(script.rindex("verify_local_appcasts_cover_published", 0, publish), guard)
 
 
 class GumroadContentTests(unittest.TestCase):
