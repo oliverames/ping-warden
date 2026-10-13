@@ -761,5 +761,38 @@ do {
     check(results.withValue { $0 } == [false], "a late reply must not complete the reset twice")
 }
 
+// A count request on a failed connection must complete nil exactly once,
+// promptly, instead of leaving the caller waiting for a reply that never comes.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); FakeHelper.holdsCountReplies = false }
+    let connection = confirmed(monitor)
+    FakeHelper.holdsCountReplies = true
+    let results = LockedValue<[Int?]>([])
+    monitor.getInterventionCount { value in results.withValue { $0.append(value) } }
+    spin()
+    check(results.withValue { $0 }.isEmpty && connection.helper.counts.count == 1, "count waits for the helper reply")
+    connection.errorHandler?(NSError(domain: "fixture", code: 4099))
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    check(results.withValue { $0 } == [nil], "a proxy error must complete a pending count with nil")
+    if !connection.helper.counts.isEmpty { connection.helper.counts.removeFirst()(7) }
+    spin()
+    check(results.withValue { $0 } == [nil], "a late reply must not complete the count twice")
+}
+
+// A count reply still completes normally with the helper's value.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); FakeHelper.holdsCountReplies = false }
+    let connection = confirmed(monitor)
+    FakeHelper.holdsCountReplies = true
+    let results = LockedValue<[Int?]>([])
+    monitor.getInterventionCount { value in results.withValue { $0.append(value) } }
+    spin(until: { !connection.helper.counts.isEmpty }, timeout: 2)
+    if !connection.helper.counts.isEmpty { connection.helper.counts.removeFirst()(3) }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    check(results.withValue { $0 } == [3], "a helper count reply completes once with its value")
+}
+
 print("Monitor checks complete. Failures: \(failures.count)")
 exit(failures.isEmpty ? 0 : 1)

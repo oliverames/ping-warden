@@ -20,7 +20,12 @@ final class FakeHelper: PingWardenHelperProtocol {
         if let version = Self.autoReplyVersion { reply(version) } else { versions.append(reply) }
     }
     func getAWDLStatus(reply: @escaping (String) -> Void) { reply("fake") }
-    func getAWDLInterventionCount(reply: @escaping (Int) -> Void) { reply(0) }
+    // When set, count requests wait for the test, so it can fail the connection first.
+    static var holdsCountReplies = false
+    var counts: [(Int) -> Void] = []
+    func getAWDLInterventionCount(reply: @escaping (Int) -> Void) {
+        if Self.holdsCountReplies { counts.append(reply) } else { reply(0) }
+    }
     // When set, reset requests wait for the test, so it can fail the connection first.
     static var holdsResetReplies = false
     var resets: [(Bool) -> Void] = []
