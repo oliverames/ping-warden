@@ -541,6 +541,72 @@ do {
     settle()
 }
 
+// B11: a quit that macOS abandons after the stop must not leave the app
+// unable to turn protection on until relaunch.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    let connection = MainActor.assumeIsolated { turnOnThroughCoordinator() }
+    MainActor.assumeIsolated { coordinator.terminationCancelGrace = 0.3 }
+    let quit = LockedValue(false)
+    let waiting = MainActor.assumeIsolated {
+        coordinator.prepareForTermination { quit.withValue { $0 = true } }
+    }
+    check(waiting, "B11-cancel: quit waits while protection is on")
+    awaitCommands(on: connection)
+    check(connection.helper.commands.map(\.0) == [true], "B11-cancel: quit sends a stop")
+    take(connection.helper, \.commands).1(true)
+    spin(until: { quit.withValue { $0 } }, timeout: 2)
+    check(quit.withValue { $0 }, "B11-cancel: the stop's reply lets quit proceed")
+    check(MainActor.assumeIsolated { coordinator.isTerminating }, "B11-cancel: quitting blocks new actions at first")
+    // No applicationWillTerminate follows: the quit was cancelled.
+    spin(until: { !MainActor.assumeIsolated { coordinator.isTerminating } }, timeout: 2)
+    check(!MainActor.assumeIsolated { coordinator.isTerminating },
+          "B11-cancel: a quit without applicationWillTerminate is treated as cancelled")
+    // The saved choice is still On, so the recovered app restores it.
+    awaitCommands(on: connection)
+    check(connection.helper.commands.map(\.0) == [false],
+          "B11-cancel: recovery restores the saved protection choice")
+    if !connection.helper.commands.isEmpty { take(connection.helper, \.commands).1(true) }
+    spin(until: { monitor.isMonitoringActive }, timeout: 2)
+    check(monitor.isMonitoringActive && PingWardenPreferences.shared.isMonitoringEnabled,
+          "B11-cancel: protection is on again after the cancelled quit")
+    settle()
+}
+
+// B11: once applicationWillTerminate runs, the quit is final.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    _ = MainActor.assumeIsolated { turnOnThroughCoordinator() }
+    MainActor.assumeIsolated { coordinator.terminationCancelGrace = 0.2 }
+    let quit = LockedValue(false)
+    _ = MainActor.assumeIsolated {
+        coordinator.prepareForTermination { quit.withValue { $0 = true } }
+    }
+    settle()
+    spin(until: { quit.withValue { $0 } }, timeout: 2)
+    MainActor.assumeIsolated { coordinator.finishForTermination() }
+    spin(0.5)
+    check(MainActor.assumeIsolated { coordinator.isTerminating },
+          "B11-commit: applicationWillTerminate keeps the app quitting")
+    let later = launch { await coordinator.setPersistentProtection(true) }
+    spin(until: { later.withValue { $0 } != nil }, timeout: 1)
+    check(later.withValue { $0 } == false, "B11-commit: no enable starts after a committed quit")
+    settle()
+}
+
+// B11: a quit with nothing to stop answers at once; if it is then
+// abandoned, controls still recover.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    MainActor.assumeIsolated { coordinator.terminationCancelGrace = 0.2 }
+    let waiting = MainActor.assumeIsolated { coordinator.prepareForTermination { } }
+    check(!waiting, "B11-idle: quit does not wait when nothing is held")
+    spin(until: { !MainActor.assumeIsolated { coordinator.isTerminating } }, timeout: 2)
+    check(!MainActor.assumeIsolated { coordinator.isTerminating },
+          "B11-idle: an abandoned immediate quit also recovers")
+    settle()
+}
+
 // B16: wake settles a pause that expired while the Mac slept.
 do {
     MainActor.assumeIsolated { resetAll() }

@@ -54,6 +54,10 @@ extension ProtectionExperienceCoordinator {
         helperRepairTask = nil
         lastAutomaticRetry = nil
         isTerminating = false
+        terminationCommitted = false
+        // Orphan any pending cancelled-quit check from an earlier test.
+        terminationAttempt += 1
+        terminationCancelGrace = 10
         gameModeActive = false
         requestedSessionTrigger = nil
         clearPause()
