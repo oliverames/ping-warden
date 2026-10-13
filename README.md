@@ -83,11 +83,11 @@ Open **Settings → License** and enter the key from your receipt. The app verif
 
 The welcome appears automatically once. Choose **Not Now** to use the free dashboard and finish setup later.
 
-In the welcome window, click **Turn On Ping Protection** after activation. If you already closed it, open **Settings → General** and click **Finish Setup**. Approve Ping Warden in System Settings when macOS asks. This one-time approval lets the app control wireless sharing.
+In the welcome window, click **Turn On Ping Protection** after activation. Before activation, the same window leads with **Open Dashboard** and offers **Set Up Ping Protection**. If you already closed it, choose **Finish Setup…** from the menu bar icon or **Settings → General**. When macOS shows **Background Items Added**, turn on Ping Warden under **Allow in the Background** in **System Settings → General → Login Items & Extensions**. This one-time approval lets the helper keep `awdl0` down. The helper changes nothing else, accepts requests only from Ping Warden, and never connects to the internet. The [Setup Guide](PingWarden/QUICKSTART.md#5-approve-the-helper) walks through each screen.
 
 ### 4. Turn on Ping Protection and verify it
 
-Enable **Ping Protection** from the menu bar or the [Control Center toggle](#control-center-toggle). Without a key (and outside the transition window) the app points you back to **Settings → License** instead of turning protection on. Open the dashboard and confirm that protection is active. The dashboard shows live latency and counts the helper's intervention attempts when macOS reactivates AWDL.
+Setup turns Ping Protection on when it finishes. Later, use the menu bar or the [Control Center toggle](#control-center-toggle) to turn it on or off. Without a key (and outside the transition window) the app points you back to **Settings → License** instead of turning protection on. The menu should read **Status: Protected**, and the Dashboard should show a **Turn Off** button. The dashboard shows live latency and counts the helper's intervention attempts when macOS reactivates AWDL.
 
 The [Quick Start guide](PingWarden/QUICKSTART.md) covers first-run setup and the optional automation features.
 

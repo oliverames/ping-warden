@@ -6,50 +6,135 @@
 <meta property="og:title" content="Setup Guide | Ping Warden"><meta property="og:description" content="Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center.">
 <meta property="og:url" content="https://pingwarden.app/docs/setup"><meta property="og:image" content="https://pingwarden.app/app-icon.png"><meta property="og:image:alt" content="Ping Warden app icon">
 <meta name="twitter:card" content="summary"><meta name="twitter:title" content="Setup Guide | Ping Warden"><meta name="twitter:description" content="Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center."><meta name="twitter:image" content="https://pingwarden.app/app-icon.png">
-<link rel="icon" type="image/png" href="/app-icon.png"><link rel="stylesheet" href="/styles.css"><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"TechArticle","headline":"Setup Guide","description":"Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center.","url":"https://pingwarden.app/docs/setup","author":{"@type":"Person","name":"Oliver Ames"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Ping Warden","item":"https://pingwarden.app/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://pingwarden.app/docs/"},{"@type":"ListItem","position":3,"name":"Setup Guide","item":"https://pingwarden.app/docs/setup"}]}]}</script></head><body><a class="skip" href="#main">Skip to content</a><header class="wrap"><a class="brand" href="/">Ping Warden</a><nav aria-label="Main navigation"><a href="/docs/">Docs</a><a href="/docs/setup">Setup</a><a href="https://amesconsulting.gumroad.com/l/pingwarden">Buy a license</a></nav></header><main id="main" class="wrap doc-layout"><aside><nav class="doc-nav" aria-label="Documentation"><a href="/docs/overview">Features, Pricing, and Privacy</a><a href="/docs/setup">Setup Guide</a><a href="/docs/technical">Technical Documentation</a><a href="/docs/troubleshooting">Troubleshooting and Removal</a><a href="/docs/updating-from-an-earlier-version">Updating from Ping Warden 2 or 3</a><a href="/docs/geforce-now-mac-stutter">Why GeForce NOW Stutters on a MacBook</a><a href="/docs/awdl0-ping-spikes">Mac Wi-Fi Ping Spikes and the awdl0 Fix</a><a href="/docs/airdrop-wifi-lag">Is AirDrop Causing Your Wi-Fi Lag?</a><a href="/docs/releases">Release Notes</a><a href="/docs/security">Security and Reporting</a></nav></aside><article class="prose"><p class="breadcrumb"><a href="/docs/">Documentation</a></p><h1>Setup Guide</h1><p class="doc-intro">Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center.</p><details class="toc"><summary>On this page</summary><ol><li><a href="#install-and-verify">Install and verify</a></li><li><a href="#automatic-protection-for-games">Automatic protection for games</a></li><li><a href="#control-center-widget">Control Center widget</a></li><li><a href="#everyday-controls">Everyday controls</a></li><li><a href="#get-help">Get help</a></li></ol></details><p>Ping Protection keeps Apple's AWDL network interface offline. While it is active, AirDrop, AirPlay, Handoff, and other nearby-device features may be unavailable. You can turn protection off at any time or pause it for 10 minutes from the menu bar.</p>
+<link rel="icon" type="image/png" href="/app-icon.png"><link rel="stylesheet" href="/styles.css"><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"TechArticle","headline":"Setup Guide","description":"Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center.","url":"https://pingwarden.app/docs/setup","author":{"@type":"Person","name":"Oliver Ames"},"inLanguage":"en"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Ping Warden","item":"https://pingwarden.app/"},{"@type":"ListItem","position":2,"name":"Documentation","item":"https://pingwarden.app/docs/"},{"@type":"ListItem","position":3,"name":"Setup Guide","item":"https://pingwarden.app/docs/setup"}]}]}</script></head><body><a class="skip" href="#main">Skip to content</a><header class="wrap"><a class="brand" href="/">Ping Warden</a><nav aria-label="Main navigation"><a href="/docs/">Docs</a><a href="/docs/setup">Setup</a><a href="https://amesconsulting.gumroad.com/l/pingwarden">Buy a license</a></nav></header><main id="main" class="wrap doc-layout"><aside><nav class="doc-nav" aria-label="Documentation"><a href="/docs/overview">Features, Pricing, and Privacy</a><a href="/docs/setup">Setup Guide</a><a href="/docs/technical">Technical Documentation</a><a href="/docs/troubleshooting">Troubleshooting and Removal</a><a href="/docs/updating-from-an-earlier-version">Updating from Ping Warden 2 or 3</a><a href="/docs/geforce-now-mac-stutter">Why GeForce NOW Stutters on a MacBook</a><a href="/docs/awdl0-ping-spikes">Mac Wi-Fi Ping Spikes and the awdl0 Fix</a><a href="/docs/airdrop-wifi-lag">Is AirDrop Causing Your Wi-Fi Lag?</a><a href="/docs/releases">Release Notes</a><a href="/docs/security">Security and Reporting</a></nav></aside><article class="prose"><p class="breadcrumb"><a href="/docs/">Documentation</a></p><h1>Setup Guide</h1><p class="doc-intro">Install Ping Warden, activate your license, approve the helper, and verify Ping Protection. Set up Game Mode, latency targets, and Control Center.</p><details class="toc"><summary>On this page</summary><ol><li><a href="#install-and-verify">Install and verify</a></li><li><a href="#automatic-protection-for-games">Automatic protection for games</a></li><li><a href="#control-center-widget">Control Center widget</a></li><li><a href="#everyday-controls">Everyday controls</a></li><li><a href="#get-help">Get help</a></li></ol></details><p>Ping Protection keeps Apple's AWDL network interface (<code>awdl0</code>) offline. While it is active, AirDrop, AirPlay, Handoff, and other nearby-device features may be unavailable. You can turn protection off at any time or pause it for 10 minutes from the menu bar.</p>
+<p>This guide walks through every step of setup in order. Each step lists what you will see, what to do, and what Ping Warden and macOS are doing in the background. If something on screen does not match, the <a href="/docs/troubleshooting#messages-you-might-see">Troubleshooting guide</a> is organized by the exact message Ping Warden shows.</p>
+<p>On macOS 15 and later the System Settings page is called <strong>Login Items &amp; Extensions</strong>. On macOS 13 and 14 it is called <strong>Login Items</strong>. Ping Warden uses the name that matches your Mac, and this guide uses the newer name.</p>
 <h2 id="install-and-verify">Install and verify</h2>
-<h3 id="1-install-ping-warden">1. Install Ping Warden</h3>
+<h3 id="1-download-ping-warden">1. Download Ping Warden</h3>
+<p><strong>What to do:</strong> Buy the <a href="https://amesconsulting.gumroad.com/l/pingwarden">Ping Warden License on Gumroad</a>. The signed DMG is attached to the purchase, and your license key arrives in the same email. To try the free dashboard first, <a href="https://github.com/oliverames/ping-warden/releases/latest">download the same build from Releases</a>. You can buy a key later without reinstalling.</p>
+<p><strong>Behind the scenes:</strong> Every release is signed with Ping Warden's Developer ID and notarized by Apple, so macOS can confirm that the copy you downloaded is the one that was published.</p>
+<h3 id="2-move-it-to-applications-and-open-it">2. Move it to Applications and open it</h3>
+<!-- Screenshot: ![The Ping Warden disk image window, with the Ping Warden icon and an arrow pointing to the Applications folder](../docs/images/setup-dmg-drag.png) -->
+<p><strong>What you'll see:</strong> A disk image window with the Ping Warden icon and an Applications folder.</p>
+<p><strong>What to do:</strong></p>
 <ol>
-<li>Buy the <a href="https://amesconsulting.gumroad.com/l/pingwarden">Ping Warden License on Gumroad</a>. The signed DMG is attached to the purchase and your license key arrives in the same email. To try the free features first, <a href="https://github.com/oliverames/ping-warden/releases/latest">download the same build from Releases</a>.</li>
-<li>Open the DMG and drag Ping Warden to Applications.</li>
-<li>Launch Ping Warden from Applications or Spotlight.</li>
+<li>Drag Ping Warden onto the Applications folder.</li>
+<li>Eject the disk image.</li>
+<li>Open Ping Warden from Applications or Spotlight. Do not open it from the disk image, Downloads, Desktop, or Documents.</li>
+<li>The first time, macOS asks you to confirm that you want to open an app downloaded from the internet. Click <strong>Open</strong>.</li>
 </ol>
-<h3 id="2-activate-your-license-prebuilt-app">2. Activate your license (prebuilt app)</h3>
-<p>Ping Protection in the prebuilt app requires a one-time $15 license. Buy it at <a href="https://amesconsulting.gumroad.com/l/pingwarden">Gumroad</a>, then open <strong>Settings → License</strong> and enter the key. The app verifies once and then works offline for up to 14 days.</p>
-<p>Updating from an earlier version, or donated before version 4? You may already have access without buying a key. <strong>Settings → License</strong> shows your current status, and <a href="/docs/overview#pricing">Pricing</a> explains the transition and the donor path.</p>
-<h3 id="3-approve-the-helper">3. Approve the helper</h3>
-<p>The welcome appears automatically once. Choose <strong>Not Now</strong> to use the free dashboard and finish setup later.</p>
+<!-- Screenshot: ![The macOS confirmation that asks whether to open Ping Warden, an app downloaded from the internet](../docs/images/setup-gatekeeper-open.png) -->
+<p><strong>Behind the scenes:</strong> Gatekeeper checks the notarization before the first launch. Ping Warden's background helper must start from the copy in Applications. If you run the app from another folder, setup stops with <strong>Move Ping Warden to Applications</strong> instead of registering a helper that macOS would refuse to start. If macOS cannot verify the copy at all, Ping Warden shows <strong>macOS Could Not Verify Ping Warden</strong> with a button to open the official Releases page. See <a href="/docs/troubleshooting#macos-could-not-verify-ping-warden">Troubleshooting</a>.</p>
+<h3 id="3-read-the-welcome-window">3. Read the welcome window</h3>
+<p>The welcome window opens automatically on the first launch. It is titled <strong>Welcome to Ping Warden</strong> and lists what the app does. Its buttons depend on whether this Mac can already turn on Ping Protection.</p>
+<!-- Screenshot: ![The Welcome to Ping Warden window for a licensed Mac, with the Turn On Ping Protection button and a Not Now link](../docs/images/setup-welcome-licensed.png) -->
+<p><strong>If you have a license or an active transition</strong>, you'll see:</p>
+<ul>
+<li><strong>Turn On Ping Protection</strong> as the main button.</li>
+<li><strong>Not Now</strong> below it.</li>
+<li>&quot;Setup asks for one approval in Login Items &amp; Extensions.&quot;</li>
+</ul>
+<!-- Screenshot: ![The Welcome to Ping Warden window before a license is entered, with Open Dashboard, Set Up Ping Protection, Not Now, and the Enter or Buy a License link](../docs/images/setup-welcome-unlicensed.png) -->
+<p><strong>If you have not entered a license yet</strong>, you'll see:</p>
+<ul>
+<li><strong>Open Dashboard</strong> as the main button, because the dashboard is free.</li>
+<li><strong>Set Up Ping Protection</strong> as a second button.</li>
+<li><strong>Not Now</strong> below them.</li>
+<li>&quot;Ping Protection is a one-time $15 purchase.&quot; with an <strong>Enter or Buy a License…</strong> link.</li>
+</ul>
+<p>Every version of the window ends with: &quot;Ping Warden sends anonymous crash reports. You can turn this off in Settings → Advanced.&quot;</p>
+<p><strong>What to do:</strong> If you already have a key, click <strong>Enter or Buy a License…</strong> and continue with step 4. If you are licensed or in the transition, skip to step 5. Choose <strong>Not Now</strong> to use the free dashboard and set up protection later.</p>
+<p><strong>Behind the scenes:</strong> Nothing changes on your Mac until you click a setup button. The window opens automatically only once. If you choose <strong>Not Now</strong>, the menu bar shows <strong>Status: Not Set Up</strong>, and the protection item in the menu reads <strong>Finish Setup…</strong>. Choosing it opens the welcome window again.</p>
+<p>Crash reports contain no usage data or ping targets. To stop sending them, turn off <strong>Send Crash Reports</strong> under <strong>Settings → Advanced → Privacy</strong>. Turning it off takes effect immediately.</p>
+<h3 id="4-enter-your-license-key">4. Enter your license key</h3>
+<!-- Screenshot: ![Settings, License pane, with the License Key field, the Verify button, and the Buy a License button](../docs/images/setup-license-entry.png) -->
+<p><strong>What you'll see:</strong> <strong>Settings → License</strong> opens with a <strong>License Key</strong> field that says &quot;Paste your key from the Gumroad receipt&quot;, a <strong>Verify</strong> button, and a <strong>Buy a License…</strong> button. The status line reads &quot;Enter a license key to enable Ping Protection.&quot;</p>
+<p><strong>What to do:</strong></p>
 <ol>
-<li>Click <strong>Turn On Ping Protection</strong> in the welcome window (the button reads <strong>Set Up Ping Warden</strong> until a license or transition is active), or <strong>Finish Setup</strong> in <strong>Settings → General</strong> if you already closed it.</li>
-<li>Approve Ping Warden in System Settings when macOS asks.</li>
-<li>Return to Ping Warden after the approval is complete.</li>
+<li>Copy the whole key from your Gumroad receipt email.</li>
+<li>Paste it into the field and click <strong>Verify</strong>.</li>
+<li>Wait for &quot;License verified. Ping Protection is available.&quot; The status changes to <strong>Licensed</strong>.</li>
 </ol>
-<p>The helper needs one-time approval because changing the AWDL interface requires elevated access.</p>
-<h3 id="4-turn-on-ping-protection">4. Turn on Ping Protection</h3>
-<p>Open the menu bar menu and choose <strong>Turn On Ping Protection</strong>. If you haven't activated a license (and you aren't in the transition period), the app will point you to <strong>Settings → License</strong>. The menu bar icon will show that protection is active.</p>
-<h3 id="5-verify-the-connection">5. Verify the connection</h3>
-<p>Open the dashboard and confirm that Ping Protection is active. Leave it open during a normal game or call to compare live latency, jitter, and probe failures. The intervention count records the helper's attempts to lower AWDL after macOS reactivates it. It does not measure confirmed blocks or spikes prevented.</p>
-<p>For a helper health check, open <strong>Settings &gt; Advanced</strong> and click <strong>Run Test</strong>.</p>
+<!-- Screenshot: ![Settings, License pane, after a key is verified, showing the Licensed status and the License verified message](../docs/images/setup-license-verified.png) -->
+<p><strong>Behind the scenes:</strong> Ping Warden checks the key with Gumroad once. After that it works offline for up to 14 days between checks. The key is stored in your Mac's keychain.</p>
+<p>If you are updating from an earlier version, the pane may show <strong>Free Transition</strong> instead. You already have access and do not need to buy anything yet. <a href="/docs/overview#pricing">Pricing</a> explains the transition and the path for donors before version 4.</p>
+<p>Opening the License pane closes the welcome window. To continue, choose <strong>Finish Setup…</strong> from the Ping Warden menu bar icon, or click <strong>Finish Setup…</strong> under <strong>Settings → General</strong>.</p>
+<p>If Verify fails, see <a href="/docs/troubleshooting#license-messages">license messages</a>.</p>
+<h3 id="5-approve-the-helper">5. Approve the helper</h3>
+<p>Ping Protection needs a small background helper. This is the only step that needs your approval in System Settings.</p>
+<p><strong>What to do:</strong></p>
+<ol>
+<li>Click <strong>Turn On Ping Protection</strong> in the welcome window. You can also click <strong>Finish Setup…</strong> in <strong>Settings → General</strong>, on the Dashboard, or in the menu bar menu.</li>
+<li>The welcome window changes to &quot;Waiting for approval&quot; and says: &quot;In System Settings, allow Ping Warden under Login Items &amp; Extensions, then return here.&quot;</li>
+<li>macOS shows a <strong>Background Items Added</strong> notification. If approval is still pending after about 10 seconds, Ping Warden opens <strong>System Settings → General → Login Items &amp; Extensions</strong> for you. You can also click <strong>Open Login Items &amp; Extensions</strong> in the welcome window.</li>
+<li>Under <strong>Allow in the Background</strong>, turn on <strong>Ping Warden</strong>.</li>
+<li>macOS may ask for an administrator password or Touch ID. That prompt comes from macOS, not from Ping Warden.</li>
+<li>Return to Ping Warden.</li>
+</ol>
+<!-- Screenshot: ![The Welcome window in the Waiting for approval state, with the Open Login Items and Extensions button](../docs/images/setup-welcome-waiting.png) -->
+<!-- Screenshot: ![The macOS Background Items Added notification for Ping Warden](../docs/images/setup-background-items-notification.png) -->
+<!-- Screenshot: ![System Settings, General, Login Items and Extensions, with Ping Warden turned on under Allow in the Background](../docs/images/setup-login-items-allow.png) -->
+<p>Finish the approval within about a minute. If you take longer, Ping Warden shows <strong>Helper Approval Timed Out</strong> and the welcome window shows &quot;Setup did not finish&quot;. Click <strong>Try Again</strong>. See <a href="/docs/troubleshooting#helper-approval-timed-out">Troubleshooting</a>.</p>
+<p><strong>Behind the scenes:</strong> Ping Warden asks macOS to register its helper with Apple's <code>SMAppService</code> service, which is why macOS announces a new background item. Approval lets macOS start the helper when the app asks for it. Ping Warden then waits for the helper to answer before it reports that setup worked.</p>
+<h4 id="what-the-helper-is-and-why-it-needs-approval">What the helper is and why it needs approval</h4>
+<p>The helper, <code>PingWardenHelper</code>, ships inside the Ping Warden app. macOS runs it as a system background item with administrator-level rights, because only a privileged process can take a network interface down. Ping Warden itself never runs with those rights.</p>
+<p>The helper does one job: it keeps the <code>awdl0</code> interface down while Ping Protection is on.</p>
+<ul>
+<li>It reads and sets the up or down state of <code>awdl0</code> only.</li>
+<li>It counts its attempts to lower <code>awdl0</code> and reports its version and status to the app.</li>
+<li>It accepts requests only from the Ping Warden app and its Control Center control, signed by the same developer.</li>
+<li>It starts when the app asks for it. After the app disconnects, it stops blocking, brings <code>awdl0</code> back up if it was the one that lowered it, and exits.</li>
+</ul>
+<p>The helper never:</p>
+<ul>
+<li>Touches Wi-Fi, Ethernet, or any interface other than <code>awdl0</code>.</li>
+<li>Reads, records, or sends your network traffic.</li>
+<li>Connects to the internet.</li>
+<li>Asks for your password. The only password prompt comes from macOS during approval.</li>
+</ul>
+<p>You can turn the helper off at any time under <strong>Allow in the Background</strong> in <strong>Login Items &amp; Extensions</strong>. Protection stops, and Ping Warden shows <strong>Status: Not Set Up</strong> until you approve it again. To remove it completely, use <strong>Prepare to Remove</strong>, described in <a href="/docs/troubleshooting#uninstall-ping-warden">Uninstall Ping Warden</a>.</p>
+<h3 id="6-confirm-that-ping-protection-is-on">6. Confirm that Ping Protection is on</h3>
+<!-- Screenshot: ![The Welcome window showing Setup complete. Ping Protection is on, with the Open Dashboard button](../docs/images/setup-welcome-complete.png) -->
+<p><strong>What you'll see:</strong></p>
+<ul>
+<li>The welcome window shows &quot;Setup complete. Ping Protection is on.&quot; and an <strong>Open Dashboard</strong> button.</li>
+<li>If you have not entered a license, it shows &quot;Helper ready. Ping Protection is off.&quot; The helper is approved, and protection turns on once you <a href="#4-enter-your-license-key">enter a license</a>.</li>
+</ul>
+<p><strong>What to do:</strong> Check any of these.</p>
+<ul>
+<li><strong>Menu bar icon:</strong> The antenna icon gains a slash while protection is on. Hovering over it shows &quot;Ping Protection: Active&quot;.</li>
+<li><strong>Menu:</strong> The first line reads <strong>Status: Protected</strong>. The protection item reads <strong>Turn Off Ping Protection</strong>, and <strong>Pause for 10 Minutes</strong> appears below it.</li>
+<li><strong>Dashboard:</strong> The <strong>Ping Protection</strong> card shows a <strong>Turn Off</strong> button and &quot;Ping Protection is active.&quot;</li>
+<li><strong>Settings → General:</strong> <strong>Status</strong> reads <strong>Protected</strong> with a green dot.</li>
+</ul>
+<!-- Screenshot: ![The Ping Warden menu open, showing Status: Protected, Turn Off Ping Protection, and Pause for 10 Minutes](../docs/images/setup-menu-protected.png) -->
+<!-- Screenshot: ![The Dashboard Ping Protection card with the Turn Off button and the intervention attempt counter](../docs/images/setup-dashboard-protected.png) -->
+<p>For a full helper check, open <strong>Settings → Advanced</strong> and click <strong>Run Test</strong> under <strong>Test Helper Connection</strong>. A working helper reports <strong>Helper Is Working</strong>, with its version and &quot;Ping Protection is on.&quot; Any other result is covered in <a href="/docs/troubleshooting#messages-you-might-see">Troubleshooting</a>.</p>
+<p><strong>Behind the scenes:</strong> The menu, Dashboard, and Settings all read the state the helper reports, not just the setting you chose. The intervention counter records the helper's attempts to lower AWDL after macOS raises it again. It does not measure confirmed blocks or spikes prevented. Leave the Dashboard open during a normal game or call to compare latency, jitter, and probe failures.</p>
 <h2 id="automatic-protection-for-games">Automatic protection for games</h2>
 <ol>
-<li>Open <strong>Settings &gt; Automation</strong>.</li>
+<li>Open <strong>Settings → Automation</strong>.</li>
 <li>Turn on <strong>Game Mode Auto-Detect</strong>. No permission is needed.</li>
 <li>Optional: click <strong>Enable Fullscreen Detection…</strong> and allow Screen Recording if you also want fullscreen games behind other windows caught.</li>
 </ol>
-<p>Game Mode turns protection on when a recognized game is the frontmost app. Once no game is detected through either the frontmost or optional fullscreen path, it restores your previous protection state. Game Mode skips automatic activation on Ethernet. This rule does not disable protection that you enabled manually. Some games do not declare the metadata that macOS uses for Game Mode; use the menu bar toggle for those titles.</p>
+<p><strong>Behind the scenes:</strong> Game Mode turns protection on and records a Latency Session while a recognized game is the frontmost app. The menu shows <strong>Status: Protected, Game Mode Session Active</strong>. Once no game is detected through either the frontmost or the optional fullscreen path, it restores your previous protection state. Game Mode skips automatic activation on Ethernet and needs a license or an active transition. It does not turn off protection that you enabled yourself. Some games do not declare the metadata macOS uses for Game Mode; use the menu bar toggle for those titles.</p>
+<p>Screen Recording only lets Ping Warden read window metadata to notice a fullscreen game. Ping Warden never captures or saves screen contents.</p>
 <h2 id="control-center-widget">Control Center widget</h2>
 <p>The Control Center widget requires <a href="https://support.apple.com/en-us/122868">macOS Tahoe 26</a> or newer and a signed release build.</p>
 <ol>
 <li>Click <strong>Control Center</strong> in the menu bar, then click <strong>Edit Controls</strong>.</li>
 <li>Find <strong>Ping Protection</strong> and add it. To pin it to the menu bar, drag it there while you edit.</li>
-<li>Optional: open <strong>Settings &gt; General</strong> (<strong>Settings &gt; Automation</strong> in 4.3.0) and turn on <strong>Control Center Only</strong> so the toggle replaces Ping Warden's own menu bar icon. Open Ping Warden from Applications or Spotlight to return to Settings. Version 4.2.1 and earlier offer <strong>Hide Menu Bar Icon</strong> instead, which keeps the Dock icon.</li>
+<li>Optional: open <strong>Settings → General</strong> (<strong>Settings → Automation</strong> in 4.3.0) and turn on <strong>Control Center Only</strong>. Ping Warden asks &quot;Use Control Center Only?&quot; Click <strong>Use Control Center Only</strong>, and the toggle replaces Ping Warden's menu bar and Dock icons. Open Ping Warden from Applications or Spotlight to return to Settings. Version 4.2.1 and earlier offer <strong>Hide Menu Bar Icon</strong> instead, which keeps the Dock icon.</li>
 </ol>
+<!-- Screenshot: ![Control Center in edit mode with the Ping Protection control added](../docs/images/setup-control-center.png) -->
+<p>The control uses the same helper, so it needs the approval from step 5. If <strong>Control Center Only</strong> shows <strong>Unavailable</strong>, the footer below it explains why. See <a href="/docs/troubleshooting#the-control-center-widget-does-not-appear">The Control Center widget does not appear</a>.</p>
 <h2 id="everyday-controls">Everyday controls</h2>
 <ul>
-<li>Choose <strong>Pause for 10 Minutes</strong> when you need AirDrop, AirPlay, or Handoff briefly.</li>
+<li>Choose <strong>Pause for 10 Minutes</strong> from the menu bar when you need AirDrop, AirPlay, or Handoff briefly. The menu shows <strong>Status: Paused</strong> and offers <strong>Resume Ping Protection</strong>. Protection comes back by itself after 10 minutes. Pausing also ends a running Latency Session.</li>
+<li>Choose <strong>Turn Off Ping Protection</strong> to restore those features until you turn protection on again.</li>
 <li>Start a <strong>Latency Session</strong> from the dashboard when you want a beginning-to-end recap for one game or call. Starting a session enables Ping Protection and requires a license or an active transition. Past recaps remain free to view.</li>
-<li>Turn on <strong>Launch at Login</strong> under <strong>Settings &gt; General</strong> if you want protection available after every restart.</li>
-<li>Use <strong>Settings &gt; Advanced &gt; Diagnostics Snapshot</strong> to create a local troubleshooting file you can review before sharing.</li>
+<li>Turn on <strong>Launch at Login</strong> under <strong>Settings → General</strong> if you want protection available after every restart.</li>
+<li>Use <strong>Settings → Advanced → Diagnostics Snapshot</strong> to create a local troubleshooting file you can review before sharing.</li>
 </ul>
 <h2 id="get-help">Get help</h2>
 <ul>
