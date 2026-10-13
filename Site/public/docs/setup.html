@@ -32,7 +32,8 @@
 <ul>
 <li><strong>Turn On Ping Protection</strong> as the main button.</li>
 <li><strong>Not Now</strong> below it.</li>
-<li>&quot;Setup asks for one approval in Login Items &amp; Extensions.&quot;</li>
+<li>A <strong>What happens next</strong> list of the approval steps: macOS shows <strong>Background Items Added</strong>, you open <strong>Login Items &amp; Extensions</strong> (Ping Warden opens it for you if approval is still pending after a few seconds), turn on Ping Warden under <strong>Allow in the Background</strong>, enter your password or Touch ID if macOS asks, and come back. &quot;If approval takes longer than a minute, click Try Again.&quot;</li>
+<li>&quot;The helper only turns the AirDrop interface (awdl0) off and on. It never reads your traffic or connects to the internet.&quot; and a <strong>What does the helper do?</strong> link to <a href="#what-the-helper-is-and-why-it-needs-approval">the section below</a>.</li>
 </ul>
 <!-- Screenshot: ![The Welcome to Ping Warden window before a license is entered, with Open Dashboard, Set Up Ping Protection, Not Now, and the Enter or Buy a License link](../docs/images/setup-welcome-unlicensed.png) -->
 <p><strong>If you have not entered a license yet</strong>, you'll see:</p>
@@ -65,7 +66,7 @@
 <p><strong>What to do:</strong></p>
 <ol>
 <li>Click <strong>Turn On Ping Protection</strong> in the welcome window. You can also click <strong>Finish Setup…</strong> in <strong>Settings → General</strong>, on the Dashboard, or in the menu bar menu.</li>
-<li>The welcome window changes to &quot;Waiting for approval&quot; and says: &quot;In System Settings, allow Ping Warden under Login Items &amp; Extensions, then return here.&quot;</li>
+<li>The welcome window changes to &quot;Waiting for approval&quot; and says: &quot;macOS shows a Background Items Added notification. In System Settings → General → Login Items &amp; Extensions, turn on Ping Warden under Allow in the Background. macOS may ask for your password. Then come back here.&quot; <strong>Settings → General</strong> and the Dashboard show the same steps under <strong>Finish Setup…</strong>.</li>
 <li>macOS shows a <strong>Background Items Added</strong> notification. If approval is still pending after about 10 seconds, Ping Warden opens <strong>System Settings → General → Login Items &amp; Extensions</strong> for you. You can also click <strong>Open Login Items &amp; Extensions</strong> in the welcome window.</li>
 <li>Under <strong>Allow in the Background</strong>, turn on <strong>Ping Warden</strong>.</li>
 <li>macOS may ask for an administrator password or Touch ID. That prompt comes from macOS, not from Ping Warden.</li>
@@ -74,7 +75,7 @@
 <!-- Screenshot: ![The Welcome window in the Waiting for approval state, with the Open Login Items and Extensions button](../docs/images/setup-welcome-waiting.png) -->
 <!-- Screenshot: ![The macOS Background Items Added notification for Ping Warden](../docs/images/setup-background-items-notification.png) -->
 <!-- Screenshot: ![System Settings, General, Login Items and Extensions, with Ping Warden turned on under Allow in the Background](../docs/images/setup-login-items-allow.png) -->
-<p>Finish the approval within about a minute. If you take longer, Ping Warden shows <strong>Helper Approval Timed Out</strong> and the welcome window shows &quot;Setup did not finish&quot;. Click <strong>Try Again</strong>. See <a href="/docs/troubleshooting#helper-approval-timed-out">Troubleshooting</a>.</p>
+<p>Finish the approval within about a minute. If you take longer, Ping Warden shows <strong>Helper Approval Timed Out</strong> and the welcome window shows &quot;Setup did not finish&quot; with the same message. Click <strong>Try Again</strong>. See <a href="/docs/troubleshooting#helper-approval-timed-out">Troubleshooting</a>.</p>
 <p><strong>Behind the scenes:</strong> Ping Warden asks macOS to register its helper with Apple's <code>SMAppService</code> service, which is why macOS announces a new background item. Approval lets macOS start the helper when the app asks for it. Ping Warden then waits for the helper to answer before it reports that setup worked.</p>
 <h4 id="what-the-helper-is-and-why-it-needs-approval">What the helper is and why it needs approval</h4>
 <p>The helper, <code>PingWardenHelper</code>, ships inside the Ping Warden app. macOS runs it as a system background item with administrator-level rights, because only a privileged process can take a network interface down. Ping Warden itself never runs with those rights.</p>
@@ -97,8 +98,8 @@
 <!-- Screenshot: ![The Welcome window showing Setup complete. Ping Protection is on, with the Open Dashboard button](../docs/images/setup-welcome-complete.png) -->
 <p><strong>What you'll see:</strong></p>
 <ul>
-<li>The welcome window shows &quot;Setup complete. Ping Protection is on.&quot; and an <strong>Open Dashboard</strong> button.</li>
-<li>If you have not entered a license, it shows &quot;Helper ready. Ping Protection is off.&quot; The helper is approved, and protection turns on once you <a href="#4-enter-your-license-key">enter a license</a>.</li>
+<li>The welcome window shows &quot;Setup complete. Ping Protection is on. The Ping Warden icon shows a crossed-out antenna while it is active.&quot; and an <strong>Open Dashboard</strong> button.</li>
+<li>If you have not entered a license, it shows &quot;Helper ready. Enter a license to turn on Ping Protection.&quot; with <strong>Enter or Buy a License…</strong> as the main button. The helper is approved, and protection turns on once you <a href="#4-enter-your-license-key">enter a license</a>.</li>
 </ul>
 <p><strong>What to do:</strong> Check any of these.</p>
 <ul>

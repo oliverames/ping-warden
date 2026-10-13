@@ -41,7 +41,8 @@ The welcome window opens automatically on the first launch. It is titled **Welco
 
 - **Turn On Ping Protection** as the main button.
 - **Not Now** below it.
-- "Setup asks for one approval in Login Items & Extensions."
+- A **What happens next** list of the approval steps: macOS shows **Background Items Added**, you open **Login Items & Extensions** (Ping Warden opens it for you if approval is still pending after a few seconds), turn on Ping Warden under **Allow in the Background**, enter your password or Touch ID if macOS asks, and come back. "If approval takes longer than a minute, click Try Again."
+- "The helper only turns the AirDrop interface (awdl0) off and on. It never reads your traffic or connects to the internet." and a **What does the helper do?** link to [the section below](#what-the-helper-is-and-why-it-needs-approval).
 
 <!-- Screenshot: ![The Welcome to Ping Warden window before a license is entered, with Open Dashboard, Set Up Ping Protection, Not Now, and the Enter or Buy a License link](../docs/images/setup-welcome-unlicensed.png) -->
 
@@ -89,7 +90,7 @@ Ping Protection needs a small background helper. This is the only step that need
 **What to do:**
 
 1. Click **Turn On Ping Protection** in the welcome window. You can also click **Finish Setup…** in **Settings → General**, on the Dashboard, or in the menu bar menu.
-2. The welcome window changes to "Waiting for approval" and says: "In System Settings, allow Ping Warden under Login Items & Extensions, then return here."
+2. The welcome window changes to "Waiting for approval" and says: "macOS shows a Background Items Added notification. In System Settings → General → Login Items & Extensions, turn on Ping Warden under Allow in the Background. macOS may ask for your password. Then come back here." **Settings → General** and the Dashboard show the same steps under **Finish Setup…**.
 3. macOS shows a **Background Items Added** notification. If approval is still pending after about 10 seconds, Ping Warden opens **System Settings → General → Login Items & Extensions** for you. You can also click **Open Login Items & Extensions** in the welcome window.
 4. Under **Allow in the Background**, turn on **Ping Warden**.
 5. macOS may ask for an administrator password or Touch ID. That prompt comes from macOS, not from Ping Warden.
@@ -101,7 +102,7 @@ Ping Protection needs a small background helper. This is the only step that need
 
 <!-- Screenshot: ![System Settings, General, Login Items and Extensions, with Ping Warden turned on under Allow in the Background](../docs/images/setup-login-items-allow.png) -->
 
-Finish the approval within about a minute. If you take longer, Ping Warden shows **Helper Approval Timed Out** and the welcome window shows "Setup did not finish". Click **Try Again**. See [Troubleshooting](TROUBLESHOOTING.md#helper-approval-timed-out).
+Finish the approval within about a minute. If you take longer, Ping Warden shows **Helper Approval Timed Out** and the welcome window shows "Setup did not finish" with the same message. Click **Try Again**. See [Troubleshooting](TROUBLESHOOTING.md#helper-approval-timed-out).
 
 **Behind the scenes:** Ping Warden asks macOS to register its helper with Apple's `SMAppService` service, which is why macOS announces a new background item. Approval lets macOS start the helper when the app asks for it. Ping Warden then waits for the helper to answer before it reports that setup worked.
 
@@ -131,8 +132,8 @@ You can turn the helper off at any time under **Allow in the Background** in **L
 
 **What you'll see:**
 
-- The welcome window shows "Setup complete. Ping Protection is on." and an **Open Dashboard** button.
-- If you have not entered a license, it shows "Helper ready. Ping Protection is off." The helper is approved, and protection turns on once you [enter a license](#4-enter-your-license-key).
+- The welcome window shows "Setup complete. Ping Protection is on. The Ping Warden icon shows a crossed-out antenna while it is active." and an **Open Dashboard** button.
+- If you have not entered a license, it shows "Helper ready. Enter a license to turn on Ping Protection." with **Enter or Buy a License…** as the main button. The helper is approved, and protection turns on once you [enter a license](#4-enter-your-license-key).
 
 **What to do:** Check any of these.
 

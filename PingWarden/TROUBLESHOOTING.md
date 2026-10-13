@@ -30,7 +30,7 @@ Find the message Ping Warden shows, then follow the steps under it. Messages app
 - The menu reads **Status: Not Set Up**, and the protection item reads **Finish Setup…**.
 - **Settings → General** shows **Status: Not Set Up** and "Approve the helper to finish setup".
 - **Run Test** reports **Helper Not Set Up**: "Click Finish Setup… in General, then allow Ping Warden in Login Items & Extensions."
-- The Dashboard or Settings says "Ping Protection is waiting for setup. Choose Finish Setup to approve the helper in Login Items & Extensions."
+- The Dashboard or Settings says "Ping Protection is waiting for setup. Choose Finish Setup… to approve the helper in Login Items & Extensions."
 - "Finish Ping Protection setup before recording a latency session."
 
 **What it means:** macOS has not approved Ping Warden's helper, or the approval was turned off. Without it, Ping Warden cannot change the AWDL interface. The "waiting for setup" message appears when protection was on before and the helper approval is now missing. Ping Warden never opens System Settings on its own at launch; it waits for you.
@@ -62,7 +62,7 @@ macOS can report a pending approval as an "Operation not permitted" registration
 
 - "Ping Warden could not register its helper. Try again." followed by a detail from macOS.
 - "Ping Warden could not complete helper registration. Try setting up Ping Protection again."
-- "Ping Warden could not register its helper after several attempts. Open Settings → Advanced and click Repair, or check System Settings → General → Login Items & Extensions."
+- "Ping Warden could not register its helper after several attempts. Open Settings → Advanced and click Repair… If that fails, check System Settings → General → Login Items & Extensions."
 
 **What it means:** macOS refused or did not finish the helper registration.
 
@@ -75,11 +75,11 @@ macOS can report a pending approval as an "Operation not permitted" registration
 
 ### Setup did not finish
 
-**What you'll see:** The welcome window shows "Setup did not finish" and "Follow the instructions in the setup error, then click Try Again."
+**What you'll see:** The welcome window shows "Setup did not finish", the message from the setup alert that appeared just before, and a **Troubleshooting Guide** link. If there was no specific message, it reads "macOS did not finish approving the helper. Check Login Items & Extensions, then click Try Again." After **Finish Setup…** in Settings, the same failure appears in an alert titled **Setup Did Not Finish**.
 
-**What it means:** One of the alerts in this list appeared just before. The welcome window keeps the **Try Again** button so you can retry after following it.
+**What it means:** Setup stopped before the helper answered. The message names the cause, and it matches one of the alerts in this list.
 
-**What to do:** Find the alert title you saw in this list, follow its steps, then click **Try Again**. If you closed the alert without reading it, click **Try Again** once. The same alert appears again if the problem remains.
+**What to do:** Find the message in this list, follow its steps, then click **Try Again**. The same message appears again if the problem remains.
 
 ### Move Ping Warden to Applications
 
@@ -116,20 +116,20 @@ Your settings and license stay saved.
 **What you'll see:** Any of these.
 
 - The menu reads **Status: Not Protected, Helper Not Responding**, and a **Repair Helper…** item appears.
-- "Ping Warden's helper is not responding. Open Settings → Advanced and click Repair."
-- "Ping Protection could not turn on because the helper is not responding. Open Settings → Advanced and click Repair."
-- "Lost connection to the helper, so Ping Protection turned off. Open Settings → Advanced and click Repair."
-- "Ping Protection could not be restored after the helper restarted. Open Settings → Advanced and click Repair."
-- **Run Test** reports **Helper Not Responding**: "Click Repair below. If that fails, restart your Mac and click Repair again."
+- "Ping Warden's helper is not responding. Open Settings → Advanced and click Repair…"
+- "Ping Protection could not turn on because the helper is not responding. Open Settings → Advanced and click Repair…"
+- "Lost connection to the helper, so Ping Protection turned off. Open Settings → Advanced and click Repair…"
+- "Ping Protection could not be restored after the helper restarted. Open Settings → Advanced and click Repair…"
+- **Run Test** reports **Helper Not Responding**: "Click Repair… below. If that fails, restart your Mac and click Repair… again."
 
 **What it means:** macOS lists the helper as approved, but the helper did not answer Ping Warden's request. This can happen after a macOS update, an interrupted install, or when macOS keeps an approval record that no longer starts the helper.
 
 **What to do:**
 
 1. Choose **Repair Helper…** from the menu bar menu, click **Repair…** on the Dashboard, or click **Repair…** under **Repair Helper Connection** in **Settings → Advanced**.
-2. In **Repair Helper Connection?**, click **Repair**.
-3. If macOS shows **Background Items Added** or asks for approval, allow Ping Warden in **Login Items & Extensions**.
-4. Wait for **Helper Is Responding**, followed by "Ping Protection is on." or "Ping Protection is off."
+2. **Repair Helper Connection?** lists what happens next. Click **Repair**.
+3. If macOS shows **Background Items Added** or Ping Warden is off in **Login Items & Extensions**, turn it on under **Allow in the Background**. macOS may ask for your password or Touch ID.
+4. Wait for **Helper Is Responding**, followed by "Ping Protection is on. The Ping Warden icon shows a crossed-out antenna while it is active." or "Ping Protection is off."
 
 **Behind the scenes:** Repair first asks the helper to answer. If it does not, Ping Warden removes the stale registration and registers the helper again, then waits for a reply. Your protection preference, settings, and session history stay as they are.
 
@@ -137,7 +137,7 @@ A brief **Status: Reconnecting to Helper** means Ping Warden is reconnecting to 
 
 ### Helper Still Not Responding
 
-**What you'll see:** After Repair, **Helper Still Not Responding**: "Ping Warden could not get a response from its helper. Make sure Ping Warden is allowed in System Settings → General → Login Items & Extensions, restart your Mac, then click Repair again." After **Finish Setup…** in Settings, you may instead see "The helper was approved but is not responding. Restart your Mac, then open Settings → Advanced and click Repair."
+**What you'll see:** After Repair, **Helper Still Not Responding**: "Ping Warden could not get a response from its helper," followed by three steps (turn Ping Warden on in **System Settings → General → Login Items & Extensions**, restart your Mac, try Repair again) and a **Troubleshooting Guide** button that opens this section. After **Finish Setup…** in Settings, you may instead see **Setup Did Not Finish**: "The helper was approved but is not responding. Restart your Mac, then open Settings → Advanced and click Repair…"
 
 **What to do:**
 
@@ -165,7 +165,7 @@ This resets background item approvals for every app on the Mac, so other apps ma
 
 ### AWDL Is Still Active
 
-**What you'll see:** **Run Test** reports **AWDL Is Still Active**: "Ping Protection is on, but AWDL is still active. Click Repair below."
+**What you'll see:** **Run Test** reports **AWDL Is Still Active**: "Ping Protection is on, but AWDL read as active. Run the test again. If it repeats, click Repair…"
 
 **What it means:** The helper answered, but `awdl0` read as up while protection was on. macOS raises the interface often, and the helper lowers it again, so one reading can catch it in between. A repeated result means the helper is not keeping up.
 
@@ -212,8 +212,11 @@ If the message says the helper is not responding, follow [Helper Not Responding]
 **What you'll see:** After **Prepare to Remove**, an alert titled **Maintenance Could Not Finish** with one of these messages:
 
 - "Ping Protection could not be turned off, so no settings were erased. Quit Ping Warden to restore wireless sharing, then try again."
+- "The helper is not responding, so Ping Warden could not turn off protection safely. Click Repair… under Maintenance, then try again. If Repair fails, see the Troubleshooting Guide."
 - A cause, followed by "Your previous Ping Warden settings were restored, and no local data was erased."
-- A cause, followed by "Ping Warden could not fully restore the prior state. Open Settings → Advanced, click Repair, and review Launch at Login before retrying. No local data was erased."
+- A cause, followed by "Ping Warden could not fully restore the prior state. Open Settings → Advanced, click Repair…, and review Launch at Login before retrying. No local data was erased."
+
+Removal failures include a **Troubleshooting Guide** button that opens this section.
 
 **What to do:** Run Repair, then try **Prepare to Remove** again. If the helper is not responding and Repair cannot fix it, use the steps in [Helper Still Not Responding](#helper-still-not-responding) instead of the removal flow.
 
