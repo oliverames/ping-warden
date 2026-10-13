@@ -35,7 +35,13 @@ final class LicenseManager: ObservableObject {
 
     /// Where to buy a license. The Gumroad storefront moved from
     /// olivera40 to amesconsulting on 2026-09-03; the old host 404s.
-    nonisolated static let purchaseURL = URL(string: "https://amesconsulting.gumroad.com/l/pingwarden")!
+    /// The `referrer` parameter labels in-app purchases in Gumroad
+    /// Analytics; use `purchaseURL(from:)` to name the specific surface.
+    nonisolated static let purchaseURL = purchaseURL(from: "app")
+
+    nonisolated static func purchaseURL(from surface: String) -> URL {
+        URL(string: "https://amesconsulting.gumroad.com/l/pingwarden?referrer=pingwarden-\(surface)")!
+    }
     nonisolated static let websiteURL = URL(string: "https://pingwarden.app/")!
     nonisolated static let documentationURL = URL(string: "https://pingwarden.app/docs/")!
     nonisolated static let troubleshootingURL = URL(string: "https://pingwarden.app/docs/troubleshooting")!
