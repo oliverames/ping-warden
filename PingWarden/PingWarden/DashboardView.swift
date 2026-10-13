@@ -1521,22 +1521,17 @@ struct InterventionsCard: View {
         }
     }
 
-    /// The same repair path as Settings → Advanced → Repair: rebuild the
-    /// helper's registration, then restore the saved protection preference.
+    /// The same repair path as the menu and Settings → Advanced: rebuild the
+    /// helper's registration, then reconcile current protection policy. The
+    /// coordinator owns single-flight and the reassertion deferral, and a
+    /// pause, running session or newer Off still wins over any saved preference.
     private func repairHelper() {
         repairError = nil
-        let shouldRemainEnabled = PingWardenPreferences.shared.isMonitoringEnabled
-        PingWardenMonitor.shared.repairHelperRegistration(presentsErrors: false) { repaired in
-            Task { @MainActor in
-                guard repaired else {
-                    repairError = PingWardenMonitor.shared.lastSetupFailureMessage
-                        ?? RepairResultCopy.failureMessage
-                    return
-                }
-                let restored = await protectionExperience.setPersistentProtection(shouldRemainEnabled)
-                if !restored {
-                    repairError = "The helper is responding again, but Ping Warden could not restore your protection preference."
-                }
+        Task { @MainActor in
+            let report = await protectionExperience.repairHelperConnection()
+            guard !protectionExperience.isTerminating else { return }
+            if report.title != RepairResultCopy.successTitle {
+                repairError = report.message
             }
         }
     }
