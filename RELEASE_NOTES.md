@@ -13,10 +13,6 @@ This update fixes cases where Game Mode or Repair could leave protection in the 
 - Resetting the intervention counter now reports a result even if the helper can't be reached.
 - A slow DNS lookup for a hostname target is reused by the next probe instead of being started again on every probe.
 
-## Setup and Repair messages
-
-- Setup and Repair now say what macOS will show and what to do before each step: the welcome window, **Settings → General**, and the Dashboard list the approval steps for **Login Items & Extensions** (or **Login Items** on macOS 13 and 14), **Repair Helper Connection?** explains when macOS may ask for approval again, a failed setup shows its actual cause, the Dashboard's **Repair…** uses the same confirmation and result alerts as the menu and Settings, failures that need more help link to the Troubleshooting Guide, and a successful setup without a license leads with **Enter or Buy a License…**.
-
 # Ping Warden 4.3.2
 
 This update makes helper Repair easier to reach and keeps it from overriding changes you make while it runs. It also checks current protection state when Control Center requests a fresh value.

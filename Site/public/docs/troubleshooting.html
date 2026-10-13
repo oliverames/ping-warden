@@ -32,7 +32,7 @@
 <li>The menu reads <strong>Status: Not Set Up</strong>, and the protection item reads <strong>Finish Setup…</strong>.</li>
 <li><strong>Settings → General</strong> shows <strong>Status: Not Set Up</strong> and &quot;Approve the helper to finish setup&quot;.</li>
 <li><strong>Run Test</strong> reports <strong>Helper Not Set Up</strong>: &quot;Click Finish Setup… in General, then allow Ping Warden in Login Items &amp; Extensions.&quot;</li>
-<li>The Dashboard or Settings says &quot;Ping Protection is waiting for setup. Choose Finish Setup… to approve the helper in Login Items &amp; Extensions.&quot;</li>
+<li>The Dashboard or Settings says &quot;Ping Protection is waiting for setup. Choose Finish Setup to approve the helper in Login Items &amp; Extensions.&quot;</li>
 <li>&quot;Finish Ping Protection setup before recording a latency session.&quot;</li>
 </ul>
 <p><strong>What it means:</strong> macOS has not approved Ping Warden's helper, or the approval was turned off. Without it, Ping Warden cannot change the AWDL interface. The &quot;waiting for setup&quot; message appears when protection was on before and the helper approval is now missing. Ping Warden never opens System Settings on its own at launch; it waits for you.</p>
@@ -58,7 +58,7 @@
 <ul>
 <li>&quot;Ping Warden could not register its helper. Try again.&quot; followed by a detail from macOS.</li>
 <li>&quot;Ping Warden could not complete helper registration. Try setting up Ping Protection again.&quot;</li>
-<li>&quot;Ping Warden could not register its helper after several attempts. Open Settings → Advanced and click Repair… If that fails, check System Settings → General → Login Items &amp; Extensions.&quot;</li>
+<li>&quot;Ping Warden could not register its helper after several attempts. Open Settings → Advanced and click Repair, or check System Settings → General → Login Items &amp; Extensions.&quot;</li>
 </ul>
 <p><strong>What it means:</strong> macOS refused or did not finish the helper registration.</p>
 <p><strong>What to do:</strong></p>
@@ -69,9 +69,9 @@
 <li>If it still fails, <a href="#reinstall-safely">reinstall safely</a>.</li>
 </ol>
 <h3 id="setup-did-not-finish">Setup did not finish</h3>
-<p><strong>What you'll see:</strong> The welcome window shows &quot;Setup did not finish&quot;, the message from the setup alert that appeared just before, and a <strong>Troubleshooting Guide</strong> link. If there was no specific message, it reads &quot;macOS did not finish approving the helper. Check Login Items &amp; Extensions, then click Try Again.&quot; After <strong>Finish Setup…</strong> in Settings, the same failure appears in an alert titled <strong>Setup Did Not Finish</strong>.</p>
-<p><strong>What it means:</strong> Setup stopped before the helper answered. The message names the cause, and it matches one of the alerts in this list.</p>
-<p><strong>What to do:</strong> Find the message in this list, follow its steps, then click <strong>Try Again</strong>. The same message appears again if the problem remains.</p>
+<p><strong>What you'll see:</strong> The welcome window shows &quot;Setup did not finish&quot; and &quot;Follow the instructions in the setup error, then click Try Again.&quot;</p>
+<p><strong>What it means:</strong> One of the alerts in this list appeared just before. The welcome window keeps the <strong>Try Again</strong> button so you can retry after following it.</p>
+<p><strong>What to do:</strong> Find the alert title you saw in this list, follow its steps, then click <strong>Try Again</strong>. If you closed the alert without reading it, click <strong>Try Again</strong> once. The same alert appears again if the problem remains.</p>
 <h3 id="move-ping-warden-to-applications">Move Ping Warden to Applications</h3>
 <p><strong>What you'll see:</strong> An alert titled <strong>Move Ping Warden to Applications</strong>: &quot;Quit Ping Warden, move it to Applications, and open it from there before setting up or repairing Ping Protection.&quot;</p>
 <p><strong>What it means:</strong> Ping Warden is running from Downloads, Desktop, Documents, or a temporary location macOS uses for apps opened straight from a download. macOS can prevent the helper from starting there, so Ping Warden stops before registering it.</p>
@@ -94,24 +94,24 @@
 <p><strong>What you'll see:</strong> Any of these.</p>
 <ul>
 <li>The menu reads <strong>Status: Not Protected, Helper Not Responding</strong>, and a <strong>Repair Helper…</strong> item appears.</li>
-<li>&quot;Ping Warden's helper is not responding. Open Settings → Advanced and click Repair…&quot;</li>
-<li>&quot;Ping Protection could not turn on because the helper is not responding. Open Settings → Advanced and click Repair…&quot;</li>
-<li>&quot;Lost connection to the helper, so Ping Protection turned off. Open Settings → Advanced and click Repair…&quot;</li>
-<li>&quot;Ping Protection could not be restored after the helper restarted. Open Settings → Advanced and click Repair…&quot;</li>
-<li><strong>Run Test</strong> reports <strong>Helper Not Responding</strong>: &quot;Click Repair… below. If that fails, restart your Mac and click Repair… again.&quot;</li>
+<li>&quot;Ping Warden's helper is not responding. Open Settings → Advanced and click Repair.&quot;</li>
+<li>&quot;Ping Protection could not turn on because the helper is not responding. Open Settings → Advanced and click Repair.&quot;</li>
+<li>&quot;Lost connection to the helper, so Ping Protection turned off. Open Settings → Advanced and click Repair.&quot;</li>
+<li>&quot;Ping Protection could not be restored after the helper restarted. Open Settings → Advanced and click Repair.&quot;</li>
+<li><strong>Run Test</strong> reports <strong>Helper Not Responding</strong>: &quot;Click Repair below. If that fails, restart your Mac and click Repair again.&quot;</li>
 </ul>
 <p><strong>What it means:</strong> macOS lists the helper as approved, but the helper did not answer Ping Warden's request. This can happen after a macOS update, an interrupted install, or when macOS keeps an approval record that no longer starts the helper.</p>
 <p><strong>What to do:</strong></p>
 <ol>
 <li>Choose <strong>Repair Helper…</strong> from the menu bar menu, click <strong>Repair…</strong> on the Dashboard, or click <strong>Repair…</strong> under <strong>Repair Helper Connection</strong> in <strong>Settings → Advanced</strong>.</li>
-<li><strong>Repair Helper Connection?</strong> lists what happens next. Click <strong>Repair</strong>.</li>
-<li>If macOS shows <strong>Background Items Added</strong> or Ping Warden is off in <strong>Login Items &amp; Extensions</strong>, turn it on under <strong>Allow in the Background</strong>. macOS may ask for your password or Touch ID.</li>
-<li>Wait for <strong>Helper Is Responding</strong>, followed by &quot;Ping Protection is on. The Ping Warden icon shows a crossed-out antenna while it is active.&quot; or &quot;Ping Protection is off.&quot;</li>
+<li>In <strong>Repair Helper Connection?</strong>, click <strong>Repair</strong>.</li>
+<li>If macOS shows <strong>Background Items Added</strong> or asks for approval, allow Ping Warden in <strong>Login Items &amp; Extensions</strong>.</li>
+<li>Wait for <strong>Helper Is Responding</strong>, followed by &quot;Ping Protection is on.&quot; or &quot;Ping Protection is off.&quot;</li>
 </ol>
 <p><strong>Behind the scenes:</strong> Repair first asks the helper to answer. If it does not, Ping Warden removes the stale registration and registers the helper again, then waits for a reply. Your protection preference, settings, and session history stay as they are.</p>
 <p>A brief <strong>Status: Reconnecting to Helper</strong> means Ping Warden is reconnecting to a helper that restarted. It clears once the helper answers. If it does not clear, run Repair.</p>
 <h3 id="helper-still-not-responding">Helper Still Not Responding</h3>
-<p><strong>What you'll see:</strong> After Repair, <strong>Helper Still Not Responding</strong>: &quot;Ping Warden could not get a response from its helper,&quot; followed by three steps (turn Ping Warden on in <strong>System Settings → General → Login Items &amp; Extensions</strong>, restart your Mac, try Repair again) and a <strong>Troubleshooting Guide</strong> button that opens this section. After <strong>Finish Setup…</strong> in Settings, you may instead see <strong>Setup Did Not Finish</strong>: &quot;The helper was approved but is not responding. Restart your Mac, then open Settings → Advanced and click Repair…&quot;</p>
+<p><strong>What you'll see:</strong> After Repair, <strong>Helper Still Not Responding</strong>: &quot;Ping Warden could not get a response from its helper. Make sure Ping Warden is allowed in System Settings → General → Login Items &amp; Extensions, restart your Mac, then click Repair again.&quot; After <strong>Finish Setup…</strong> in Settings, you may instead see &quot;The helper was approved but is not responding. Restart your Mac, then open Settings → Advanced and click Repair.&quot;</p>
 <p><strong>What to do:</strong></p>
 <ol>
 <li>Open <strong>System Settings → General → Login Items &amp; Extensions</strong> and confirm that Ping Warden is on under <strong>Allow in the Background</strong>.</li>
@@ -133,7 +133,7 @@
 </code></pre>
 <p>This resets background item approvals for every app on the Mac, so other apps may ask for approval again. If the helper still does not respond, follow <a href="#collect-useful-diagnostics">Collect useful diagnostics</a> and include the snapshot in a bug report.</p>
 <h3 id="awdl-is-still-active">AWDL Is Still Active</h3>
-<p><strong>What you'll see:</strong> <strong>Run Test</strong> reports <strong>AWDL Is Still Active</strong>: &quot;Ping Protection is on, but AWDL read as active. Run the test again. If it repeats, click Repair…&quot;</p>
+<p><strong>What you'll see:</strong> <strong>Run Test</strong> reports <strong>AWDL Is Still Active</strong>: &quot;Ping Protection is on, but AWDL is still active. Click Repair below.&quot;</p>
 <p><strong>What it means:</strong> The helper answered, but <code>awdl0</code> read as up while protection was on. macOS raises the interface often, and the helper lowers it again, so one reading can catch it in between. A repeated result means the helper is not keeping up.</p>
 <p><strong>What to do:</strong></p>
 <ol>
@@ -198,11 +198,9 @@
 <p><strong>What you'll see:</strong> After <strong>Prepare to Remove</strong>, an alert titled <strong>Maintenance Could Not Finish</strong> with one of these messages:</p>
 <ul>
 <li>&quot;Ping Protection could not be turned off, so no settings were erased. Quit Ping Warden to restore wireless sharing, then try again.&quot;</li>
-<li>&quot;The helper is not responding, so Ping Warden could not turn off protection safely. Click Repair… under Maintenance, then try again. If Repair fails, see the Troubleshooting Guide.&quot;</li>
 <li>A cause, followed by &quot;Your previous Ping Warden settings were restored, and no local data was erased.&quot;</li>
-<li>A cause, followed by &quot;Ping Warden could not fully restore the prior state. Open Settings → Advanced, click Repair…, and review Launch at Login before retrying. No local data was erased.&quot;</li>
+<li>A cause, followed by &quot;Ping Warden could not fully restore the prior state. Open Settings → Advanced, click Repair, and review Launch at Login before retrying. No local data was erased.&quot;</li>
 </ul>
-<p>Removal failures include a <strong>Troubleshooting Guide</strong> button that opens this section.</p>
 <p><strong>What to do:</strong> Run Repair, then try <strong>Prepare to Remove</strong> again. If the helper is not responding and Repair cannot fix it, use the steps in <a href="#helper-still-not-responding">Helper Still Not Responding</a> instead of the removal flow.</p>
 <h2 id="reinstall-safely">Reinstall safely</h2>
 <p>Use the app's removal flow before deleting the application. It stops Ping Protection, restores AWDL, unregisters the helper and Launch at Login, clears Ping Warden's local data, and reveals the app in Finder.</p>
