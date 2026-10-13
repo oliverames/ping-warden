@@ -2888,6 +2888,9 @@ struct AdvancedSettingsContent: View {
     @State private var maintenanceErrorMessage: String?
     /// Removal failures link to their troubleshooting section.
     @State private var maintenanceErrorHelpURL: URL?
+    /// A second confirmation while removal runs would start a second
+    /// unregister and restore sequence on top of the first.
+    @State private var isPreparingRemoval = false
     @State private var crashReportingRelaunchRequired = CrashReporter.relaunchRequired
     @State private var crashReportingEnabled = PingWardenPreferences.shared.isCrashReportingEnabled
     @State private var betaChannelEnabled = PingWardenPreferences.shared.betaChannelEnabled
@@ -2997,9 +3000,19 @@ struct AdvancedSettingsContent: View {
                 HelperRepairControl()
 
                 LabeledContent {
-                    Button("Prepare to Remove…") { showingRemovalConfirm = true }
+                    Button {
+                        showingRemovalConfirm = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isPreparingRemoval {
+                                ProgressView().controlSize(.small)
+                            }
+                            Text("Prepare to Remove…")
+                        }
+                    }
                         .buttonStyle(.bordered)
                         .tint(.red)
+                        .disabled(isPreparingRemoval)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Remove Ping Warden")
@@ -3109,8 +3122,19 @@ struct AdvancedSettingsContent: View {
     }
 
     private func prepareForRemoval() {
+        guard !isPreparingRemoval else {
+            settingsLog.info("Ignoring Prepare to Remove while a removal is already running")
+            return
+        }
+        isPreparingRemoval = true
         settingsLog.info("Preparing Ping Warden for removal")
         Task { @MainActor in
+            // Every failure path below returns and re-enables the button.
+            // Success keeps it disabled while the app quits.
+            var quitting = false
+            defer {
+                if !quitting { isPreparingRemoval = false }
+            }
             let previousProtectionEnabled = PingWardenPreferences.shared.isMonitoringEnabled
             let launchAtLoginWasEnabled = SMAppService.mainApp.status == .enabled
             let helperService = SMAppService.daemon(
@@ -3186,6 +3210,7 @@ struct AdvancedSettingsContent: View {
                 )
                 return
             }
+            quitting = true
             NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 NSApplication.shared.terminate(nil)
