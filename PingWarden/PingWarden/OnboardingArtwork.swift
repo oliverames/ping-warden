@@ -99,21 +99,12 @@ struct ApprovalPreviewCard<Art: View>: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            // The check mark is part of the glass view's content: a sibling
+            // drawn outside it would sit under the container's glass layer.
             ZStack(alignment: .topTrailing) {
                 art()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 108)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .opacity(state == .complete ? 0.55 : (state == .upcoming ? 0.88 : 1))
-                    .modifier(OnboardingCardBackground(cornerRadius: OnboardingMetrics.cardCornerRadius))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: OnboardingMetrics.cardCornerRadius, style: .continuous)
-                            .strokeBorder(Color.accentColor, lineWidth: state == .current ? 1.5 : 0)
-                    )
-                    .background(
-                        RoundedRectangle(cornerRadius: OnboardingMetrics.cardCornerRadius + 3, style: .continuous)
-                            .fill(Color.accentColor.opacity(state == .current ? 0.22 : 0))
-                            .padding(-3)
-                    )
 
                 if state == .complete {
                     Image(systemName: "checkmark.circle.fill")
@@ -125,6 +116,18 @@ struct ApprovalPreviewCard<Art: View>: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: 108)
+            .modifier(OnboardingCardBackground(cornerRadius: OnboardingMetrics.cardCornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: OnboardingMetrics.cardCornerRadius, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: state == .current ? 1.5 : 0)
+            )
+            .background(
+                RoundedRectangle(cornerRadius: OnboardingMetrics.cardCornerRadius + 3, style: .continuous)
+                    .fill(Color.accentColor.opacity(state == .current ? 0.22 : 0))
+                    .padding(-3)
+            )
             .accessibilityHidden(true)
 
             Text(caption)

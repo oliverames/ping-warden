@@ -33,9 +33,11 @@ struct OnboardingView: View {
         .background(.background)
         .overlay(alignment: .topTrailing) {
             if model.mode == .repair {
+                // Level with the window controls in the transparent title bar.
                 RepairBadge()
-                    .padding(.top, 12)
-                    .padding(.trailing, 20)
+                    .padding(.top, 14)
+                    .padding(.trailing, 18)
+                    .ignoresSafeArea(.container, edges: .top)
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: model.step)
@@ -93,6 +95,7 @@ struct OnboardingView: View {
             Button(backTitle) { model.backTapped() }
                 .onboardingSecondary()
                 .keyboardShortcut(model.navigator.canGoBack ? nil : .cancelAction)
+                .accessibilityIdentifier("onboarding.back")
         case .approve:
             approveSecondaryButton
         case .done:
@@ -141,10 +144,12 @@ struct OnboardingView: View {
             Button(backTitle) { model.approveSecondaryTapped() }
                 .onboardingSecondary()
                 .keyboardShortcut(model.navigator.canGoBack ? nil : .cancelAction)
+                .accessibilityIdentifier("onboarding.back")
         case .cancel:
             Button("Cancel") { model.approveSecondaryTapped() }
                 .onboardingSecondary()
                 .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("onboarding.cancel")
         case .openSystemSettings:
             Button("Open System Settings") { model.approveSecondaryTapped() }
                 .onboardingSecondary()
@@ -356,9 +361,9 @@ private struct ProtectionScreen: View {
                     Text("Ping, last 30 seconds")
                     Spacer()
                     if model.showsProtectionIllustration {
-                        Text("**Steady** near 25 ms")
+                        Text("Steady").fontWeight(.semibold).foregroundColor(.primary) + Text(" near 25 ms")
                     } else {
-                        Text("**3 spikes** over 100 ms")
+                        Text("3 spikes").fontWeight(.semibold).foregroundColor(.primary) + Text(" over 100 ms")
                     }
                 }
                 .font(.caption)
@@ -401,7 +406,6 @@ private struct LicenseScreen: View {
                                   prompt: Text("Paste your key from the Gumroad receipt"))
                             .labelsHidden()
                             .textFieldStyle(.roundedBorder)
-                            .font(.body.monospaced())
                             .autocorrectionDisabled()
                             .onSubmit { model.activateLicense() }
                             .accessibilityLabel("License Key")
