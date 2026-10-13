@@ -87,9 +87,9 @@
 <p><strong>What it means:</strong> The copy of Ping Warden on this Mac is incomplete or damaged, so Ping Warden will not register or repair the helper from it.</p>
 <p><strong>What to do:</strong> <a href="#reinstall-safely">Reinstall safely</a> from a fresh download.</p>
 <h3 id="macos-could-not-verify-ping-warden">macOS Could Not Verify Ping Warden</h3>
-<p><strong>What you'll see:</strong> An alert titled <strong>macOS Could Not Verify Ping Warden</strong>: &quot;Download the current signed and notarized release from the official GitHub Releases page.&quot;</p>
-<p><strong>What it means:</strong> This copy was downloaded from the internet and is not signed with Ping Warden's Developer ID. Official releases never show this alert.</p>
-<p><strong>What to do:</strong> Click <strong>Open Releases</strong>, download the latest DMG, and replace your copy in Applications. If you built this copy yourself, try to open it once, then open <strong>System Settings → Privacy &amp; Security</strong>, scroll to <strong>Security</strong>, and click <strong>Open Anyway</strong> for Ping Warden. On macOS 13 and 14 you can also Control-click the app in Finder and choose <strong>Open</strong>. Ping Warden will never ask you to remove quarantine attributes in Terminal.</p>
+<p><strong>What you'll see:</strong> First, a macOS warning that Ping Warden cannot be opened because Apple could not verify it. This warning comes from Gatekeeper, before Ping Warden starts. Apple explains it in <a href="https://support.apple.com/102445">Safely open apps on your Mac</a>. If the app is opened anyway, Ping Warden then shows its own alert titled <strong>macOS Could Not Verify Ping Warden</strong>: &quot;Download the current signed and notarized release from the official GitHub Releases page.&quot;</p>
+<p><strong>What it means:</strong> This copy was downloaded from the internet and is not signed with Ping Warden's Developer ID. Official releases never show either warning.</p>
+<p><strong>What to do:</strong> Close the macOS warning without opening the app. Download the latest DMG from the <a href="https://github.com/oliverames/ping-warden/releases">GitHub Releases page</a> and replace your copy in Applications. If you see Ping Warden's own alert, its <strong>Open Releases</strong> button opens the same page. If you built this copy yourself, try to open it once, then open <strong>System Settings → Privacy &amp; Security</strong>, scroll to <strong>Security</strong>, and click <strong>Open Anyway</strong> for Ping Warden. On macOS 13 and 14 you can also Control-click the app in Finder and choose <strong>Open</strong>. Ping Warden will never ask you to remove quarantine attributes in Terminal.</p>
 <h3 id="helper-not-responding">Helper Not Responding</h3>
 <p><strong>What you'll see:</strong> Any of these.</p>
 <ul>
@@ -144,12 +144,15 @@
 </ol>
 <h3 id="protection-could-not-be-restored">Protection Could Not Be Restored</h3>
 <p><strong>What you'll see:</strong> After Repair, <strong>Protection Could Not Be Restored</strong>: &quot;The helper is responding again, but Ping Warden could not restore protection. Your saved protection preference has not changed.&quot; The Dashboard may say &quot;The helper is responding again, but Ping Warden could not restore your protection preference.&quot;</p>
-<p><strong>What to do:</strong> The helper works again. Choose <strong>Turn On Ping Protection</strong> from the menu. If an alert mentions a license, see <a href="#license-messages">License messages</a>.</p>
+<p><strong>What to do:</strong> The helper works again, but your saved choice is still on, so the menu shows <strong>Turn Off Ping Protection</strong>. Choose <strong>Turn Off Ping Protection</strong>, then choose <strong>Turn On Ping Protection</strong>. If the menu shows <strong>Repair Helper…</strong> or the helper stops responding, run <strong>Repair…</strong> again as described in <a href="#helper-not-responding">Helper Not Responding</a>. If an alert mentions a license, see <a href="#license-messages">License messages</a>.</p>
 <p>If Repair reports <strong>Protection Change In Progress</strong>, wait a few seconds and check the status in the menu. If it reports <strong>Helper Repair Could Not Start</strong>, wait for the current protection change to finish, then try Repair again.</p>
 <h3 id="ping-protection-could-not-turn-off-or-pause">Ping Protection could not turn off or pause</h3>
 <p><strong>What you'll see:</strong> An alert titled <strong>Ping Protection Could Not Turn Off</strong> or <strong>Ping Protection Could Not Pause</strong>, with &quot;Ping Protection could not turn off. Quit Ping Warden to restore wireless sharing, then try again.&quot; or the same message for pausing.</p>
 <p><strong>What it means:</strong> The helper answered but could not change the interface.</p>
-<p><strong>What to do:</strong> Quit Ping Warden from the menu. When the app disconnects, the helper stops blocking and brings <code>awdl0</code> back up. Open Ping Warden again and retry.</p>
+<p><strong>What to do:</strong> Quit Ping Warden from the menu. The helper brings <code>awdl0</code> back up about 60 seconds after the app disconnects. Opening Ping Warden again before then cancels that restore. Wait at least a minute before you reopen the app, or check first that <code>awdl0</code> is active:</p>
+<pre><code class="language-bash">ifconfig awdl0
+</code></pre>
+<p>The flags line includes <code>UP</code> when the interface is active. Then open Ping Warden again and retry.</p>
 <p>If the message says the helper is not responding, follow <a href="#helper-not-responding">Helper Not Responding</a>. If wireless sharing stays unavailable, restart your Mac.</p>
 <h3 id="license-messages">License messages</h3>
 <table>
@@ -201,7 +204,14 @@
 <li>A cause, followed by &quot;Your previous Ping Warden settings were restored, and no local data was erased.&quot;</li>
 <li>A cause, followed by &quot;Ping Warden could not fully restore the prior state. Open Settings → Advanced, click Repair, and review Launch at Login before retrying. No local data was erased.&quot;</li>
 </ul>
-<p><strong>What to do:</strong> Run Repair, then try <strong>Prepare to Remove</strong> again. If the helper is not responding and Repair cannot fix it, use the steps in <a href="#helper-still-not-responding">Helper Still Not Responding</a> instead of the removal flow.</p>
+<p><strong>What to do:</strong> Follow the cause named in the alert.</p>
+<ul>
+<li><strong>&quot;Ping Protection could not be turned off&quot;</strong>: nothing was erased. Quit Ping Warden and wait for wireless sharing to return, as described in <a href="#ping-protection-could-not-turn-off-or-pause">Ping Protection could not turn off or pause</a>. Then open Ping Warden and try <strong>Prepare to Remove</strong> again. If the helper is not responding, run Repair first.</li>
+<li><strong>&quot;The helper could not be unregistered&quot;</strong>: run Repair as described in <a href="#helper-not-responding">Helper Not Responding</a>, then try <strong>Prepare to Remove</strong> again. If Repair cannot fix it, use the steps in <a href="#helper-still-not-responding">Helper Still Not Responding</a> instead of the removal flow.</li>
+<li><strong>&quot;Launch at Login could not be unregistered&quot;</strong>: turn off <strong>Launch at Login</strong> under <strong>Settings → General</strong>, or turn off Ping Warden under <strong>Open at Login</strong> in <strong>System Settings → General → Login Items &amp; Extensions</strong>. Then try <strong>Prepare to Remove</strong> again.</li>
+<li><strong>&quot;Ping Warden could not clear its latency session history&quot;</strong>: quit and reopen Ping Warden, then try <strong>Prepare to Remove</strong> again. If it still fails, <a href="#collect-useful-diagnostics">collect diagnostics</a> and report the problem.</li>
+</ul>
+<p>If the alert also says Ping Warden could not fully restore the prior state, run Repair and check <strong>Launch at Login</strong> under <strong>Settings → General</strong> before you retry.</p>
 <h2 id="reinstall-safely">Reinstall safely</h2>
 <p>Use the app's removal flow before deleting the application. It stops Ping Protection, restores AWDL, unregisters the helper and Launch at Login, clears Ping Warden's local data, and reveals the app in Finder.</p>
 <ol>
@@ -211,6 +221,14 @@
 <li>Drag Ping Warden to Applications and complete setup again.</li>
 </ol>
 <p><strong>Prepare to Remove</strong> also deletes this Mac's saved license key. Keep your Gumroad receipt so you can enter the key again.</p>
+<p><strong>Prepare to Remove</strong> also ends a <strong>Free Transition</strong>. The transition deadline is erased, and a fresh install does not start a new one. If you are in the transition and have no license key, you lose the rest of your free access. To replace a damaged copy without that loss, skip <strong>Prepare to Remove</strong>:</p>
+<ol>
+<li>Quit Ping Warden.</li>
+<li>Download a fresh DMG from the <a href="https://github.com/oliverames/ping-warden/releases/latest">latest release</a>.</li>
+<li>Drag Ping Warden to Applications and choose <strong>Replace</strong>.</li>
+<li>Eject the disk image and open Ping Warden from Applications. If the helper does not answer, run Repair as described in <a href="#helper-not-responding">Helper Not Responding</a>.</li>
+</ol>
+<p>Replacing the app this way keeps your settings, license, and transition.</p>
 <p>If the app cannot open far enough to run its removal flow, do not delete LaunchDaemon files or shared containers by hand. <a href="https://github.com/oliverames/ping-warden/issues/new?template=bug_report.md">Open a bug report</a> so the helper can be recovered without leaving AWDL in the wrong state.</p>
 <h2 id="ping-protection-is-active-but-latency-still-spikes">Ping Protection is active, but latency still spikes</h2>
 <p>Ping Warden addresses AWDL-related interruptions. Internet congestion, a busy router, VPN software, Location Services scans, and the remote service itself can also affect latency.</p>
