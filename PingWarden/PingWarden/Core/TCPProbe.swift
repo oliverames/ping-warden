@@ -140,7 +140,14 @@ enum TCPProbe {
 
         let box = ResultBox()
         let thread = Thread {
-            box.addresses = resolveAddressesBlocking(host: host, port: port, numericOnly: false)
+            let resolved = resolveAddressesBlocking(host: host, port: port, numericOnly: false)
+            box.addresses = resolved
+            // Cache from the resolver thread. A lookup that outlives this
+            // probe's deadline still warms the cache, so the next probe finds
+            // the addresses instead of starting another slow lookup.
+            if let resolved, !resolved.isEmpty {
+                cacheAddresses(resolved, for: cacheKey)
+            }
             box.semaphore.signal()
         }
         thread.name = "TCPProbe.resolve"
@@ -157,7 +164,6 @@ enum TCPProbe {
             }
         }
         guard let addresses = box.addresses, !addresses.isEmpty else { return nil }
-        cacheAddresses(addresses, for: cacheKey)
         return addresses
     }
 
