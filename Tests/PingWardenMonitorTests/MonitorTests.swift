@@ -729,5 +729,24 @@ do {
           "an unregistered service must neither open Settings nor retry automatically")
 }
 
+// A reset request on a failed connection must complete false exactly once;
+// the reply never arrives, so the proxy error handler has to finish it.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); FakeHelper.holdsResetReplies = false }
+    let connection = confirmed(monitor)
+    FakeHelper.holdsResetReplies = true
+    let results = LockedValue<[Bool]>([])
+    monitor.resetInterventionCount { value in results.withValue { $0.append(value) } }
+    spin()
+    check(results.withValue { $0 }.isEmpty && connection.helper.resets.count == 1, "reset waits for the helper reply")
+    connection.errorHandler?(NSError(domain: "fixture", code: 4099))
+    spin()
+    check(results.withValue { $0 } == [false], "a proxy error must complete a pending reset with false")
+    connection.helper.resets.removeFirst()(true)
+    spin()
+    check(results.withValue { $0 } == [false], "a late reply must not complete the reset twice")
+}
+
 print("Monitor checks complete. Failures: \(failures.count)")
 exit(failures.isEmpty ? 0 : 1)
