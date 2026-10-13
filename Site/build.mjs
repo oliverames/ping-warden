@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, copyFile, readdir } from 'node:fs/promises';
 import { dirname, resolve, relative, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -17,9 +17,31 @@ const pages = [
   { source: 'Site/guides/geforce-now-mac-stutter.md', slug: 'geforce-now-mac-stutter', updated: '2026-09-21', title: 'Why GeForce NOW Stutters on a MacBook', description: 'AWDL can contribute to GeForce NOW stutter on a Mac. Compare latency with the interface on and off, explore free options, and understand the sharing tradeoff.' },
   { source: 'Site/guides/awdl0-ping-spikes.md', slug: 'awdl0-ping-spikes', updated: '2026-09-25', title: 'Mac Wi-Fi Ping Spikes and the awdl0 Fix', description: "Investigate whether awdl0 contributes to Mac Wi-Fi ping spikes. Compare measurements, understand why the interface returns, and learn the sharing tradeoff." },
   { source: 'Site/guides/airdrop-wifi-lag.md', slug: 'airdrop-wifi-lag', updated: '2026-09-21', title: 'Is AirDrop Causing Your Wi-Fi Lag?', description: 'AirDrop is not moving files in the background, but the interface behind it can interrupt calls and remote sessions. Here is how to test it in a minute.' },
-  { source: 'RELEASE_NOTES.md', slug: 'releases', updated: '2026-09-28', title: 'Release Notes', description: 'Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.' },
+  { source: 'RELEASE_NOTES.md', slug: 'releases', updated: 'latest-release', title: 'Release Notes', description: 'Read the complete Ping Warden release history, including fixes, features, compatibility changes, and update details.' },
   { source: 'SECURITY.md', slug: 'security', updated: '2026-07-12', title: 'Security and Reporting', description: 'Learn which Ping Warden releases receive security support and how to report a vulnerability privately.' }
 ];
+// The newest stable release in the signed Sparkle feed drives the version shown
+// on the home page and the release-notes lastmod, so neither goes stale. Reading
+// a committed file keeps the build deterministic.
+const appcast = await readFile(resolve(root, 'appcast.xml'), 'utf8');
+const releases = [...appcast.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(([, item]) => ({
+  build: Number(item.match(/<sparkle:version>(\d+)<\/sparkle:version>/)?.[1]),
+  version: item.match(/<sparkle:shortVersionString>([^<]+)<\/sparkle:shortVersionString>/)?.[1],
+  date: new Date(item.match(/<pubDate>([^<]+)<\/pubDate>/)?.[1] ?? NaN)
+})).filter(r => r.build && r.version && !Number.isNaN(r.date.getTime()));
+if (!releases.length) throw new Error('appcast.xml has no release with a version and pubDate');
+const latest = releases.reduce((a, b) => (b.build > a.build ? b : a));
+const latestVersion = latest.version;
+const latestDate = latest.date.toISOString().slice(0, 10);
+for (const page of pages) if (page.updated === 'latest-release') page.updated = latestDate;
+// Tag Gumroad links so each site surface is its own referrer row in Gumroad
+// Analytics (https://gumroad.com/help/article/270-url-parameters).
+const gumroad = 'https://amesconsulting.gumroad.com/l/pingwarden';
+function referred(href, referrer) {
+  if (!href.startsWith(gumroad) || /[?&]referrer=/.test(href)) return href;
+  const [base, anchor] = href.split('#');
+  return `${base}${base.includes('?') ? '&' : '?'}referrer=${referrer}` + (anchor ? `#${anchor}` : '');
+}
 const bySource = new Map(pages.map(p => [p.source, `/docs/${p.slug}`]));
 const escape = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const hashes = new Set();
@@ -28,6 +50,8 @@ function structured(value) {
   hashes.add(`'sha256-${createHash('sha256').update(json).digest('base64')}'`);
   return `<script type="application/ld+json">${json}</script>`;
 }
+const stylesheet = `/styles.css?v=${createHash('sha256').update(await readFile(resolve(output, 'styles.css'))).digest('hex').slice(0, 10)}`;
+const icons = '<link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">';
 function head(title, description, path, schema) {
   return `<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escape(title)} | Ping Warden</title><meta name="description" content="${escape(description)}">
@@ -37,13 +61,14 @@ function head(title, description, path, schema) {
 <meta property="og:title" content="${escape(title)} | Ping Warden"><meta property="og:description" content="${escape(description)}">
 <meta property="og:url" content="${origin}${path}"><meta property="og:image" content="${origin}/app-icon.png"><meta property="og:image:alt" content="Ping Warden app icon">
 <meta name="twitter:card" content="summary"><meta name="twitter:title" content="${escape(title)} | Ping Warden"><meta name="twitter:description" content="${escape(description)}"><meta name="twitter:image" content="${origin}/app-icon.png">
-<link rel="icon" type="image/png" href="/app-icon.png"><link rel="stylesheet" href="/styles.css">${structured(schema)}`;
+${icons}<link rel="stylesheet" href="${stylesheet}">${structured(schema)}`;
 }
-const header = `<a class="skip" href="#main">Skip to content</a><header class="wrap"><a class="brand" href="/">Ping Warden</a><nav aria-label="Main navigation"><a href="/docs/">Docs</a><a href="/docs/setup">Setup</a><a href="https://amesconsulting.gumroad.com/l/pingwarden">Buy a license</a></nav></header>`;
+const header = `<a class="skip" href="#main">Skip to content</a><header class="wrap"><a class="brand" href="/">Ping Warden</a><nav aria-label="Main navigation"><a href="/docs/">Docs</a><a href="/docs/setup">Setup</a><a href="${gumroad}?referrer=pingwarden-nav">Buy a license</a></nav></header>`;
 const footer = `<footer class="wrap"><p>Ping Warden by Oliver Ames</p><nav aria-label="Resources"><a href="/">Website</a><a href="https://github.com/oliverames/ping-warden">Source</a><a href="mailto:oliver@ames.consulting">Support</a></nav></footer>`;
 const nav = `<nav class="doc-nav" aria-label="Documentation">${pages.map(p => `<a href="/docs/${p.slug}">${escape(p.title)}</a>`).join('')}</nav>`;
 const md = new MarkdownIt({ html: true, linkify: false });
 function link(href, source) {
+  if (href.startsWith(gumroad)) return referred(href, source.startsWith('Site/guides/') ? 'pingwarden-guide' : 'pingwarden-docs');
   if (/^(?:[a-z]+:|\/\/|#)/i.test(href)) return href;
   const [pathname, anchor] = href.split('#');
   const target = posix.normalize(posix.join(posix.dirname(source), pathname));
@@ -55,11 +80,10 @@ function link(href, source) {
 // Deriving it from git commit dates would change the moment a source file
 // is committed, which breaks the CI check that committed pages match the build.
 const siteUpdated = '2026-09-28';
-const urls = [{ loc: '/', lastmod: siteUpdated }, { loc: '/docs/', lastmod: siteUpdated }];
+const urls = [{ loc: '/', lastmod: latestDate > siteUpdated ? latestDate : siteUpdated }, { loc: '/docs/', lastmod: siteUpdated }];
 await mkdir(resolve(output, 'docs'), { recursive: true });
 // Keep the website screenshot identical to the user-supplied version 4 capture.
 await copyFile(resolve(root, 'docs/images/ping-warden-4-dashboard.png'), resolve(output, 'dashboard-v4.png'));
-await copyFile(resolve(root, 'docs/images/ping-warden-4-dashboard.png'), resolve(output, 'dashboard.png'));
 for (const page of pages) {
   const source = await readFile(resolve(root, page.source), 'utf8');
   // Omit repository badge blocks and its repeated title; all guide prose remains.
@@ -104,12 +128,22 @@ const hubDescription = 'The complete Ping Warden documentation: setup, features,
 await writeFile(resolve(output, 'docs/index.html'), `<!doctype html><html lang="en"><head>${head(hubTitle, hubDescription, '/docs/', { '@context': 'https://schema.org', '@type': 'CollectionPage', name: 'Ping Warden Documentation', url: origin + '/docs/', description: hubDescription })}</head><body>${header}<main id="main" class="wrap docs-index"><h1>Everything you need<br>to know.</h1><p class="intro">From your first install to the details of how Ping Warden works.</p><div class="doc-list">${pages.map(p => `<article><h2><a href="/docs/${p.slug}">${escape(p.title)}</a></h2><p>${escape(p.description)}</p></article>`).join('')}</div></main>${footer}</body></html>\n`);
 const appSchema = { '@context': 'https://schema.org', '@graph': [
   { '@type': 'WebSite', '@id': origin + '/#website', name: 'Ping Warden', url: origin + '/', inLanguage: 'en' },
-  { '@type': 'SoftwareApplication', name: 'Ping Warden', url: origin + '/', operatingSystem: 'macOS 13 or later', applicationCategory: 'UtilitiesApplication', image: origin + '/app-icon.png', screenshot: origin + '/dashboard-v4.png', description: 'A macOS menu bar app that monitors latency and pauses AWDL to reduce related Wi-Fi interruptions. The dashboard is free; enabling Ping Protection requires a one-time $15 license.', author: { '@type': 'Person', name: 'Oliver Ames' }, downloadUrl: 'https://github.com/oliverames/ping-warden/releases/latest', softwareHelp: { '@type': 'WebPage', url: origin + '/docs/' }, offers: [
+  { '@type': 'SoftwareApplication', name: 'Ping Warden', url: origin + '/', operatingSystem: 'macOS 13 or later', softwareVersion: latestVersion, applicationCategory: 'UtilitiesApplication', image: origin + '/app-icon.png', screenshot: origin + '/dashboard-v4.png', description: 'A macOS menu bar app that monitors latency and pauses AWDL to reduce related Wi-Fi interruptions. The dashboard is free; enabling Ping Protection requires a one-time $15 license.', author: { '@type': 'Person', name: 'Oliver Ames' }, downloadUrl: 'https://github.com/oliverames/ping-warden/releases/latest', softwareHelp: { '@type': 'WebPage', url: origin + '/docs/' }, offers: [
     { '@type': 'Offer', name: 'Free dashboard', price: '0', priceCurrency: 'USD', url: 'https://github.com/oliverames/ping-warden/releases/latest' },
     { '@type': 'Offer', name: 'Ping Protection license', price: '15', priceCurrency: 'USD', url: 'https://amesconsulting.gumroad.com/l/pingwarden' }
   ] }
 ] };
-await writeFile(resolve(output, 'index.html'), (await readFile(resolve(site, 'home.html'), 'utf8')).replace('<!-- structured-data -->', structured(appSchema)));
+const styled = html => html.replace(/href="\/styles\.css(?:\?v=[0-9a-f]+)?"/g, `href="${stylesheet}"`);
+const home = (await readFile(resolve(site, 'home.html'), 'utf8'))
+  .replace('<!-- structured-data -->', structured(appSchema))
+  .replaceAll('<!-- latest-version -->', escape(latestVersion));
+await writeFile(resolve(output, 'index.html'), styled(home));
+await writeFile(resolve(output, '404.html'), styled(await readFile(resolve(output, '404.html'), 'utf8')));
 await writeFile(resolve(output, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `  <url><loc>${origin}${u.loc}</loc><lastmod>${u.lastmod}</lastmod></url>`).join('\n')}\n</urlset>\n`);
-await writeFile(resolve(output, '_headers'), `/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'self'; script-src ${[...hashes].join(' ')}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\n`);
+// Static images and the versioned stylesheet may be cached for a day. HTML keeps
+// the platform default (revalidate every time) so deploys show up immediately.
+// Images are listed by exact path because their names are not fingerprinted.
+const images = (await readdir(output)).filter(f => /\.(?:png|webp|ico)$/.test(f)).sort();
+const cached = [...images.map(f => `/${f}`), '/styles.css'].map(p => `${p}\n  Cache-Control: public, max-age=86400\n`).join('');
+await writeFile(resolve(output, '_headers'), `/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Cross-Origin-Opener-Policy: same-origin\n  Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'self'; script-src ${[...hashes].join(' ')}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\n${cached}`);
 console.log(`Built ${urls.length} pages from the complete repository guides.`);
