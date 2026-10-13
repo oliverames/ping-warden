@@ -30,11 +30,10 @@ is deterministic, and Website Verification checks that source and output agree.
 filled in at build time). `public/.well-known/security.txt` is a committed static
 file with an `Expires` date; renew it before then (the check fails after it passes).
 
-Each page's `updated` date, its JSON-LD `dateModified`, and its sitemap `lastmod`
-are the author date of the last commit that touched its source file. So commit
-the source change first, then rebuild and commit `public/`. Without full git
-history (no git, or a shallow clone) the build falls back to the `updated` values
-in `build.mjs`, which is why CI checks out with `fetch-depth: 0`.
+Each page's `updated` date in `build.mjs` is maintained by hand. It drives the
+JSON-LD `dateModified` and the sitemap `lastmod`, so bump it when a page's content
+changes. (Commit dates are not used because squash merges would change them and
+break the check that committed pages match the build.)
 
 The home page version and the release-notes sitemap date come from the newest
 item in the root `appcast.xml`, so rebuild the site after each release. Gumroad

@@ -13,8 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0 # sitemap and page dates come from commit history
       - run: npm ci --prefix Site
       - run: npm run build --prefix Site
       - run: npm run check --prefix Site
@@ -26,8 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0 # the deploy build derives sitemap and page dates from commit history
       - run: npm ci --prefix Site
       - name: Deploy to Cloudflare Workers
         working-directory: Site
