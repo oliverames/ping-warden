@@ -106,6 +106,16 @@ if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
     echo "Error: full releases must notarize their fresh archive; reusing a same-version DMG can publish stale code." >&2
     exit 1
 fi
+# Step 8 replaces both live feeds with the repo-root copies, so those copies
+# must already contain every item published on gh-pages. A branch cut before
+# the previous release's appcast commit merged once dropped 4.3.3 from the
+# live stable feed during a beta release (2026-10-13). SKIP_GH_PAGES=1 never
+# touches gh-pages, so it skips this check too.
+if [ "${SKIP_GH_PAGES:-0}" = "1" ]; then
+    echo "SKIP_GH_PAGES=1 set; not comparing local appcasts with gh-pages."
+elif ! verify_local_appcasts_cover_published "$REPO_ROOT" origin; then
+    exit 1
+fi
 if [ "${BETA_CHANNEL:-0}" != "1" ] && [ "${SKIP_GUMROAD:-0}" != "1" ]; then
     "$PYTHON_BIN" "$GUMROAD_PUBLISHER" "$GUMROAD_PRODUCT_ID" --check
 fi
@@ -580,7 +590,12 @@ echo -e "${GREEN}Step 8: Publishing appcasts to gh-pages...${NC}"
 if [ "${SKIP_GH_PAGES:-0}" = "1" ]; then
     echo -e "${YELLOW}SKIP_GH_PAGES=1 set; skipping gh-pages publish.${NC}"
 else
-    git -C "$REPO_ROOT" fetch --quiet origin gh-pages
+    # Re-check against the current gh-pages: another release may have
+    # published while this one was building. This also fetches gh-pages.
+    if ! verify_local_appcasts_cover_published "$REPO_ROOT" origin; then
+        echo "The GitHub release already exists; reconcile the feeds, re-sign them, and publish gh-pages by hand." >&2
+        exit 1
+    fi
     PUBLISH_DIR=$(mktemp -d -t pingwarden-publish)
     git -C "$REPO_ROOT" worktree add --quiet --detach "$PUBLISH_DIR" origin/gh-pages
     cleanup_publish() {
