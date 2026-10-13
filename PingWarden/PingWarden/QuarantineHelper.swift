@@ -18,17 +18,16 @@ struct QuarantineHelper {
     
     /// Check if the app bundle has quarantine attributes
     static func isQuarantined() -> Bool {
-        guard let bundlePath = Bundle.main.bundlePath as NSString?,
-              let path = bundlePath.utf8String else {
-            return false
+        let bundlePath = Bundle.main.bundlePath
+        let attrName = "com.apple.quarantine"
+
+        // withCString keeps the C string valid for exactly the duration of the
+        // call. NSString.utf8String's buffer is only guaranteed while its
+        // owner is alive, which a bridged temporary does not ensure.
+        let size = bundlePath.withCString { path in
+            Darwin.getxattr(path, attrName, nil, 0, 0, 0)
         }
 
-        // Try to get quarantine xattr
-        let attrName = "com.apple.quarantine"
-        
-        // Get size of attribute
-        let size = Darwin.getxattr(path, attrName, nil, 0, 0, 0)
-        
         // If size > 0, quarantine attribute exists
         return size > 0
     }
