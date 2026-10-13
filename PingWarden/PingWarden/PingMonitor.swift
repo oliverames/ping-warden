@@ -79,7 +79,6 @@ class PingMonitor: @unchecked Sendable {
     private let connectionTimeoutSeconds: Int = 1
     private var activeSessionID: UInt64 = 0
     private var inFlightSessionID: UInt64?
-    private let legacyConsumerID = UUID()
     private var telemetryDemands: [UUID: TelemetryDemand] = [:]
     private var demandRevision: UInt64 = 0
     private var observers: [UUID: (Snapshot) -> Void] = [:]
@@ -96,25 +95,8 @@ class PingMonitor: @unchecked Sendable {
     /// Interval between pings (in seconds)
     var interval: TimeInterval = 2.0
     
-    // MARK: - Computed Properties
-    
-    var isMonitoring: Bool {
-        return timer != nil
-    }
-    
     // MARK: - Public Methods
     
-    /// Legacy single-owner entry point. New callers should use the consumer
-    /// overload so several UI surfaces can share one physical probe stream.
-    func start(server: String? = nil, port: UInt16? = nil, interval: TimeInterval? = nil) {
-        start(
-            consumerID: legacyConsumerID,
-            server: server ?? self.server,
-            port: port ?? self.port,
-            interval: interval ?? self.interval
-        )
-    }
-
     /// Register or update one consumer's telemetry demand. All consumers that
     /// request the selected target share a single timer and use the fastest
     /// requested interval. Higher-priority consumers choose the target.
@@ -141,11 +123,6 @@ class PingMonitor: @unchecked Sendable {
         }
     }
     
-    /// Stop monitoring
-    func stop() {
-        stop(consumerID: legacyConsumerID)
-    }
-
     func stop(consumerID: UUID) {
         runOnMainThreadSync { [weak self] in
             guard let self else { return }
