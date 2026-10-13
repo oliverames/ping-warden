@@ -76,6 +76,9 @@ final class ProtectedSessionCoordinator: ObservableObject {
 
         let startedAt = Date()
         guard let startingInterventionCount = await fetchInterventionCount() else {
+            // A stop during the fetch cancelled this attempt, and a newer start
+            // may already own the phase. Only the current attempt may fail it.
+            guard phase == .starting, startOperationID == operationID else { return }
             lastError = "The helper did not return its intervention counter, so the latency session did not start."
             phase = .idle
             startOperationID = nil
