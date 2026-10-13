@@ -201,6 +201,11 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Main-thread confined, like the poll itself.
     private var pendingRegistrationPresentsErrors = true
 
+    /// Whether the current or most recent registration poll opened Login
+    /// Items, so setup can say that System Settings opened on its own.
+    /// Main-thread confined; reset by each new poll.
+    private(set) var registrationOpenedLoginItems = false
+
     /// Thread-safe access to XPC connection
     private var xpcConnection: NSXPCConnection? {
         get {
@@ -600,7 +605,7 @@ class PingWardenMonitor: @unchecked Sendable {
             // notification for it, so Login Items is the approval surface.
             log.notice("Helper requires approval - opening System Settings")
             SMAppService.openSystemSettingsLoginItems()
-            startPollingForRegistration(presentsErrors: presentsErrors, completion: completion)
+            startPollingForRegistration(presentsErrors: presentsErrors, openedLoginItems: true, completion: completion)
             signposter.endInterval("RegisterHelper", state)
             return
 
@@ -711,13 +716,12 @@ class PingWardenMonitor: @unchecked Sendable {
         }
     }
 
-    /// Repair a helper that should be working. A registration that answers
-    /// is left alone. A registration that is enabled but silent is rebuilt:
-    /// unregister, then register again, which recreates the launchd job that
-    /// Background Task Management still claims exists. If macOS requires
-    /// approval, registration opens System Settings. Success is reported
-    /// only after the helper actually answers. Runs only from an explicit
-    /// user action, never automatically. Completes on the main queue.
+    /// Repair a helper that should be working: `probeHelper`'s check, then
+    /// `reregisterHelper`'s rebuild when the helper does not answer, as one
+    /// operation. A registration that answers is left alone. Success is
+    /// reported only after the helper actually answers. Runs only from an
+    /// explicit user action, never automatically. Completes on the main
+    /// queue.
     ///
     /// Only one repair runs at a time. A second request joins the first and
     /// receives its result; starting another would unregister the helper the
@@ -732,10 +736,77 @@ class PingWardenMonitor: @unchecked Sendable {
             }
             return
         }
+        guard beginRepair(joining: completion) else { return }
+        runHelperProbe { [weak self] outcome in
+            guard let self else { return }
+            if outcome == .responding {
+                self.finishRepair(true)
+            } else {
+                self.runReregistration(presentsErrors: presentsErrors)
+            }
+        }
+    }
+
+    /// Repair's first step on its own: ask whether the helper answers,
+    /// without unregistering or registering anything, so nothing macOS
+    /// announces happens before the person has been told why. Drops while
+    /// it runs are held back exactly as during a repair. A responding
+    /// helper counts as repaired. Completes on the main queue.
+    ///
+    /// A probe started while a repair or rebuild runs joins it, and reports
+    /// `.responding` or `.silent` from that operation's result.
+    func probeHelper(completion: @escaping @Sendable (HelperProbeOutcome) -> Void) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.probeHelper(completion: completion)
+            }
+            return
+        }
+        let joined: @Sendable (Bool) -> Void = { repaired in
+            completion(repaired ? .responding : .silent)
+        }
+        if !repairCompletions.isEmpty {
+            log.info("Joining the helper repair already in progress for a probe")
+            repairCompletions.append(joined)
+            return
+        }
+        guard beginRepair(joining: { _ in }) else { return }
+        runHelperProbe { [weak self] outcome in
+            self?.finishRepair(outcome == .responding)
+            completion(outcome)
+        }
+    }
+
+    /// Repair's second step: register the helper again. A registration
+    /// that is enabled but silent is rebuilt (unregister, then register),
+    /// which recreates the launchd job that Background Task Management still
+    /// claims exists; any other registration is registered. If macOS
+    /// requires approval, registration opens System Settings on its usual
+    /// schedule. Success is reported only after the helper answers. Runs
+    /// only from an explicit user action. Completes on the main queue, and
+    /// joins a repair already in flight.
+    func reregisterHelper(
+        presentsErrors: Bool = true,
+        completion: @escaping @Sendable (Bool) -> Void
+    ) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.reregisterHelper(presentsErrors: presentsErrors, completion: completion)
+            }
+            return
+        }
+        guard beginRepair(joining: completion) else { return }
+        runReregistration(presentsErrors: presentsErrors)
+    }
+
+    /// Record a repair caller. Returns true when this call starts the
+    /// operation, false when it joined one in flight. Main-thread only.
+    private func beginRepair(joining completion: @escaping @Sendable (Bool) -> Void) -> Bool {
+        dispatchPrecondition(condition: .onQueue(.main))
         repairCompletions.append(completion)
         guard repairCompletions.count == 1 else {
             log.info("Joining the helper repair already in progress")
-            return
+            return false
         }
         stateLock.lock()
         _isRepairingHelper = true
@@ -743,7 +814,28 @@ class PingWardenMonitor: @unchecked Sendable {
         stateLock.unlock()
         lastSetupFailureMessage = nil
         notifyStateChange()
+        return true
+    }
 
+    /// Whether the helper answers, from a live registration read and up to
+    /// three version requests. Changes no registration. Main-thread only;
+    /// completes on the main queue.
+    private func runHelperProbe(completion: @escaping @Sendable (HelperProbeOutcome) -> Void) {
+        guard helperIsEnabledNow else {
+            completion(.notEnabled)
+            return
+        }
+        confirmHelperResponds { responds in
+            DispatchQueue.main.async {
+                completion(responds ? .responding : .silent)
+            }
+        }
+    }
+
+    /// Register again, rebuilding an enabled but silent registration
+    /// first, then wait for the helper's reply. Ends the repair started by
+    /// `beginRepair`. Main-thread only.
+    private func runReregistration(presentsErrors: Bool) {
         let finish: @Sendable (Bool) -> Void = { [weak self] repaired in
             let monitor = self
             DispatchQueue.main.async {
@@ -774,39 +866,29 @@ class PingWardenMonitor: @unchecked Sendable {
             return
         }
 
-        confirmHelperResponds { [weak self] responds in
-            guard let self else {
-                finish(false)
-                return
+        // Never tear down a registration that cannot be rebuilt.
+        if let failure = validateHelperBundle() {
+            reportSetupFailure(
+                failure.userMessage,
+                title: failure.userTitle,
+                presentsErrors: presentsErrors
+            )
+            finish(false)
+            return
+        }
+        log.warning("Helper is registered but not answering; rebuilding its registration")
+        let plistName = helperPlistName
+        Task { @MainActor in
+            do {
+                try await SMAppService.daemon(plistName: plistName).unregister()
+                self.refreshHelperStatus()
+                log.notice("Stale helper registration removed")
+            } catch {
+                // Continue: registering over a stale record can still
+                // recreate the job, and the final reply check decides.
+                log.error("Helper unregister during repair failed: \(error.localizedDescription)")
             }
-            if responds {
-                finish(true)
-                return
-            }
-            // Never tear down a registration that cannot be rebuilt.
-            if let failure = self.validateHelperBundle() {
-                self.reportSetupFailure(
-                    failure.userMessage,
-                    title: failure.userTitle,
-                    presentsErrors: presentsErrors
-                )
-                finish(false)
-                return
-            }
-            log.warning("Helper is registered but not answering; rebuilding its registration")
-            let plistName = self.helperPlistName
-            Task { @MainActor in
-                do {
-                    try await SMAppService.daemon(plistName: plistName).unregister()
-                    self.refreshHelperStatus()
-                    log.notice("Stale helper registration removed")
-                } catch {
-                    // Continue: registering over a stale record can still
-                    // recreate the job, and the final reply check decides.
-                    log.error("Helper unregister during repair failed: \(error.localizedDescription)")
-                }
-                registerThenConfirm()
-            }
+            registerThenConfirm()
         }
     }
 
@@ -1736,6 +1818,7 @@ class PingWardenMonitor: @unchecked Sendable {
         opensLoginItemsIfPending: Bool = false,
         failureDetail: String? = nil,
         retriesRefusedRegistration: Bool = false,
+        openedLoginItems: Bool = false,
         completion: (@Sendable (Bool) -> Void)?
     ) {
         if !Thread.isMainThread {
@@ -1745,6 +1828,7 @@ class PingWardenMonitor: @unchecked Sendable {
                     opensLoginItemsIfPending: opensLoginItemsIfPending,
                     failureDetail: failureDetail,
                     retriesRefusedRegistration: retriesRefusedRegistration,
+                    openedLoginItems: openedLoginItems,
                     completion: completion
                 )
             }
@@ -1762,6 +1846,7 @@ class PingWardenMonitor: @unchecked Sendable {
         registrationNotRegisteredSince = nil
         registrationLastPolledStatus = nil
         registrationOpensLoginItemsIfPending = opensLoginItemsIfPending
+        registrationOpenedLoginItems = openedLoginItems
         registrationFailureDetail = failureDetail
         registrationRetriesRemaining = retriesRefusedRegistration ? refusedRegistrationRetries : 0
         registrationLastRetryAt = nil
@@ -1771,7 +1856,7 @@ class PingWardenMonitor: @unchecked Sendable {
             guard let self = self else { return }
             log.warning("Registration polling timed out after \(self.registrationTimeoutSeconds)s")
             self.reportSetupFailure(
-                "Ping Warden did not get approval in time. Allow Ping Warden in \(SystemSettingsCopy.loginItemsPath), then try again.",
+                "Ping Warden did not get approval in time. \(SystemSettingsCopy.turnOnInstruction), then try again.",
                 title: "Helper Approval Timed Out",
                 presentsErrors: self.pendingRegistrationPresentsErrors
             )
@@ -1831,6 +1916,7 @@ class PingWardenMonitor: @unchecked Sendable {
                registrationOpensLoginItemsIfPending,
                now - registrationPollStartedAt >= loginItemsHandoffDelay {
                 registrationOpensLoginItemsIfPending = false
+                registrationOpenedLoginItems = true
                 log.notice("Approval still pending - opening System Settings")
                 SMAppService.openSystemSettingsLoginItems()
             }

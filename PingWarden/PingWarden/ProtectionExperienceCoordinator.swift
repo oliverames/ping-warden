@@ -81,7 +81,67 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// Called only after an explicit Repair confirmation. Reconcile current
     /// policy instead of replaying a snapshot of the saved preference: a
     /// pause, session, license change or newer Off must still win.
+    /// Checks the helper and rebuilds its registration in one go. The
+    /// Repair surfaces use `checkHelperForRepair` and `reapproveHelper`
+    /// instead, so macOS announces nothing before the person is told why.
     func repairHelperConnection() async -> HelperTestReport {
+        await performHelperRepair { monitor, done in
+            monitor.repairHelperRegistration(presentsErrors: false, completion: done)
+        }
+    }
+
+    /// What Repair's check found.
+    enum RepairCheck: Equatable {
+        /// The helper answered and current protection policy was
+        /// reconciled. The report says so, or explains what was not restored.
+        case finished(HelperTestReport)
+        /// The helper must be registered again, which needs the person's
+        /// approval in System Settings. Nothing has changed yet.
+        case needsApproval(HelperProbeOutcome)
+    }
+
+    /// Repair's first step. Asks whether the helper answers without
+    /// touching its registration. An answering helper finishes Repair here,
+    /// with the same reconciliation as a full repair.
+    func checkHelperForRepair() async -> RepairCheck {
+        let outcome = ProbeOutcomeBox()
+        let report = await performHelperRepair { monitor, done in
+            monitor.probeHelper { result in
+                outcome.value = result
+                done(result == .responding)
+            }
+        }
+        if let result = outcome.value, result.needsReregistration,
+           report.title == RepairResultCopy.failureTitle {
+            return .needsApproval(result)
+        }
+        return .finished(report)
+    }
+
+    /// Repair's second step, started from the Approve Helper button:
+    /// register the helper again, wait for approval and a reply, then
+    /// reconcile current protection policy.
+    func reapproveHelper() async -> HelperTestReport {
+        await performHelperRepair { monitor, done in
+            monitor.reregisterHelper(presentsErrors: false, completion: done)
+        }
+    }
+
+    /// Carries the probe's outcome out of the monitor's callback.
+    private final class ProbeOutcomeBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: HelperProbeOutcome?
+        var value: HelperProbeOutcome? {
+            get { lock.lock(); defer { lock.unlock() }; return stored }
+            set { lock.lock(); stored = newValue; lock.unlock() }
+        }
+    }
+
+    /// The shared repair operation: one at a time, reassertion held back
+    /// while the monitor works, then reconciliation of current policy.
+    private func performHelperRepair(
+        _ step: @escaping @MainActor (PingWardenMonitor, @escaping @Sendable (Bool) -> Void) -> Void
+    ) async -> HelperTestReport {
         if let helperRepairTask { return await helperRepairTask.value }
         guard canRepairHelper else {
             return HelperTestReport(
@@ -94,7 +154,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             monitor.defersProtectionReassertion = true
             defer { monitor.defersProtectionReassertion = false }
             let repaired = await withCheckedContinuation { continuation in
-                monitor.repairHelperRegistration(presentsErrors: false) {
+                step(monitor) {
                     continuation.resume(returning: $0)
                 }
             }

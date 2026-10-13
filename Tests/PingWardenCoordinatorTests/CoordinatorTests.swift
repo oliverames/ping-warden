@@ -899,6 +899,100 @@ do {
     check(!MainActor.assumeIsolated { coordinator.isRepairingHelper }, "107: failed Repair releases shared busy state")
 }
 
+func launchRepairCheck() -> LockedValue<ProtectionExperienceCoordinator.RepairCheck?> {
+    let result = LockedValue<ProtectionExperienceCoordinator.RepairCheck?>(nil)
+    Task { @MainActor in
+        let check = await coordinator.checkHelperForRepair()
+        result.withValue { $0 = check }
+    }
+    return result
+}
+func launchReapproval() -> LockedValue<HelperTestReport?> {
+    let result = LockedValue<HelperTestReport?>(nil)
+    Task { @MainActor in
+        let report = await coordinator.reapproveHelper()
+        result.withValue { $0 = report }
+    }
+    return result
+}
+
+// Repair split, R1: an answering helper finishes at the check, with the same
+// reconciliation and success report as a full repair and no registration.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    _ = MainActor.assumeIsolated { turnOnThroughCoordinator() }
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    let result = launchRepairCheck()
+    spin(until: { result.withValue { $0 } != nil }, timeout: 3)
+    settle()
+    check(result.withValue { $0 } == .finished(HelperTestReport(
+        title: RepairResultCopy.successTitle,
+        message: RepairResultCopy.successMessage(protectionOn: true)
+    )), "R1: an answering helper reports Helper Is Responding with protection on")
+    check(SMAppService.registerCalls == 0 && SMAppService.unregisterCalls == 0 && SMAppService.openSettingsCalls == 0,
+          "R1: the check never registers, unregisters, or opens System Settings")
+    check(!MainActor.assumeIsolated { coordinator.isRepairingHelper }, "R1: the check releases busy state")
+}
+
+// R2: a silent helper escalates to approval without touching the
+// registration, raising no lost-connection error; Approve Helper then
+// rebuilds it and restores the protection the person chose.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    setFixtureHelperBundle(installed: true)
+    defer { setFixtureHelperBundle(installed: false) }
+    _ = MainActor.assumeIsolated { turnOnThroughCoordinator() }
+    let result = launchRepairCheck()
+    spin(until: { result.withValue { $0 } != nil }, timeout: 4)
+    check(result.withValue { $0 } == .needsApproval(.silent), "R2: a silent helper needs approval again")
+    check(SMAppService.registerCalls == 0 && SMAppService.unregisterCalls == 0 && SMAppService.openSettingsCalls == 0,
+          "R2: nothing reaches macOS before Approve Helper")
+    check(!MainActor.assumeIsolated { coordinator.isRepairingHelper } && !monitor.isRepairingHelper,
+          "R2: the check releases busy state so Approve Helper can start")
+    check(automatedErrors.filter { $0.contains("Lost connection") }.isEmpty, "R2: the check raises no lost-connection error")
+    check(PingWardenPreferences.shared.isMonitoringEnabled, "R2: the saved protection choice is untouched")
+
+    SMAppService.fixtureAllowsRegistration = true
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    let report = launchReapproval()
+    spin(until: { report.withValue { $0 } != nil }, timeout: 6)
+    settle()
+    check(SMAppService.unregisterCalls == 1 && SMAppService.registerCalls == 1,
+          "R2: Approve Helper rebuilds the silent registration once")
+    check(report.withValue { $0 }?.title == RepairResultCopy.successTitle,
+          "R2: re-approval reports the helper responding")
+    check(monitor.isMonitoringActive, "R2: protection follows the saved choice after re-approval")
+}
+
+// R3: an unapproved helper escalates without registering, and a pause still
+// wins over the saved choice once re-approval finishes.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    setFixtureHelperBundle(installed: true)
+    defer { setFixtureHelperBundle(installed: false) }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    MainActor.assumeIsolated { coordinator.harnessSetPause(until: Date().addingTimeInterval(600)) }
+    SMAppService.fixtureStatus = .requiresApproval
+    monitor.refreshHelperStatus()
+    let result = launchRepairCheck()
+    spin(until: { result.withValue { $0 } != nil }, timeout: 3)
+    check(result.withValue { $0 } == .needsApproval(.notEnabled), "R3: an unapproved helper needs approval")
+    check(SMAppService.registerCalls == 0 && SMAppService.openSettingsCalls == 0,
+          "R3: the check opens nothing for a pending approval")
+
+    SMAppService.fixtureAllowsRegistration = true
+    let report = launchReapproval()
+    spin(until: { SMAppService.openSettingsCalls == 1 }, timeout: 2)
+    check(SMAppService.openSettingsCalls == 1 && SMAppService.registerCalls == 0,
+          "R3: Approve Helper resumes the earlier request in Login Items")
+    SMAppService.fixtureStatus = .enabled
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    spin(until: { report.withValue { $0 } != nil }, timeout: 6)
+    settle()
+    check(report.withValue { $0 }?.title == RepairResultCopy.successTitle, "R3: approval then a reply succeeds")
+    check(!monitor.isMonitoringActive, "R3: a pause still wins over the saved choice")
+}
+
 MainActor.assumeIsolated { resetAll() }
 print("Coordinator checks complete. Checks: \(checks). Failures: \(failures.count)")
 exit(failures.isEmpty ? 0 : 1)

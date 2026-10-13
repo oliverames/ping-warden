@@ -18,7 +18,43 @@ final class SystemSettingsCopyTests: XCTestCase {
         let major = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
         XCTAssertEqual(SystemSettingsCopy.loginItemsPaneName,
                        SystemSettingsCopy.loginItemsPaneName(osMajorVersion: major))
+        XCTAssertEqual(SystemSettingsCopy.backgroundSectionName,
+                       SystemSettingsCopy.backgroundSectionName(osMajorVersion: major))
+        XCTAssertEqual(SystemSettingsCopy.variant, SystemSettingsCopy.Variant(osMajorVersion: major))
         XCTAssertTrue(ProtectionFailureCopy.setupIncomplete.contains(SystemSettingsCopy.loginItemsPaneName))
+    }
+
+    /// Apple's Login Items guide names the switch section Allow in the
+    /// Background on macOS 13 through 15 and App Background Activity on
+    /// macOS 26 and later.
+    func testBackgroundSectionFollowsTheMacOS26Rename() {
+        for version in [13, 14, 15] {
+            XCTAssertEqual(SystemSettingsCopy.backgroundSectionName(osMajorVersion: version), "Allow in the Background")
+        }
+        for version in [26, 27] {
+            XCTAssertEqual(SystemSettingsCopy.backgroundSectionName(osMajorVersion: version), "App Background Activity")
+        }
+    }
+
+    func testVariantsCoverThreeLayouts() {
+        XCTAssertEqual(SystemSettingsCopy.Variant(osMajorVersion: 13), .loginItems)
+        XCTAssertEqual(SystemSettingsCopy.Variant(osMajorVersion: 14), .loginItems)
+        XCTAssertEqual(SystemSettingsCopy.Variant(osMajorVersion: 15), .loginItemsAndExtensions)
+        XCTAssertEqual(SystemSettingsCopy.Variant(osMajorVersion: 26), .appBackgroundActivity)
+        XCTAssertEqual(SystemSettingsCopy.Variant(osMajorVersion: 27), .appBackgroundActivity)
+    }
+
+    func testBreadcrumbAndInstructionNameThePaneAndSection() {
+        XCTAssertEqual(SystemSettingsCopy.switchBreadcrumb(osMajorVersion: 14),
+                       ["System Settings", "General", "Login Items", "Allow in the Background"])
+        XCTAssertEqual(SystemSettingsCopy.switchBreadcrumb(osMajorVersion: 15),
+                       ["System Settings", "General", "Login Items & Extensions", "Allow in the Background"])
+        XCTAssertEqual(SystemSettingsCopy.switchBreadcrumb(osMajorVersion: 26),
+                       ["System Settings", "General", "Login Items & Extensions", "App Background Activity"])
+        XCTAssertEqual(SystemSettingsCopy.turnOnInstruction(osMajorVersion: 26),
+                       "Turn on Ping Warden under App Background Activity in System Settings → General → Login Items & Extensions")
+        XCTAssertEqual(SystemSettingsCopy.turnOnInstruction(osMajorVersion: 13),
+                       "Turn on Ping Warden under Allow in the Background in System Settings → General → Login Items")
     }
 }
 
