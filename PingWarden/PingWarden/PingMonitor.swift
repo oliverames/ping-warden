@@ -96,25 +96,10 @@ class PingMonitor: @unchecked Sendable {
     /// Interval between pings (in seconds)
     var interval: TimeInterval = 2.0
     
-    /// Callback when new ping result is available
-    var onPingResult: ((PingResult) -> Void)?
-    
-    /// Callback when statistics are updated
-    var onStatsUpdate: ((NetworkStatistics) -> Void)?
-    
     // MARK: - Computed Properties
     
     var isMonitoring: Bool {
         return timer != nil
-    }
-    
-    var currentPing: TimeInterval? {
-        withHistoryLock {
-            // Failed probes store the timeout as their latency; reporting
-            // that as "current ping" would show e.g. 1000 ms instead of
-            // signaling loss. Surface the last *successful* measurement.
-            history.last(where: { $0.success })?.latency
-        }
     }
     
     // MARK: - Public Methods
@@ -260,8 +245,6 @@ class PingMonitor: @unchecked Sendable {
             // Notify callbacks on main thread
             DispatchQueue.main.async {
                 guard self.isSessionCurrent(sessionID) else { return }
-                self.onPingResult?(result)
-                self.onStatsUpdate?(snapshot.statistics)
                 self.observerCallbacks().forEach { $0(snapshot) }
             }
 
@@ -362,13 +345,6 @@ class PingMonitor: @unchecked Sendable {
         }
     }
     
-    private func snapshotRecentResults() -> [PingResult] {
-        withHistoryLock {
-            let cutoff = Date().addingTimeInterval(-statsWindowSeconds)
-            return history.elements.filter { $0.timestamp > cutoff }
-        }
-    }
-
     private func makeSnapshot(latestResult: PingResult) -> Snapshot {
         let retainedHistory = withHistoryLock { history.elements }
         let cutoff = Date().addingTimeInterval(-statsWindowSeconds)
