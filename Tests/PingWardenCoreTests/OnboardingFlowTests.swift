@@ -6,20 +6,21 @@ final class OnboardingNavigatorTests: XCTestCase {
     func testLicensedFirstRunHasFourScreens() {
         var nav = OnboardingNavigator(mode: .firstRun, canEnableProtection: true)
         XCTAssertEqual(nav.step, .welcome)
-        XCTAssertEqual(nav.pageSteps, [.welcome, .protection, .approve, .done])
+        XCTAssertEqual(nav.pageSteps, [.protection, .approve, .done], "the Welcome keeps its own layout without dots")
+        XCTAssertNil(nav.pageIndex)
         XCTAssertFalse(nav.canGoBack, "Welcome closes with Not Now")
         nav.advance(canEnableProtection: true)
         XCTAssertEqual(nav.step, .protection)
         nav.advance(canEnableProtection: true)
         XCTAssertEqual(nav.step, .approve, "a licensed person never sees the license step")
-        XCTAssertEqual(nav.pageIndex, 2)
+        XCTAssertEqual(nav.pageIndex, 1)
         nav.goBack()
         XCTAssertEqual(nav.step, .protection)
     }
 
     func testUnlicensedFirstRunAsksForTheLicenseBeforeApproval() {
         var nav = OnboardingNavigator(mode: .firstRun, canEnableProtection: false)
-        XCTAssertEqual(nav.pageSteps, [.welcome, .protection, .license, .approve, .done])
+        XCTAssertEqual(nav.pageSteps, [.protection, .license, .approve, .done])
         nav.advance(canEnableProtection: false)
         nav.advance(canEnableProtection: false)
         XCTAssertEqual(nav.step, .license)
@@ -56,6 +57,32 @@ final class OnboardingNavigatorTests: XCTestCase {
         XCTAssertFalse(nav.canGoBack, "Back becomes Cancel in Repair")
     }
 
+    func testApprovalWaitsForALicense() {
+        var nav = OnboardingNavigator(mode: .finishSetup, canEnableProtection: true)
+        XCTAssertEqual(nav.step, .approve)
+        XCTAssertTrue(nav.requireLicenseForApproval(canEnableProtection: false),
+                      "a license that lapsed sends approval back to the license step")
+        XCTAssertEqual(nav.step, .license)
+        XCTAssertFalse(nav.requireLicenseForApproval(canEnableProtection: false), "only the Approve step redirects")
+        var licensed = OnboardingNavigator(mode: .finishSetup, canEnableProtection: true)
+        XCTAssertFalse(licensed.requireLicenseForApproval(canEnableProtection: true))
+        XCTAssertEqual(licensed.step, .approve)
+        var repair = OnboardingNavigator(mode: .repair, canEnableProtection: false)
+        XCTAssertFalse(repair.requireLicenseForApproval(canEnableProtection: false), "Repair fixes an approved helper")
+        XCTAssertEqual(repair.step, .approve)
+    }
+
+    func testUnlicensedPathNeverReachesApproval() {
+        var nav = OnboardingNavigator(mode: .firstRun, canEnableProtection: false)
+        var visited: [OnboardingStep] = [nav.step]
+        for _ in 0..<5 {
+            nav.advance(canEnableProtection: false)
+            visited.append(nav.step)
+        }
+        XCTAssertFalse(visited.contains(.approve))
+        XCTAssertEqual(nav.step, .freeDashboard)
+    }
+
     func testDoneClearsHistory() {
         var nav = OnboardingNavigator(mode: .firstRun, canEnableProtection: true)
         nav.advance(canEnableProtection: true)
@@ -72,7 +99,7 @@ final class OnboardingNavigatorTests: XCTestCase {
         nav.advance(canEnableProtection: true)
         nav.advance(canEnableProtection: true)
         XCTAssertEqual(nav.step, .approve, "a license added mid-flow skips the license screen")
-        XCTAssertEqual(nav.pageSteps.count, 5, "dots do not jump while the window is open")
+        XCTAssertEqual(nav.pageSteps.count, 4, "dots do not jump while the window is open")
     }
 }
 

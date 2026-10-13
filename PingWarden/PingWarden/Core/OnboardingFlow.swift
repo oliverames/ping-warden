@@ -74,14 +74,15 @@ struct OnboardingNavigator: Equatable, Sendable {
         }
     }
 
-    /// The step dots: the screens this mode walks through. Repair shows
-    /// none, because it is one step rather than a sequence.
+    /// The step dots: the guided screens after the Welcome, which keeps its
+    /// own 4.3 layout without dots. Repair shows none, because it is one
+    /// step rather than a sequence.
     var pageSteps: [OnboardingStep] {
         switch mode {
         case .repair:
             return []
         case .firstRun:
-            return [.welcome, .protection] + (showsLicenseStep ? [.license] : []) + [.approve, .done]
+            return [.protection] + (showsLicenseStep ? [.license] : []) + [.approve, .done]
         case .finishSetup:
             return (showsLicenseStep ? [.license] : []) + [.approve, .done]
         }
@@ -119,6 +120,17 @@ struct OnboardingNavigator: Equatable, Sendable {
             history.append(step)
         }
         step = target
+    }
+
+    /// Helper approval only follows a license (a valid key or an active
+    /// transition): the free dashboard runs its latency probes in the app
+    /// and never needs the helper. Repair is exempt, because it fixes a
+    /// helper that was already approved. Returns true when it redirected.
+    @discardableResult
+    mutating func requireLicenseForApproval(canEnableProtection: Bool) -> Bool {
+        guard step == .approve, mode != .repair, !canEnableProtection else { return false }
+        show(.license)
+        return true
     }
 
     mutating func goBack() {
@@ -400,6 +412,36 @@ enum OnboardingCopy {
     static let welcomeTitle = "Welcome to Ping Warden"
     static let welcomeLine = "Keep your Wi\u{2011}Fi steady while you cloud game on a Mac."
     static let welcomeReassurance = "Setup takes about a minute and needs one approval from macOS."
+    /// Shown above the Welcome's buttons when setup must start with a license.
+    static let welcomeUnlicensedLine = "Ping Protection is a one-time $15 purchase. The latency dashboard is free."
+
+    struct Benefit: Equatable, Sendable {
+        let symbol: String
+        let title: String
+        let detail: String
+    }
+
+    /// The Welcome's three feature rows, unchanged from 4.3.
+    static let welcomeBenefits = [
+        Benefit(
+            symbol: "shield.lefthalf.filled",
+            title: "Reduce AWDL-related Wi\u{2011}Fi stutter",
+            detail: "Ping Protection pauses the wireless sharing interface used by AirDrop while you play. Other sources of lag can still affect your connection."
+        ),
+        Benefit(
+            symbol: "waveform.path.ecg",
+            title: "Watch latency live",
+            detail: "See your ping, jitter, and probe failures in the free dashboard."
+        ),
+        Benefit(
+            symbol: "airplayaudio",
+            title: "Share when you need to",
+            detail: "Pause protection to use AirDrop, AirPlay, and Handoff."
+        ),
+    ]
+
+    static let licenseFieldPrompt = "Paste your license key"
+
     static let crashReportCaption = "Ping Warden sends anonymous crash reports. You can turn this off in Settings → Advanced."
 
     static let protectionTitle = "What Ping Protection does"
