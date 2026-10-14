@@ -55,10 +55,16 @@ public final class Breadcrumb {
     }
 }
 
+public final class User {
+    public var userId: String?
+    public init(userId: String?) { self.userId = userId }
+}
+
 public final class Event {
     public var level: SentryLevel
     public var message: SentryMessage?
     public var serverName: String?
+    public var user: User?
     public var tags: [String: String]?
     public var fingerprint: [String]?
     public var context: [String: [String: Any]]?
@@ -85,6 +91,7 @@ public final class Options {
     public var enableCrashHandler = false
     public var enableUncaughtNSExceptionReporting = false
     public var enableAutoSessionTracking = false
+    public var sessionTrackingIntervalMillis: UInt = 30_000
     public var enableAutoPerformanceTracing = true
     public var enableCoreDataTracing = true
     public var enableNetworkTracking = true

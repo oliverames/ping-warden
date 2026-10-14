@@ -196,7 +196,31 @@ class PingWardenMonitor: @unchecked Sendable {
     /// from any thread. Signals hold enum values and error codes only.
     /// The app forwards them to `CrashReporter`, which drops them while
     /// reporting is off.
-    var telemetryHandler: (@Sendable (HelperTelemetrySignal) -> Void)?
+    ///
+    /// `shared`'s initializer can restore protection before the app installs
+    /// the handler, so signals raised earlier are held (up to
+    /// `maxPendingTelemetry`) and delivered, in order, when it is set.
+    var telemetryHandler: (@Sendable (HelperTelemetrySignal) -> Void)? {
+        get { telemetryState.withValue { $0.handler } }
+        set {
+            let pending: [HelperTelemetrySignal] = telemetryState.withValue { state in
+                state.handler = newValue
+                defer { state.pending = [] }
+                return newValue == nil ? [] : state.pending
+            }
+            if let newValue {
+                pending.forEach { newValue($0) }
+            }
+        }
+    }
+
+    private struct TelemetryState {
+        var handler: (@Sendable (HelperTelemetrySignal) -> Void)?
+        var pending: [HelperTelemetrySignal] = []
+    }
+
+    private let telemetryState = LockedValue(TelemetryState())
+    private let maxPendingTelemetry = 32
 
     /// The most recent setup or repair failure, kept so a caller with its
     /// own error surface can show it instead of a second alert. Main-thread
@@ -471,7 +495,18 @@ class PingWardenMonitor: @unchecked Sendable {
     }
 
     private func recordBreadcrumb(_ state: StateBreadcrumb) {
-        telemetryHandler?(.breadcrumb(state))
+        emitTelemetry(.breadcrumb(state))
+    }
+
+    /// Deliver a signal, or hold it until a handler is installed.
+    private func emitTelemetry(_ signal: HelperTelemetrySignal) {
+        let limit = maxPendingTelemetry
+        let handler: (@Sendable (HelperTelemetrySignal) -> Void)? = telemetryState.withValue { state in
+            if let handler = state.handler { return handler }
+            if state.pending.count < limit { state.pending.append(signal) }
+            return nil
+        }
+        handler?(signal)
     }
 
     /// Report a helper problem with the registration state from the
@@ -481,8 +516,7 @@ class PingWardenMonitor: @unchecked Sendable {
         failure: HelperCommandFailure? = nil,
         error: NSError? = nil
     ) {
-        guard let handler = telemetryHandler else { return }
-        handler(.problem(HelperProblemReport(
+        emitTelemetry(.problem(HelperProblemReport(
             problem: problem,
             helperState: diagnosticState(registrationStatus),
             failure: failure,

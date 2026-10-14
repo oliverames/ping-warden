@@ -21,8 +21,9 @@ final class PingWardenPreferences {
         set { defaults.set(newValue, forKey: CrashReportingPolicy.preferenceKey) }
     }
 
-    // In memory: the beta-channel key is not under test here.
-    var betaChannelEnabled = false
+    // In memory. The reporter must ignore it: the update-feed preference
+    // doesn't say which build is running.
+    var betaChannelEnabled = true
 
     func reset(storedChoice: Bool? = nil) {
         defaults.removePersistentDomain(forName: suiteName)
@@ -89,6 +90,7 @@ struct CrashReporterTests {
             check(options.enableCrashHandler, "crash handling remains enabled")
             check(options.enableUncaughtNSExceptionReporting, "uncaught NSExceptions are reported")
             check(options.enableAutoSessionTracking, "release-health session tracking is on")
+            check(options.sessionTrackingIntervalMillis == UInt.max, "reactivation never splits a run into a second session")
             check(!options.enableNetworkTracking, "network tracking stays off")
             check(!options.enableNetworkBreadcrumbs, "network breadcrumbs stay off")
             check(!options.enableCaptureFailedRequests, "failed-request events stay off")
@@ -193,7 +195,14 @@ struct CrashReporterTests {
         let homeImage = "/Users/oliver/Applications/Ping Warden.app/Contents/MacOS/Ping Warden"
         let event = Event(level: .fatal)
         event.serverName = "Olivers-MacBook-Pro.local"
-        event.context = ["device": ["name": "Oliver's MacBook Pro", "model": "Mac15,3"], "os": ["version": "15.5"]]
+        event.user = User(userId: "installation-id")
+        event.context = [
+            "device": ["name": "Oliver's MacBook Pro", "model": "Mac15,3", "memory_size": 17179869184, "boot_time": "2026-10-14"],
+            "os": ["name": "macOS", "version": "15.5", "kernel_version": "Darwin 24.5.0"],
+            "app": ["app_version": "9.8.7", "app_build": "98765", "device_app_hash": "abc123", "app_start_time": "2026-10-14"],
+            "culture": ["locale": "en_US", "timezone": "America/New_York", "calendar": "gregorian"],
+            "trace": ["trace_id": "0123"],
+        ]
         event.message = SentryMessage(formatted: "Failed to reach 192.0.2.10 via game.example.net")
         let exception = Exception(
             value: "-[NSURL host]: https://cloudmatchbeta.example.com/v2 refused for user@example.com at fe80::1 and 2001:db8::1",
@@ -222,8 +231,13 @@ struct CrashReporterTests {
             return
         }
         check(sent.serverName == nil, "server name is removed")
+        check(sent.user == nil, "event user is removed")
         check(sent.context?["device"]?["name"] == nil, "device name is removed")
         check(sent.context?["device"]?["model"] as? String == "Mac15,3", "device model is kept")
+        check(Set(sent.context?.keys.map { $0 } ?? []) == ["device", "os", "app"], "only disclosed contexts remain: \(sent.context?.keys.sorted() ?? [])")
+        check(Set(sent.context?["device"]?.keys.map { $0 } ?? []) == ["model"], "device keeps only disclosed keys")
+        check(Set(sent.context?["os"]?.keys.map { $0 } ?? []) == ["name", "version"], "os keeps only disclosed keys")
+        check(Set(sent.context?["app"]?.keys.map { $0 } ?? []) == ["app_version", "app_build"], "app keeps only version and build")
         let message = sent.message?.formatted ?? ""
         check(!message.contains("192.0.2.10") && !message.contains("example.net"), "message IPs and hosts are redacted: \(message)")
         let value = sent.exceptions?.first?.value ?? ""
@@ -237,7 +251,7 @@ struct CrashReporterTests {
             sent.threads?.first?.stacktrace?.frames.first?.package,
             sent.debugMeta?.first?.codeFile,
         ]
-        check(paths.allSatisfy { $0 == "/Users/<user>/Applications/Ping Warden.app/Contents/MacOS/Ping Warden" },
+        check(paths.allSatisfy { $0 == "/Users/<user>/Applications/Ping Warden.app/Contents/MacOS/Ping Warden" || $0 == "~/Applications/Ping Warden.app/Contents/MacOS/Ping Warden" },
               "home-folder account names are removed from image paths: \(paths)")
         check(sent.breadcrumbs?.map { $0.message } == [StateBreadcrumb.protectionEnabled.rawValue],
               "only state breadcrumbs remain on events")
@@ -274,6 +288,9 @@ struct CrashReporterTests {
         clock += 61
         CrashReporter.record(.problem(timeout))
         check(SentrySDK.capturedEvents.count == 2, "the same problem is sent again after the interval")
+        let declined = HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined)
+        CrashReporter.record(.problem(declined))
+        check(SentrySDK.capturedEvents.count == 2, "a different reason for the same problem shares its rate limit")
         let rejected = HelperProblemReport(problem: .repairFailed, helperState: .notFound, failure: .rejected(code: 4099))
         CrashReporter.record(.problem(rejected))
         check(SentrySDK.capturedEvents.last?.tags?["error_domain"] == NSCocoaErrorDomain

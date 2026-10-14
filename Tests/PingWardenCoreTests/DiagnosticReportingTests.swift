@@ -87,12 +87,43 @@ final class DiagnosticReportingTests: XCTestCase {
         XCTAssertEqual(DiagnosticRelease.releaseName(shortVersion: "4.3.3", build: "40303"), "com.amesvt.pingwarden@4.3.3+40303")
     }
 
-    func testEnvironment() {
-        XCTAssertEqual(DiagnosticRelease.environment(shortVersion: "4.3.3", betaChannelEnabled: false, isDebugBuild: false), "production")
-        XCTAssertEqual(DiagnosticRelease.environment(shortVersion: "4.3.3", betaChannelEnabled: true, isDebugBuild: false), "beta")
-        XCTAssertEqual(DiagnosticRelease.environment(shortVersion: "4.4.0-beta.1", betaChannelEnabled: false, isDebugBuild: false), "beta")
-        XCTAssertEqual(DiagnosticRelease.environment(shortVersion: "4.4.0-rc.2", betaChannelEnabled: false, isDebugBuild: false), "beta")
-        XCTAssertEqual(DiagnosticRelease.environment(shortVersion: "4.3.3", betaChannelEnabled: true, isDebugBuild: true), "development")
+    func testEnvironmentComesFromTheBuiltChannel() {
+        XCTAssertEqual(DiagnosticRelease.environment(releaseChannel: "production", isDebugBuild: false), "production")
+        XCTAssertEqual(DiagnosticRelease.environment(releaseChannel: "beta", isDebugBuild: false), "beta")
+        XCTAssertEqual(DiagnosticRelease.environment(releaseChannel: " Beta ", isDebugBuild: false), "beta")
+        // Missing, unexpanded, or unknown values never claim beta.
+        XCTAssertEqual(DiagnosticRelease.environment(releaseChannel: nil, isDebugBuild: false), "production")
+        XCTAssertEqual(DiagnosticRelease.environment(releaseChannel: "$(PING_WARDEN_RELEASE_CHANNEL)", isDebugBuild: false), "production")
+        XCTAssertEqual(DiagnosticRelease.environment(releaseChannel: "beta", isDebugBuild: true), "development")
+        XCTAssertEqual(DiagnosticRelease.releaseChannelInfoKey, "PingWardenReleaseChannel")
+    }
+
+    func testRateLimitKeyIsTheProblemAlone() {
+        let timeout = HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .timedOut)
+        let declined = HelperProblemReport(problem: .protectionEnableFailed, helperState: .notFound, failure: .declined)
+        let rejected = HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .rejected(code: 4099))
+        XCTAssertEqual(timeout.rateLimitKey, "protection_enable_failed")
+        XCTAssertEqual(Set([timeout.rateLimitKey, declined.rateLimitKey, rejected.rateLimitKey]).count, 1)
+        XCTAssertNotEqual(timeout.fingerprint, declined.fingerprint, "fingerprints still separate reasons into issues")
+        var limiter = DiagnosticEventRateLimiter(minimumInterval: 60, sessionCap: 10)
+        XCTAssertTrue(limiter.shouldSend(key: timeout.rateLimitKey, now: 0))
+        XCTAssertFalse(limiter.shouldSend(key: declined.rateLimitKey, now: 1))
+        XCTAssertFalse(limiter.shouldSend(key: rejected.rateLimitKey, now: 2))
+    }
+
+    func testContextsKeepOnlyDisclosedKeys() {
+        let filtered = DiagnosticContextPolicy.filter([
+            "device": ["name": "Jane's Mac", "model": "Mac15,3", "family": "Mac", "arch": "arm64", "memory_size": 1, "boot_time": "x"],
+            "os": ["name": "macOS", "version": "15.5", "build": "24F74", "kernel_version": "Darwin"],
+            "app": ["app_version": "4.3.3", "app_build": "43300", "device_app_hash": "h", "app_start_time": "t", "app_identifier": "id"],
+            "culture": ["locale": "en_US", "timezone": "America/New_York", "calendar": "gregorian"],
+            "trace": ["trace_id": "t"],
+        ])
+        XCTAssertEqual(Set(filtered.keys), ["device", "os", "app"])
+        XCTAssertEqual(Set(filtered["device"]!.keys), ["model", "family", "arch"])
+        XCTAssertEqual(Set(filtered["os"]!.keys), ["name", "version", "build"])
+        XCTAssertEqual(Set(filtered["app"]!.keys), ["app_version", "app_build"])
+        XCTAssertTrue(DiagnosticContextPolicy.filter(["culture": ["locale": "en_US"], "device": ["name": "x"]]).isEmpty)
     }
 
     func testScrubberRedactsNetworkIdentifiers() {
@@ -106,6 +137,15 @@ final class DiagnosticReportingTests: XCTestCase {
         XCTAssertTrue(scrubbed.contains("<host>"))
         XCTAssertTrue(scrubbed.contains("<url>"))
         XCTAssertTrue(scrubbed.contains("<email>"))
+    }
+
+    func testScrubberRedactsHostsOnRealTLDsThatLookLikeFileTypes() {
+        let scrubbed = DiagnosticScrubber.scrub("relay.zip and edge.mm and Monitor.swift")
+        XCTAssertFalse(scrubbed.contains("relay.zip"), scrubbed)
+        XCTAssertFalse(scrubbed.contains("edge.mm"), scrubbed)
+        XCTAssertTrue(scrubbed.contains("Monitor.swift"), scrubbed)
+        XCTAssertFalse(DiagnosticScrubber.codeSuffixes.contains("zip"))
+        XCTAssertFalse(DiagnosticScrubber.codeSuffixes.contains("mm"))
     }
 
     func testScrubberKeepsCodeIdentifiers() {
@@ -123,5 +163,22 @@ final class DiagnosticReportingTests: XCTestCase {
             "/Applications/Ping Warden.app/Contents/MacOS/Ping Warden"
         )
         XCTAssertFalse(DiagnosticScrubber.scrub("failed at /Users/jane/Library/Logs/x.log").contains("jane"))
+    }
+
+    func testScrubberRemovesHomeFoldersOutsideUsers() {
+        let home = "/Network/Servers/files.example/Homes/jdoe"
+        XCTAssertEqual(
+            DiagnosticScrubber.scrubPath("\(home)/Applications/Ping Warden.app/Contents/MacOS/Ping Warden", homeDirectory: home),
+            "~/Applications/Ping Warden.app/Contents/MacOS/Ping Warden"
+        )
+        XCTAssertEqual(DiagnosticScrubber.scrubPath("/private/var/jdoe-home/x", homeDirectory: "/private/var/jdoe-home/"), "~/x")
+        // A home that is only a prefix of another folder name is left alone.
+        XCTAssertEqual(DiagnosticScrubber.scrubPath("/opt/jdoe2/x", homeDirectory: "/opt/jdoe"), "/opt/jdoe2/x")
+        // A root or single-component home never redacts unrelated paths.
+        XCTAssertEqual(DiagnosticScrubber.scrubPath("/Applications/x", homeDirectory: "/"), "/Applications/x")
+        XCTAssertEqual(DiagnosticScrubber.scrubPath("/var/x", homeDirectory: "/var"), "/var/x")
+        XCTAssertFalse(
+            DiagnosticScrubber.scrub("open \(home)/Library/x.plist failed", homeDirectory: home).contains("jdoe")
+        )
     }
 }

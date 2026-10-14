@@ -135,7 +135,7 @@
 <h3 id="what-crash-reporting-sends">What crash reporting sends</h3>
 <p>Reports go to Sentry, and they carry only what's needed to find bugs:</p>
 <ul>
-<li>Crash reports and uncaught exceptions, with the app version and build, the macOS version, and the Mac model.</li>
+<li>Crash reports and uncaught exceptions, with the app version and build, the macOS version and build, and the Mac's model and processor architecture. Ping Warden removes everything else the reporting library would attach, including your locale, time zone, and memory size.</li>
 <li>Helper error events when setup, Repair, or turning protection on or off fails, or when the helper stops answering. Each event names the problem, the helper's registration state, and a system error domain and numeric code. Ping Warden sends at most one event per problem every 30 minutes and no more than ten per app run.</li>
 <li>Session counts for each release: when the app starts, when it quits, and whether it crashed. Sentry's library ties these to a random identifier it creates for this installation, which is how crash-free rates are counted.</li>
 <li>A short trail of app state changes attached to those reports, such as &quot;setup started&quot; or &quot;protection enabled.&quot;</li>

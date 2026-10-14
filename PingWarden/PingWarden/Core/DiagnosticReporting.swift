@@ -108,6 +108,10 @@ struct HelperProblemReport: Equatable, Sendable {
         reportableErrorDomains.contains(domain) ? domain : "other"
     }
 
+    /// Rate-limit key: one event per problem per interval, whatever its
+    /// reason or error code, so the disclosed "one per problem" holds.
+    var rateLimitKey: String { problem.rawValue }
+
     /// Groups events by what went wrong, not by when or on which Mac.
     var fingerprint: [String] {
         [
@@ -182,8 +186,9 @@ enum HelperTelemetrySignal: Sendable, Equatable {
     case problem(HelperProblemReport)
 }
 
-/// Keeps one bad session from flooding the project. A fingerprint is sent
-/// at most once per `minimumInterval`, and a process sends at most
+/// Keeps one bad session from flooding the project. A key (one per
+/// `HelperProblem`) is sent at most once per `minimumInterval`, and a
+/// process sends at most
 /// `sessionCap` helper events in total. Main-thread confined by its owner.
 struct DiagnosticEventRateLimiter {
     let minimumInterval: TimeInterval
@@ -217,21 +222,45 @@ enum DiagnosticRelease {
         "\(bundleIdentifier)@\(shortVersion)+\(build)"
     }
 
-    /// `development` for Debug builds, `beta` for pre-release versions or
-    /// a Mac on the beta update channel, and `production` otherwise.
-    static func environment(shortVersion: String, betaChannelEnabled: Bool, isDebugBuild: Bool) -> String {
+    /// Info.plist key holding the channel the artifact was built for.
+    /// release.sh archives with `PING_WARDEN_RELEASE_CHANNEL=beta` for
+    /// `BETA_CHANNEL=1` releases; the project default is `production`.
+    /// The marketing version can't carry this: release validation requires
+    /// it without the pre-release suffix.
+    static let releaseChannelInfoKey = "PingWardenReleaseChannel"
+
+    /// `development` for Debug builds, `beta` for an artifact built for the
+    /// beta channel, and `production` otherwise. The person's beta-update
+    /// preference is deliberately ignored: it says which feed they follow,
+    /// not which build is running.
+    static func environment(releaseChannel: String?, isDebugBuild: Bool) -> String {
         if isDebugBuild { return "development" }
-        if betaChannelEnabled || isPrerelease(shortVersion) { return "beta" }
+        if releaseChannel?.trimmingCharacters(in: .whitespaces).lowercased() == "beta" { return "beta" }
         return "production"
     }
+}
 
-    /// release.sh requires alpha, beta, or rc versions such as 4.4.0-beta.1.
-    static func isPrerelease(_ shortVersion: String) -> Bool {
-        let lowered = shortVersion.lowercased()
-        return lowered.contains("-")
-            || lowered.contains("alpha")
-            || lowered.contains("beta")
-            || lowered.contains("rc")
+/// The event contexts and keys that may leave the Mac, matching the
+/// disclosure: app version and build, macOS name, version, and build, and
+/// the Mac's model family, model, and architecture. Everything else the SDK
+/// gathers (the culture context's locale, time zone, and calendar; device
+/// memory, boot time, and name; the app's device hash and start time; trace
+/// identifiers) is removed.
+enum DiagnosticContextPolicy {
+    static let allowedKeys: [String: Set<String>] = [
+        "app": ["app_version", "app_build"],
+        "os": ["name", "version", "build"],
+        "device": ["family", "model", "arch"],
+    ]
+
+    static func filter(_ contexts: [String: [String: Any]]) -> [String: [String: Any]] {
+        var kept: [String: [String: Any]] = [:]
+        for (name, values) in contexts {
+            guard let allowed = allowedKeys[name] else { continue }
+            let filtered = values.filter { allowed.contains($0.key) }
+            if !filtered.isEmpty { kept[name] = filtered }
+        }
+        return kept
     }
 }
 
@@ -246,11 +275,14 @@ enum DiagnosticScrubber {
     static let redactedUser = "<user>"
 
     /// Name extensions that look like host names but are code or bundle
-    /// names, kept so stack-related text stays useful.
-    private static let codeSuffixes: Set<String> = [
-        "swift", "m", "mm", "h", "c", "cpp", "hpp", "plist", "framework",
+    /// names, kept so stack-related text stays useful. None of these is a
+    /// delegated top-level domain (checked against the IANA root zone list
+    /// on 2026-10-14), so a bare host name can't hide behind one. `mm` and
+    /// `zip` are real TLDs and are deliberately absent.
+    static let codeSuffixes: Set<String> = [
+        "swift", "m", "h", "c", "cpp", "hpp", "plist", "framework",
         "dylib", "xpc", "appex", "bundle", "nib", "xib", "storyboard",
-        "json", "xml", "txt", "log", "strings", "dmg", "zip",
+        "json", "xml", "txt", "log", "strings", "dmg",
     ]
 
     private static let urlPattern = try! NSRegularExpression(
@@ -274,21 +306,33 @@ enum DiagnosticScrubber {
 
     /// Redacts URLs, email addresses, home-folder user names, IP addresses,
     /// and host names from free text.
-    static func scrub(_ text: String) -> String {
+    static func scrub(_ text: String, homeDirectory: String = NSHomeDirectory()) -> String {
         var result = text
         result = replace(urlPattern, in: result, with: redactedURL)
         result = replace(emailPattern, in: result, with: redactedEmail)
-        result = scrubPath(result)
+        result = scrubPath(result, homeDirectory: homeDirectory)
         result = replace(ipv6Pattern, in: result, with: redactedIP)
         result = replace(ipv4Pattern, in: result, with: redactedIP)
         result = replaceHosts(in: result)
         return result
     }
 
-    /// Replaces the account name in `/Users/<name>` paths, which binary
-    /// image paths carry when the app runs from a home folder.
-    static func scrubPath(_ path: String) -> String {
-        replace(homePathPattern, in: path, with: "/Users/\(redactedUser)")
+    /// Replaces this account's home folder with `~`, wherever it lives
+    /// (network and managed homes aren't always under /Users), and the
+    /// account name in any other `/Users/<name>` path. Binary image paths
+    /// carry these when the app runs from a home folder.
+    static func scrubPath(_ path: String, homeDirectory: String = NSHomeDirectory()) -> String {
+        var result = path
+        let home = homeDirectory.hasSuffix("/") ? String(homeDirectory.dropLast()) : homeDirectory
+        // A root or one-component home would redact unrelated paths.
+        if home.split(separator: "/").count >= 2 {
+            result = replace(
+                try! NSRegularExpression(pattern: NSRegularExpression.escapedPattern(for: home) + "(?=/|$|[\\s\"'])"),
+                in: result,
+                with: "~"
+            )
+        }
+        return replace(homePathPattern, in: result, with: "/Users/\(redactedUser)")
     }
 
     private static func replace(_ pattern: NSRegularExpression, in text: String, with template: String) -> String {

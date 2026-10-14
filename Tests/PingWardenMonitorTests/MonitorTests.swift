@@ -893,5 +893,26 @@ do {
           "registration signals carry no error description or unlisted domain")
 }
 
+// Signals raised before the app installs its handler (the shared
+// initializer restores protection first) are held and delivered in order.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let results = LockedValue<[Bool]>([])
+    monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let connection = monitor.harnessConnection!
+    take(connection.helper, \.commands).1(false)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    check(signals.withValue { $0 } == [
+        .breadcrumb(.protectionEnableRequested),
+        .breadcrumb(.protectionEnableFailed),
+        .problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined)),
+    ], "signals from before the handler existed are delivered once it is installed")
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    check(signals.withValue { $0 }.count == 3, "held signals are delivered only once")
+}
+
 print("Monitor checks complete. Failures: \(failures.count)")
 exit(failures.isEmpty ? 0 : 1)

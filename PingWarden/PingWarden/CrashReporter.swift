@@ -16,6 +16,10 @@
 //      At most one per problem every 30 minutes and ten per app run.
 //    • Release health: one session per app run (start, end, crashed or not)
 //      with a random installation identifier created by the SDK.
+//    • On every event: app version and build, macOS name, version, and
+//      build, and the Mac's model family, model, and architecture. Other SDK
+//      contexts (locale, time zone, calendar, memory, device name, device
+//      hash) and the event user are removed in beforeSend.
 //    • Breadcrumbs of app state transitions (setup, repair, protection,
 //      helper connection), as enum values only.
 //
@@ -111,9 +115,10 @@ enum CrashReporter {
         #if canImport(Sentry)
         let version = appVersion
         let build = buildNumber
+        // The channel the artifact was built for, embedded at release time,
+        // not the person's update-feed preference.
         let environment = DiagnosticRelease.environment(
-            shortVersion: version,
-            betaChannelEnabled: PingWardenPreferences.shared.betaChannelEnabled,
+            releaseChannel: Bundle.main.infoDictionary?[DiagnosticRelease.releaseChannelInfoKey] as? String,
             isDebugBuild: isDebugBuild
         )
 
@@ -135,8 +140,13 @@ enum CrashReporter {
             options.enableUncaughtNSExceptionReporting = true
 
             // Release health: crash-free sessions and users per release.
-            // The first session starts below, after SDK start.
+            // The session starts below, after SDK start. The SDK normally
+            // starts a new session when the app reactivates after 30 s in
+            // the background; an unreachable interval keeps it to exactly
+            // one session per process, ended at quit or marked crashed on
+            // the next launch.
             options.enableAutoSessionTracking = true
+            options.sessionTrackingIntervalMillis = UInt.max
 
             // No performance data. See the file header for why.
             options.tracesSampleRate = 0.0
@@ -210,8 +220,7 @@ enum CrashReporter {
             crumb.type = "info"
             SentrySDK.addBreadcrumb(crumb)
         case .problem(let report):
-            let key = report.fingerprint.joined(separator: "|")
-            guard rateLimiter.shouldSend(key: key, now: now()) else {
+            guard rateLimiter.shouldSend(key: report.rateLimitKey, now: now()) else {
                 log.debug("Helper problem \(report.problem.rawValue, privacy: .public) not sent: rate limited")
                 return
             }
@@ -238,23 +247,23 @@ enum CrashReporter {
     /// Remove machine and free-text details the SDK gathers on its own.
     nonisolated static func scrub(_ event: Event) -> Event {
         event.serverName = nil
-        if var context = event.context, var device = context["device"] {
-            device.removeValue(forKey: "name")
-            context["device"] = device
-            event.context = context
+        event.user = nil
+        if let context = event.context {
+            let kept = DiagnosticContextPolicy.filter(context)
+            event.context = kept.isEmpty ? nil : kept
         }
         if let message = event.message {
             event.message = SentryMessage(formatted: DiagnosticScrubber.scrub(message.formatted))
         }
         for exception in event.exceptions ?? [] {
-            exception.value = exception.value.map(DiagnosticScrubber.scrub)
+            exception.value = exception.value.map { DiagnosticScrubber.scrub($0) }
             scrubFrames(exception.stacktrace)
         }
         for thread in event.threads ?? [] {
             scrubFrames(thread.stacktrace)
         }
         for image in event.debugMeta ?? [] {
-            image.codeFile = image.codeFile.map(DiagnosticScrubber.scrubPath)
+            image.codeFile = image.codeFile.map { DiagnosticScrubber.scrubPath($0) }
         }
         if let breadcrumbs = event.breadcrumbs {
             event.breadcrumbs = breadcrumbs.filter {
@@ -266,7 +275,7 @@ enum CrashReporter {
 
     nonisolated private static func scrubFrames(_ stacktrace: SentryStacktrace?) {
         for frame in stacktrace?.frames ?? [] {
-            frame.package = frame.package.map(DiagnosticScrubber.scrubPath)
+            frame.package = frame.package.map { DiagnosticScrubber.scrubPath($0) }
         }
     }
     #endif
