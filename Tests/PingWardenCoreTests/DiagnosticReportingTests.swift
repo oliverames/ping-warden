@@ -65,6 +65,71 @@ final class DiagnosticReportingTests: XCTestCase {
         XCTAssertFalse(limiter.shouldSend(key: "c", now: 10_000), "the per-run cap holds across keys and time")
     }
 
+    func testRateLimitPersistsAcrossLaunches() {
+        let suite = TestDefaultsSuite.name("PingWardenDiagnosticRateLimit")
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        var first = DiagnosticEventRateLimiter(minimumInterval: 1_800, sessionCap: 10)
+        XCTAssertTrue(first.shouldSend(key: "repair_failed", now: 10_000))
+        DiagnosticRateLimitStore.save(first.activeEntries(now: 10_000), to: defaults)
+        XCTAssertEqual(defaults.dictionary(forKey: "DiagnosticsHelperEventLastSent") as? [String: Double], ["repair_failed": 10_000])
+
+        // A relaunch ten minutes later is still limited; one after 30 is not.
+        var relaunched = DiagnosticEventRateLimiter(minimumInterval: 1_800, sessionCap: 10, lastSent: DiagnosticRateLimitStore.load(from: defaults))
+        XCTAssertFalse(relaunched.shouldSend(key: "repair_failed", now: 10_600))
+        var later = DiagnosticEventRateLimiter(minimumInterval: 1_800, sessionCap: 10, lastSent: DiagnosticRateLimitStore.load(from: defaults))
+        XCTAssertTrue(later.shouldSend(key: "repair_failed", now: 11_800))
+
+        // Expired entries aren't saved, and an empty set removes the key.
+        XCTAssertTrue(later.activeEntries(now: 20_000).isEmpty)
+        DiagnosticRateLimitStore.save(later.activeEntries(now: 20_000), to: defaults)
+        XCTAssertNil(defaults.object(forKey: DiagnosticRateLimitStore.defaultsKey))
+    }
+
+    func testRateLimitStoreIgnoresUnknownOrInvalidEntries() {
+        let suite = TestDefaultsSuite.name("PingWardenDiagnosticRateLimitInvalid")
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(["repair_failed": 5.0, "not_a_problem": 6.0, "helper_unresponsive": "soon"], forKey: DiagnosticRateLimitStore.defaultsKey)
+        XCTAssertEqual(DiagnosticRateLimitStore.load(from: defaults), ["repair_failed": 5.0])
+    }
+
+    func testClockMovedBackDoesNotSilenceReports() {
+        var limiter = DiagnosticEventRateLimiter(minimumInterval: 1_800, sessionCap: 10, lastSent: ["repair_failed": 50_000])
+        XCTAssertTrue(limiter.shouldSend(key: "repair_failed", now: 10_000))
+    }
+
+    func testPathsReduceToBundleSystemOrFileName() {
+        let bundle = "/Users/Jane/Applications/Ping Warden.app"
+        XCTAssertEqual(DiagnosticPaths.reduce("\(bundle)/Contents/MacOS/Ping Warden", bundlePath: bundle), "Ping Warden.app/Contents/MacOS/Ping Warden")
+        XCTAssertEqual(DiagnosticPaths.reduce("/users/jane/applications/ping warden.app/Contents/Frameworks/Sentry.framework/Sentry", bundlePath: bundle),
+                       "Ping Warden.app/Contents/Frameworks/Sentry.framework/Sentry", "bundle match is case-insensitive")
+        XCTAssertEqual(DiagnosticPaths.reduce("/Applications/My Renamed Copy.app/Contents/MacOS/Ping Warden", bundlePath: "/Applications/My Renamed Copy.app"),
+                       "Ping Warden.app/Contents/MacOS/Ping Warden", "a renamed bundle reports the fixed name")
+        XCTAssertEqual(DiagnosticPaths.reduce("/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit", bundlePath: bundle),
+                       "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit")
+        XCTAssertEqual(DiagnosticPaths.reduce("/usr/lib/libobjc.A.dylib", bundlePath: bundle), "/usr/lib/libobjc.A.dylib")
+        XCTAssertEqual(DiagnosticPaths.reduce("/System/Volumes/Data/Users/jane/x.dylib", bundlePath: bundle), "x.dylib")
+        XCTAssertEqual(DiagnosticPaths.reduce("/usr/lib/../../Users/jane/x.dylib", bundlePath: bundle), "x.dylib")
+        XCTAssertEqual(DiagnosticPaths.reduce("/Network/Homes/jdoe/Library/x.bundle/x", bundlePath: bundle), "x")
+        XCTAssertEqual(DiagnosticPaths.reduce("/Users/ab/Ping Warden.app.evil/x", bundlePath: "/Users/ab/Ping Warden.app"), "x",
+                       "a sibling with the bundle path as a prefix is not inside the bundle")
+    }
+
+    func testScrubberSmallFixes() {
+        XCTAssertEqual(DiagnosticScrubber.scrubPath("/users/jane/x", homeDirectory: "/Users/tester"), "/users/<user>/x", "case-insensitive /Users")
+        XCTAssertEqual(DiagnosticScrubber.scrubPath("/USERS/TESTER/x", homeDirectory: "/Users/tester"), "~/x", "case-insensitive home")
+        XCTAssertEqual(DiagnosticScrubber.scrub("bind :: failed"), "bind <ip> failed")
+        XCTAssertEqual(DiagnosticScrubber.scrub("std::vector"), "std::vector")
+        let combining = "cafe\u{301}.example timed out"
+        XCTAssertEqual(DiagnosticScrubber.scrub(combining), "<host> timed out")
+        XCTAssertEqual(DiagnosticScrubber.scrub("relay.t\u{e9}st"), "<host>")
+        XCTAssertEqual(DiagnosticScrubber.scrub("user jo on mac", knownIdentifiers: ["jo"]), "user <name> on mac")
+        XCTAssertEqual(DiagnosticScrubber.scrub("joined", knownIdentifiers: ["jo"]), "joined", "short names match whole words only")
+        XCTAssertEqual(DiagnosticScrubber.scrub("by J", knownIdentifiers: ["j"]), "by <name>")
+    }
+
     func testDefaultRateLimit() {
         let limiter = DiagnosticEventRateLimiter()
         XCTAssertEqual(limiter.minimumInterval, 30 * 60)

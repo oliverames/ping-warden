@@ -7,19 +7,24 @@
 //  linked, thanks to the `#if canImport(Sentry)` guards.
 //
 //  What is sent (only while Settings → Advanced → Privacy → Send Crash
-//  Reports is on, which is the default when no choice is saved):
-//    • Crash reports and uncaught Objective-C exceptions.
-//    • Non-fatal helper error events: setup, repair, and protection on/off
-//      failures and an unresponsive helper. Each carries only an enum
+//  Reports is on, which is the default when no choice is saved) is an
+//  allowlist enforced in beforeSend, not a text filter:
+//    • Crash reports and uncaught Objective-C exceptions: exception type and
+//      mechanism, and each thread's stack frames (function, image, and a
+//      path reduced by DiagnosticPaths to its place inside Ping Warden.app,
+//      a macOS system path, or a bare file name). Exception messages,
+//      thread names, source context, frame variables, extra data, tags,
+//      and the transaction name are removed.
+//    • Non-fatal helper error events built only from enumerated fields: the
 //      problem name, the helper's registration state, an allowlisted error
-//      domain and numeric code, the app version, and the macOS version.
-//      At most one per problem every 30 minutes and ten per app run.
+//      domain and numeric code, the app version, and the macOS version. At
+//      most one per problem every 30 minutes (persisted across launches)
+//      and ten per app run.
 //    • Release health: one session per app run (start, end, crashed or not)
 //      with a random installation identifier created by the SDK.
 //    • On every event: app version and build, macOS name, version, and
-//      build, and the Mac's model family, model, and architecture. Other SDK
-//      contexts (locale, time zone, calendar, memory, device name, device
-//      hash) and the event user are removed in beforeSend.
+//      build, and the Mac's model family, model, and architecture. All other
+//      SDK contexts, the server name, and the event user are removed.
 //    • Breadcrumbs of app state transitions (setup, repair, protection,
 //      helper connection), as enum values only.
 //
@@ -34,12 +39,10 @@
 //  URLs, which can carry the macOS account name or a ping target. Setup
 //  duration is already visible from breadcrumb timestamps on error events.
 //
-//  beforeSend re-checks the preference as defense-in-depth, so a racing
-//  toggle-off between SDK init and first event still suppresses, and it
-//  scrubs free text the SDK collects itself (exception reasons, binary
-//  image paths) through DiagnosticScrubber: this Mac's account and
-//  computer names, URLs, email addresses, home-folder paths, IP and MAC
-//  addresses, and host names.
+//  beforeSend also re-checks the preference, so a racing toggle-off between
+//  SDK init and first event still suppresses. DiagnosticScrubber runs over
+//  the few strings that remain (exception and mechanism type names) as
+//  defense in depth only.
 //
 //  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 //  Licensed under the MIT License.
@@ -74,11 +77,18 @@ enum CrashReporter {
     /// so without it most runs would never start a release-health session.
     static let sessionStartNotification = Notification.Name("SentryHybridSdkDidBecomeActive")
 
-    /// Per-process limit on helper error events.
-    private static var rateLimiter = DiagnosticEventRateLimiter()
+    /// Limit on helper error events. Per-problem send times are loaded from
+    /// and saved to `rateLimitDefaults`, so relaunching doesn't reset them.
+    private static var rateLimiter = DiagnosticEventRateLimiter(
+        lastSent: DiagnosticRateLimitStore.load(from: rateLimitDefaults)
+    )
 
-    /// Monotonic clock for rate limiting; replaceable in tests.
-    static var now: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    /// Where send times persist: the app's own defaults domain, under one
+    /// diagnostics-only key. Tests point this at a temporary suite.
+    static var rateLimitDefaults: UserDefaults = .standard
+
+    /// Wall clock for rate limiting; replaceable in tests.
+    static var now: () -> TimeInterval = { Date().timeIntervalSince1970 }
 
     private static var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
@@ -231,10 +241,12 @@ enum CrashReporter {
             crumb.type = "info"
             SentrySDK.addBreadcrumb(crumb)
         case .problem(let report):
-            guard rateLimiter.shouldSend(key: report.rateLimitKey, now: now()) else {
+            let time = now()
+            guard rateLimiter.shouldSend(key: report.rateLimitKey, now: time) else {
                 log.debug("Helper problem \(report.problem.rawValue, privacy: .public) not sent: rate limited")
                 return
             }
+            DiagnosticRateLimitStore.save(rateLimiter.activeEntries(now: time), to: rateLimitDefaults)
             let event = Event(level: .warning)
             event.message = SentryMessage(formatted: report.message)
             event.fingerprint = report.fingerprint
@@ -244,9 +256,12 @@ enum CrashReporter {
         #endif
     }
 
-    /// Clear the per-process rate limit. Tests only.
-    static func resetRateLimiter(_ limiter: DiagnosticEventRateLimiter = DiagnosticEventRateLimiter()) {
-        rateLimiter = limiter
+    /// Replace the rate limiter, by default with one loaded from
+    /// `rateLimitDefaults`. Tests only.
+    static func resetRateLimiter(_ limiter: DiagnosticEventRateLimiter? = nil) {
+        rateLimiter = limiter ?? DiagnosticEventRateLimiter(
+            lastSent: DiagnosticRateLimitStore.load(from: rateLimitDefaults)
+        )
     }
 
     #if canImport(Sentry)
@@ -255,26 +270,50 @@ enum CrashReporter {
         StateBreadcrumb.isAllowed(category: crumb.category, message: crumb.message) ? crumb : nil
     }
 
-    /// Remove machine and free-text details the SDK gathers on its own.
+    /// Fingerprint heads of events Ping Warden builds itself from
+    /// enumerated fields. Their fixed message and tags are kept.
+    nonisolated static let ownEventFingerprints: Set<String> = ["helper-problem", "delivery-verification"]
+
+    /// The running app's bundle, used to reduce frame and image paths.
+    nonisolated static let bundlePath = Bundle.main.bundlePath
+
+    /// Allowlist every event before it leaves the Mac. Free-text fields the
+    /// SDK fills are removed, not filtered, so what is sent doesn't depend
+    /// on recognizing sensitive text.
     nonisolated static func scrub(_ event: Event) -> Event {
         event.serverName = nil
         event.user = nil
+        event.extra = nil
+        event.transaction = nil
+        event.modules = nil
         if let context = event.context {
             let kept = DiagnosticContextPolicy.filter(context)
             event.context = kept.isEmpty ? nil : kept
         }
-        if let message = event.message {
-            event.message = SentryMessage(formatted: scrubText(message.formatted))
+        if let head = event.fingerprint?.first, ownEventFingerprints.contains(head) {
+            // Built from enum values; nothing else to remove.
+        } else {
+            event.message = nil
+            event.tags = nil
+            event.fingerprint = nil
         }
         for exception in event.exceptions ?? [] {
-            exception.value = exception.value.map { scrubText($0) }
-            scrubFrames(exception.stacktrace)
+            exception.value = nil
+            exception.type = exception.type.map { scrubText($0) }
+            if let mechanism = exception.mechanism {
+                mechanism.desc = nil
+                mechanism.data = nil
+                mechanism.helpLink = nil
+                mechanism.type = scrubText(mechanism.type)
+            }
+            reduceFrames(exception.stacktrace)
         }
         for thread in event.threads ?? [] {
-            scrubFrames(thread.stacktrace)
+            thread.name = nil
+            reduceFrames(thread.stacktrace)
         }
         for image in event.debugMeta ?? [] {
-            image.codeFile = image.codeFile.map { DiagnosticScrubber.scrubPath($0) }
+            image.codeFile = image.codeFile.map { DiagnosticPaths.reduce($0, bundlePath: bundlePath) }
         }
         if let breadcrumbs = event.breadcrumbs {
             event.breadcrumbs = breadcrumbs.filter {
@@ -284,8 +323,8 @@ enum CrashReporter {
         return event
     }
 
-    /// This Mac's account and computer names, which the scrubber removes
-    /// wherever they appear in SDK-collected text.
+    /// This Mac's account and computer names, which the defense-in-depth
+    /// scrubber removes from the strings that remain.
     nonisolated static let localIdentifiers: [String] = {
         var names = [NSUserName(), NSFullUserName()]
         #if canImport(SystemConfiguration)
@@ -303,9 +342,16 @@ enum CrashReporter {
         DiagnosticScrubber.scrub(text, knownIdentifiers: localIdentifiers)
     }
 
-    nonisolated private static func scrubFrames(_ stacktrace: SentryStacktrace?) {
+    /// Keep function names and images; reduce paths; drop source context
+    /// and variables.
+    nonisolated private static func reduceFrames(_ stacktrace: SentryStacktrace?) {
         for frame in stacktrace?.frames ?? [] {
-            frame.package = frame.package.map { DiagnosticScrubber.scrubPath($0) }
+            frame.package = frame.package.map { DiagnosticPaths.reduce($0, bundlePath: bundlePath) }
+            frame.fileName = frame.fileName.map { DiagnosticPaths.reduce($0, bundlePath: bundlePath) }
+            frame.contextLine = nil
+            frame.preContext = nil
+            frame.postContext = nil
+            frame.vars = nil
         }
     }
     #endif

@@ -193,23 +193,90 @@ enum HelperTelemetrySignal: Sendable, Equatable {
 struct DiagnosticEventRateLimiter {
     let minimumInterval: TimeInterval
     let sessionCap: Int
-    private var lastSent: [String: TimeInterval] = [:]
+    /// Last send per key, in seconds since 1970. Persisted between launches
+    /// through `DiagnosticRateLimitStore`, so a relaunch doesn't reset it.
+    private(set) var lastSent: [String: TimeInterval]
     private(set) var sentCount = 0
 
-    init(minimumInterval: TimeInterval = 30 * 60, sessionCap: Int = 10) {
+    init(
+        minimumInterval: TimeInterval = 30 * 60,
+        sessionCap: Int = 10,
+        lastSent: [String: TimeInterval] = [:]
+    ) {
         self.minimumInterval = minimumInterval
         self.sessionCap = sessionCap
+        self.lastSent = lastSent
     }
 
-    /// Records the send when allowed. `now` is monotonic system uptime.
+    /// Records the send when allowed. `now` is wall-clock seconds since
+    /// 1970. A last-send time in the future (the clock moved back) doesn't
+    /// block sending, so a clock change can't silence reports for hours.
     mutating func shouldSend(key: String, now: TimeInterval) -> Bool {
         guard sentCount < sessionCap else { return false }
-        if let last = lastSent[key], now - last < minimumInterval {
+        if let last = lastSent[key], now >= last, now - last < minimumInterval {
             return false
         }
         lastSent[key] = now
         sentCount += 1
         return true
+    }
+
+    /// The entries that still limit sending at `now`, which are all that
+    /// need saving.
+    func activeEntries(now: TimeInterval) -> [String: TimeInterval] {
+        lastSent.filter { now >= $0.value && now - $0.value < minimumInterval }
+    }
+}
+
+/// Persists helper-event send times in the app's own defaults domain under
+/// one diagnostics-only key. It holds problem names and timestamps, nothing
+/// else, and is removed with the rest of the app's data.
+enum DiagnosticRateLimitStore {
+    static let defaultsKey = "DiagnosticsHelperEventLastSent"
+
+    static func load(from defaults: UserDefaults) -> [String: TimeInterval] {
+        guard let stored = defaults.dictionary(forKey: defaultsKey) else { return [:] }
+        var values: [String: TimeInterval] = [:]
+        for (key, value) in stored {
+            guard HelperProblem(rawValue: key) != nil,
+                  let number = value as? NSNumber,
+                  number.doubleValue.isFinite else { continue }
+            values[key] = number.doubleValue
+        }
+        return values
+    }
+
+    static func save(_ values: [String: TimeInterval], to defaults: UserDefaults) {
+        if values.isEmpty {
+            defaults.removeObject(forKey: defaultsKey)
+        } else {
+            defaults.set(values, forKey: defaultsKey)
+        }
+    }
+}
+
+/// Reduces file paths in stack frames and binary images so they can't
+/// carry a user, folder, or volume name. A path inside Ping Warden's bundle
+/// becomes `Ping Warden.app/<path inside the bundle>`. A macOS system path
+/// is kept, because it holds no user data. Anything else becomes its file
+/// name alone.
+enum DiagnosticPaths {
+    static let bundleName = "Ping Warden.app"
+
+    /// Read-only system locations. `/System/Volumes/` is excluded because
+    /// the Data volume holds home folders.
+    static let systemPrefixes = ["/System/Library/", "/System/iOSSupport/", "/System/Cryptexes/", "/usr/lib/", "/usr/libexec/"]
+
+    static func reduce(_ path: String, bundlePath: String) -> String {
+        let bundle = bundlePath.hasSuffix("/") ? String(bundlePath.dropLast()) : bundlePath
+        if bundle.split(separator: "/").count >= 1,
+           let range = path.range(of: bundle + "/", options: [.anchored, .caseInsensitive]) {
+            return bundleName + "/" + path[range.upperBound...]
+        }
+        if !path.contains("/../"), systemPrefixes.contains(where: { path.hasPrefix($0) }) {
+            return path
+        }
+        return (path as NSString).lastPathComponent
     }
 }
 
@@ -264,9 +331,10 @@ enum DiagnosticContextPolicy {
     }
 }
 
-/// Last-line text scrubbing for strings the SDK collects on its own, such
-/// as an uncaught exception's reason. Ping Warden never puts these values in
-/// events itself; this catches text from system frameworks.
+/// Defense in depth only. The privacy promise rests on CrashReporter's
+/// allowlist (no free-text fields are sent, and paths go through
+/// `DiagnosticPaths`); this scrubs the few strings that remain, such as an
+/// exception type name, in case a framework put something unexpected there.
 ///
 /// Passes run in a fixed order, because each one removes text a later,
 /// looser pass could otherwise split and half-redact:
@@ -299,12 +367,12 @@ enum DiagnosticScrubber {
     ]
 
     /// A top-level domain: Unicode letters, or an ASCII punycode label.
-    private static let tld = #"(\p{L}{2,63}|[Xx][Nn]--[A-Za-z0-9-]{1,59})"#
-    private static let label = #"[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?"#
+    private static let tld = #"(\p{L}[\p{L}\p{M}]{1,62}|[Xx][Nn]--[A-Za-z0-9-]{1,59})"#
+    private static let label = #"[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}-]{0,61}[\p{L}\p{M}\p{N}])?"#
 
     private static let urlPattern = regex(#"[A-Za-z][A-Za-z0-9+.-]*://[^\s"'<>]+"#)
-    private static let emailPattern = regex(#"[\p{L}\p{N}._%+-]+@(?:"# + label + #"\.)+"# + tld + #"(?![\p{L}\p{N}_-])"#)
-    private static let usersPathPattern = regex(#"/(Users|home)/[^/\s"']+"#)
+    private static let emailPattern = regex(#"[\p{L}\p{M}\p{N}._%+-]+@(?:"# + label + #"\.)+"# + tld + #"(?![\p{L}\p{M}\p{N}_-])"#)
+    private static let usersPathPattern = regex(#"(?i)/(Users|home)/[^/\s"']+"#)
     private static let tildeUserPattern = regex(#"(?<![\p{L}\p{N}_/~])~[A-Za-z_][A-Za-z0-9._-]*"#)
     private static let windowsHomePattern = regex(#"(?i)\b([A-Z]):\\(Users|Documents and Settings)\\[^\\\r\n"']+"#)
     private static let mixedIPPattern = regex(
@@ -322,30 +390,40 @@ enum DiagnosticScrubber {
             "(?:\(hex):){7}\(hex)",
             "(?:\(hex):){1,7}:(?:\(hex)(?::\(hex)){0,6})?",
             "::(?:\(hex)(?::\(hex)){0,6})",
+            "::",
         ]
         return regex(forms.map { before + $0 + zone + after }.joined(separator: "|"))
     }()
     private static let ipv4Pattern = regex(#"(?<![0-9.])(?:\d{1,3}\.){3}\d{1,3}(?![0-9.])"#)
     private static let hostPattern = regex(
-        #"(?<![\p{L}\p{N}_.-])(?:"# + label + #"\.)+"# + tld + #"(?![\p{L}\p{N}_-])(?::\d{1,5})?(?:/[^\s"'<>]*)?"#
+        #"(?<![\p{L}\p{M}\p{N}_.-])(?:"# + label + #"\.)+"# + tld + #"(?![\p{L}\p{M}\p{N}_-])(?::\d{1,5})?(?:/[^\s"'<>]*)?"#
     )
 
     /// Redacts identifying text as listed on the type. `knownIdentifiers`
-    /// are this Mac's account and computer names; values shorter than three
-    /// characters are ignored so they can't erase ordinary words.
+    /// are this Mac's account and computer names. Names of three or more
+    /// characters match anywhere; shorter ones match only as whole words.
     static func scrub(
         _ text: String,
         homeDirectory: String = NSHomeDirectory(),
         knownIdentifiers: [String] = []
     ) -> String {
         var result = text
-        for identifier in knownIdentifiers.sorted(by: { $0.count > $1.count })
-        where identifier.trimmingCharacters(in: .whitespaces).count >= 3 {
-            result = result.replacingOccurrences(
-                of: identifier,
-                with: redactedName,
-                options: [.caseInsensitive, .diacriticInsensitive]
-            )
+        for identifier in knownIdentifiers.sorted(by: { $0.count > $1.count }) {
+            let trimmed = identifier.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            if trimmed.count >= 3 {
+                result = result.replacingOccurrences(
+                    of: trimmed,
+                    with: redactedName,
+                    options: [.caseInsensitive, .diacriticInsensitive]
+                )
+            } else {
+                result = replace(
+                    regex("(?i)(?<![\\p{L}\\p{M}\\p{N}])" + NSRegularExpression.escapedPattern(for: trimmed) + "(?![\\p{L}\\p{M}\\p{N}])"),
+                    in: result,
+                    with: redactedName
+                )
+            }
         }
         result = replace(urlPattern, in: result, with: redactedURL)
         result = replace(emailPattern, in: result, with: redactedEmail)
@@ -369,7 +447,7 @@ enum DiagnosticScrubber {
         // A root or one-component home would redact unrelated paths.
         if home.split(separator: "/").count >= 2 {
             result = replace(
-                regex(NSRegularExpression.escapedPattern(for: home) + #"(?=/|$|[\s"'])"#),
+                regex("(?i)" + NSRegularExpression.escapedPattern(for: home) + #"(?=/|$|[\s"'])"#),
                 in: result,
                 with: "~"
             )

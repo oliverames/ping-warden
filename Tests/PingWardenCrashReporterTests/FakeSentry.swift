@@ -15,8 +15,21 @@ public final class SentryMessage {
 
 public final class Frame {
     public var package: String?
+    public var fileName: String?
     public var function: String?
+    public var contextLine: String?
+    public var preContext: [String]?
+    public var postContext: [String]?
+    public var vars: [String: Any]?
     public init() {}
+}
+
+public final class Mechanism {
+    public var type: String
+    public var desc: String?
+    public var data: [String: Any]?
+    public var helpLink: String?
+    public init(type: String) { self.type = type }
 }
 
 public final class SentryStacktrace {
@@ -27,6 +40,7 @@ public final class SentryStacktrace {
 public final class Exception {
     public var value: String?
     public var type: String?
+    public var mechanism: Mechanism?
     public var stacktrace: SentryStacktrace?
     public init(value: String?, type: String?) {
         self.value = value
@@ -35,6 +49,7 @@ public final class Exception {
 }
 
 public final class SentryThread {
+    public var name: String?
     public var stacktrace: SentryStacktrace?
     public init() {}
 }
@@ -65,6 +80,9 @@ public final class Event {
     public var message: SentryMessage?
     public var serverName: String?
     public var user: User?
+    public var extra: [String: Any]?
+    public var transaction: String?
+    public var modules: [String: String]?
     public var tags: [String: String]?
     public var fingerprint: [String]?
     public var context: [String: [String: Any]]?

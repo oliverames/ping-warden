@@ -57,7 +57,13 @@ struct CrashReporterTests {
         }
     }
 
+    static let rateLimitSuite = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("com.amesvt.pingwarden.tests.crash-rate-limit.\(UUID().uuidString)").path
+
     static func main() {
+        let rateLimitDefaults = UserDefaults(suiteName: rateLimitSuite)!
+        CrashReporter.rateLimitDefaults = rateLimitDefaults
+        defer { rateLimitDefaults.removePersistentDomain(forName: rateLimitSuite) }
         let preferences = PingWardenPreferences.shared
         preferences.reset()
         SentrySDK.reset()
@@ -174,6 +180,7 @@ struct CrashReporterTests {
         SentrySDK.close()
         preferences.removeFixturePreferences()
 
+        rateLimitDefaults.removePersistentDomain(forName: rateLimitSuite)
         print("Crash reporter tests: \(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
     }
@@ -194,10 +201,17 @@ struct CrashReporterTests {
     }
 
     static func checkScrubbing(_ options: Options) {
-        let homeImage = "/Users/oliver/Applications/Ping Warden.app/Contents/MacOS/Ping Warden"
+        let inBundle = CrashReporter.bundlePath + "/Contents/MacOS/Ping Warden"
+        let elsewhere = "/Users/Oliver/Applications/Other Tool.app/Contents/MacOS/Other Tool"
+        let systemImage = "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"
+        let dataVolume = "/System/Volumes/Data/Users/jane/lib/libhelper.dylib"
         let event = Event(level: .fatal)
         event.serverName = "Olivers-MacBook-Pro.local"
         event.user = User(userId: "installation-id")
+        event.extra = ["note": "probe.example.com"]
+        event.transaction = "SettingsView"
+        event.modules = ["Sentry": "9.26.0"]
+        event.tags = ["sdk_tag": "x"]
         event.context = [
             "device": ["name": "Oliver's MacBook Pro", "model": "Mac15,3", "memory_size": 17179869184, "boot_time": "2026-10-14"],
             "os": ["name": "macOS", "version": "15.5", "kernel_version": "Darwin 24.5.0"],
@@ -207,21 +221,39 @@ struct CrashReporterTests {
         ]
         event.message = SentryMessage(formatted: "Failed to reach 192.0.2.10 via game.example.net")
         let exception = Exception(
-            value: "-[NSURL host]: https://cloudmatchbeta.example.com/v2 refused for user@example.com at fe80::1 and 2001:db8::1",
+            value: "-[NSURL host]: anything at all, even relay.xn--p1ai or ::",
             type: "NSInvalidArgumentException"
         )
-        let frame = Frame()
-        frame.package = homeImage
-        exception.stacktrace = SentryStacktrace(frames: [frame])
+        let mechanism = Mechanism(type: "nsexception")
+        mechanism.desc = "reason with probe.example.com"
+        mechanism.data = ["reason": "probe.example.com"]
+        mechanism.helpLink = "https://example.com/help"
+        exception.mechanism = mechanism
+        let frames = [inBundle, elsewhere, systemImage, dataVolume].map { path -> Frame in
+            let frame = Frame()
+            frame.package = path
+            frame.fileName = path
+            frame.function = "-[NSApplication run]"
+            frame.contextLine = "let host = \"probe.example.com\""
+            frame.preContext = ["a"]
+            frame.postContext = ["b"]
+            frame.vars = ["host": "probe.example.com"]
+            return frame
+        }
+        exception.stacktrace = SentryStacktrace(frames: frames)
         event.exceptions = [exception]
         let thread = SentryThread()
+        thread.name = "probe.example.com worker"
         let threadFrame = Frame()
-        threadFrame.package = homeImage
+        threadFrame.package = elsewhere
         thread.stacktrace = SentryStacktrace(frames: [threadFrame])
         event.threads = [thread]
-        let image = DebugMeta()
-        image.codeFile = homeImage
-        event.debugMeta = [image]
+        let images = [inBundle, elsewhere, systemImage].map { path -> DebugMeta in
+            let image = DebugMeta()
+            image.codeFile = path
+            return image
+        }
+        event.debugMeta = images
         let ours = Breadcrumb(level: .info, category: StateBreadcrumb.protectionEnabled.category)
         ours.message = StateBreadcrumb.protectionEnabled.rawValue
         let foreign = Breadcrumb(level: .info, category: "http")
@@ -234,29 +266,45 @@ struct CrashReporterTests {
         }
         check(sent.serverName == nil, "server name is removed")
         check(sent.user == nil, "event user is removed")
-        check(sent.context?["device"]?["name"] == nil, "device name is removed")
-        check(sent.context?["device"]?["model"] as? String == "Mac15,3", "device model is kept")
+        check(sent.extra == nil && sent.transaction == nil && sent.modules == nil, "extra data, transaction, and modules are removed")
+        check(sent.message == nil, "crash messages are removed, not filtered")
+        check(sent.tags == nil && sent.fingerprint == nil, "SDK tags and fingerprints are removed from crash events")
         check(Set(sent.context?.keys.map { $0 } ?? []) == ["device", "os", "app"], "only disclosed contexts remain: \(sent.context?.keys.sorted() ?? [])")
         check(Set(sent.context?["device"]?.keys.map { $0 } ?? []) == ["model"], "device keeps only disclosed keys")
         check(Set(sent.context?["os"]?.keys.map { $0 } ?? []) == ["name", "version"], "os keeps only disclosed keys")
         check(Set(sent.context?["app"]?.keys.map { $0 } ?? []) == ["app_version", "app_build"], "app keeps only version and build")
-        let message = sent.message?.formatted ?? ""
-        check(!message.contains("192.0.2.10") && !message.contains("example.net"), "message IPs and hosts are redacted: \(message)")
-        let value = sent.exceptions?.first?.value ?? ""
-        check(value.hasPrefix("-[NSURL host]:"), "exception text outside identifiers is kept: \(value)")
-        for leaked in ["https://", "example.com", "user@", "fe80::1", "2001:db8::1"] {
-            check(!value.contains(leaked), "exception value omits \(leaked): \(value)")
-        }
-        check(sent.exceptions?.first?.type == "NSInvalidArgumentException", "exception type is kept")
-        let paths = [
-            sent.exceptions?.first?.stacktrace?.frames.first?.package,
-            sent.threads?.first?.stacktrace?.frames.first?.package,
-            sent.debugMeta?.first?.codeFile,
-        ]
-        check(paths.allSatisfy { $0 == "/Users/<user>/Applications/Ping Warden.app/Contents/MacOS/Ping Warden" || $0 == "~/Applications/Ping Warden.app/Contents/MacOS/Ping Warden" },
-              "home-folder account names are removed from image paths: \(paths)")
+        let sentException = sent.exceptions?.first
+        check(sentException?.value == nil, "exception messages are removed, not filtered")
+        check(sentException?.type == "NSInvalidArgumentException", "exception type is kept")
+        check(sentException?.mechanism?.type == "nsexception", "mechanism type is kept")
+        check(sentException?.mechanism?.desc == nil && sentException?.mechanism?.data == nil && sentException?.mechanism?.helpLink == nil,
+              "mechanism text is removed")
+        let sentFrames = sentException?.stacktrace?.frames ?? []
+        check(sentFrames.map { $0.package } == [
+            "Ping Warden.app/Contents/MacOS/Ping Warden",
+            "Other Tool",
+            systemImage,
+            "libhelper.dylib",
+        ], "frame paths are reduced to bundle-relative, system, or file name: \(sentFrames.map { $0.package })")
+        check(sentFrames.map { $0.fileName } == sentFrames.map { $0.package }, "frame file names are reduced the same way")
+        check(sentFrames.allSatisfy { $0.function == "-[NSApplication run]" }, "function names are kept")
+        check(sentFrames.allSatisfy { $0.contextLine == nil && $0.preContext == nil && $0.postContext == nil && $0.vars == nil },
+              "source context and variables are removed")
+        check(sent.threads?.first?.name == nil, "thread names are removed")
+        check(sent.threads?.first?.stacktrace?.frames.first?.package == "Other Tool", "thread frame paths are reduced")
+        check(sent.debugMeta?.map { $0.codeFile } == ["Ping Warden.app/Contents/MacOS/Ping Warden", "Other Tool", systemImage],
+              "image paths are reduced: \(sent.debugMeta?.map { $0.codeFile } ?? [])")
         check(sent.breadcrumbs?.map { $0.message } == [StateBreadcrumb.protectionEnabled.rawValue],
               "only state breadcrumbs remain on events")
+
+        // Ping Warden's own events keep their enum-built message and tags.
+        let own = Event(level: .warning)
+        own.message = SentryMessage(formatted: "Helper problem: repair_failed")
+        own.fingerprint = ["helper-problem", "repair_failed", "timed_out", "none", "none"]
+        own.tags = ["helper_problem": "repair_failed"]
+        let sentOwn = options.beforeSend?(own)
+        check(sentOwn?.message?.formatted == "Helper problem: repair_failed" && sentOwn?.tags?["helper_problem"] == "repair_failed",
+              "helper events keep their fixed message and tags")
     }
 
     static func checkHelperEvents() {
@@ -301,14 +349,27 @@ struct CrashReporterTests {
         CrashReporter.record(.problem(HelperProblemReport(problem: .helperConnectionLost, helperState: .enabled)))
         check(SentrySDK.capturedEvents.count == 3, "the per-run cap stops a flood")
 
+        // A relaunch loads the saved send times, so the 30-minute limit holds.
+        let saved = DiagnosticRateLimitStore.load(from: CrashReporter.rateLimitDefaults)
+        check(Set(saved.keys) == ["protection_enable_failed", "repair_failed"], "send times persist per problem: \(saved)")
+        CrashReporter.resetRateLimiter(DiagnosticEventRateLimiter(
+            minimumInterval: 2_000,
+            sessionCap: 3,
+            lastSent: DiagnosticRateLimitStore.load(from: CrashReporter.rateLimitDefaults)
+        ))
+        CrashReporter.record(.problem(rejected))
+        check(SentrySDK.capturedEvents.count == 3, "a relaunched process still honors the saved limit")
+        CrashReporter.record(.problem(HelperProblemReport(problem: .helperUnresponsive, helperState: .enabled)))
+        check(SentrySDK.capturedEvents.count == 4, "a relaunch starts a fresh per-run cap")
+
         PingWardenPreferences.shared.isCrashReportingEnabled = false
         CrashReporter.resetRateLimiter()
         CrashReporter.record(.problem(rejected))
         CrashReporter.record(.breadcrumb(.repairStarted))
-        check(SentrySDK.capturedEvents.count == 3 && SentrySDK.breadcrumbs.count == 1,
+        check(SentrySDK.capturedEvents.count == 4 && SentrySDK.breadcrumbs.count == 1,
               "turning reporting off stops helper events and breadcrumbs immediately")
         PingWardenPreferences.shared.isCrashReportingEnabled = true
-        CrashReporter.now = { ProcessInfo.processInfo.systemUptime }
+        CrashReporter.now = { Date().timeIntervalSince1970 }
         CrashReporter.resetRateLimiter()
     }
 
@@ -346,15 +407,14 @@ struct CrashReporterTests {
         check(names.contains(NSUserName()), "the account name is a known identifier")
         guard let name = names.first else { return }
         let event = Event(level: .fatal)
-        event.message = SentryMessage(formatted: "Failed for \(name) on this Mac")
-        let exception = Exception(value: "owner \(name.uppercased())", type: "NSGenericException")
+        let exception = Exception(value: nil, type: "Error\(name.uppercased())Exception")
         event.exceptions = [exception]
         guard let sent = options.beforeSend?(event) else {
             check(false, "enabled gate keeps the identifier event")
             return
         }
-        check(sent.message?.formatted == "Failed for <name> on this Mac", "account name is removed from messages: \(sent.message?.formatted ?? "")")
-        check(sent.exceptions?.first?.value == "owner <name>", "identifiers match case-insensitively")
+        check(sent.exceptions?.first?.type == "Error<name>Exception",
+              "defense in depth removes this Mac's names from the remaining type text: \(sent.exceptions?.first?.type ?? "")")
     }
 
     #if DEBUG
