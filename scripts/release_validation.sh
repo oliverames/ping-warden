@@ -397,6 +397,12 @@ detach_validation_volume() {
         if output="$(hdiutil detach "$target" 2>&1)"; then
             return 0
         fi
+        # A busy detach can still finish a moment later. Once the mount point
+        # is gone the volume is detached, so later retries would only fail
+        # with "No such file or directory".
+        if [ ! -d "$target" ]; then
+            return 0
+        fi
         if [ "$attempt" -ge "$attempts" ]; then
             break
         fi
