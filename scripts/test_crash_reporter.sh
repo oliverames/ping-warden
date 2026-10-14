@@ -23,13 +23,24 @@ cat > "$BUILD_DIR/Info.plist" <<'PLIST'
 </dict></plist>
 PLIST
 
-xcrun swiftc -target "$(uname -m)-apple-macosx13.0" -module-cache-path "$BUILD_DIR/module-cache" -swift-version 5 -parse-as-library \
-  -I "$BUILD_DIR" -L "$BUILD_DIR" -lSentry \
-  -Xlinker -rpath -Xlinker "$BUILD_DIR" \
-  -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$BUILD_DIR/Info.plist" \
-  "$REPO_ROOT/PingWarden/PingWarden/Core/CrashReportingPolicy.swift" \
-  "$REPO_ROOT/PingWarden/PingWarden/CrashReporter.swift" \
-  "$FIXTURES_DIR/CrashReporterTests.swift" \
-  -o "$BUILD_DIR/CrashReporterTests"
+# Release configuration first, then Debug, which adds the development
+# environment and the delivery-test path.
+build_and_run() {
+  local output="$1"
+  shift
+  xcrun swiftc -target "$(uname -m)-apple-macosx13.0" -module-cache-path "$BUILD_DIR/module-cache" -swift-version 5 -parse-as-library \
+    "$@" \
+    -I "$BUILD_DIR" -L "$BUILD_DIR" -lSentry \
+    -Xlinker -rpath -Xlinker "$BUILD_DIR" \
+    -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$BUILD_DIR/Info.plist" \
+    "$REPO_ROOT/PingWarden/PingWarden/Core/CrashReportingPolicy.swift" \
+    "$REPO_ROOT/PingWarden/PingWarden/Core/HelperRecovery.swift" \
+    "$REPO_ROOT/PingWarden/PingWarden/Core/DiagnosticReporting.swift" \
+    "$REPO_ROOT/PingWarden/PingWarden/CrashReporter.swift" \
+    "$FIXTURES_DIR/CrashReporterTests.swift" \
+    -o "$BUILD_DIR/$output"
+  "$BUILD_DIR/$output"
+}
 
-"$BUILD_DIR/CrashReporterTests"
+build_and_run CrashReporterTests
+build_and_run CrashReporterDebugTests -D DEBUG

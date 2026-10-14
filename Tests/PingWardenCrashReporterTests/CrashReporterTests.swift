@@ -21,6 +21,9 @@ final class PingWardenPreferences {
         set { defaults.set(newValue, forKey: CrashReportingPolicy.preferenceKey) }
     }
 
+    // In memory: the beta-channel key is not under test here.
+    var betaChannelEnabled = false
+
     func reset(storedChoice: Bool? = nil) {
         defaults.removePersistentDomain(forName: suiteName)
         if let storedChoice {
@@ -58,28 +61,54 @@ struct CrashReporterTests {
         preferences.reset()
         SentrySDK.reset()
         check(preferences.isCrashReportingEnabled, "missing preference defaults on")
+        var sessionStartPosts = 0
+        let sessionObserver = NotificationCenter.default.addObserver(
+            forName: CrashReporter.sessionStartNotification, object: nil, queue: nil
+        ) { _ in sessionStartPosts += 1 }
         CrashReporter.startIfEnabled()
+        NotificationCenter.default.removeObserver(sessionObserver)
+        check(sessionStartPosts == 1, "enabled startup starts one release-health session")
         check(SentrySDK.startCount == 1, "default-on startup initializes SDK")
         check(SentrySDK.isActive, "SDK is active after enabled startup")
         check(!CrashReporter.relaunchRequired, "enabled launch has no pending relaunch")
 
         if let options = SentrySDK.lastOptions {
             check(options.releaseName == "com.amesvt.pingwarden@9.8.7+98765", "release includes bundle version and build")
+            check(options.dist == "98765", "dist is the build number")
+            #if DEBUG
+            check(options.environment == "development", "Debug builds report under the development environment")
+            #else
             check(options.environment == "production", "production environment is retained")
+            #endif
             check(options.dsn?.hasPrefix("https://") == true, "DSN is configured")
             check(!options.debug, "SDK debug logging stays off")
             check(!options.sendDefaultPii, "default personal data stays off")
             check(options.tracesSampleRate?.doubleValue == 0, "performance tracing stays off")
+            check(!options.enableAutoPerformanceTracing, "automatic performance spans stay off")
+            check(!options.enableCoreDataTracing, "Core Data spans stay off")
             check(options.enableCrashHandler, "crash handling remains enabled")
-            check(!options.enableAutoSessionTracking, "session tracking stays off")
+            check(options.enableUncaughtNSExceptionReporting, "uncaught NSExceptions are reported")
+            check(options.enableAutoSessionTracking, "release-health session tracking is on")
             check(!options.enableNetworkTracking, "network tracking stays off")
             check(!options.enableNetworkBreadcrumbs, "network breadcrumbs stay off")
             check(!options.enableCaptureFailedRequests, "failed-request events stay off")
+            check(!options.enableAutoBreadcrumbTracking, "automatic UI and system breadcrumbs stay off")
+            check(!options.attachStacktrace, "non-crash events carry no stack or image paths")
             check(!options.enableAppHangTracking, "hang tracking stays off")
             check(!options.enableFileIOTracing, "file tracing stays off")
+            check(!options.enableMetricKit, "MetricKit payloads stay off")
+            check(!options.enableLogs, "log forwarding stays off")
             check(options.beforeSend != nil, "event gate is installed")
+            check(options.beforeBreadcrumb != nil, "breadcrumb filter is installed")
             let event = Event()
             check(options.beforeSend?(event) === event, "enabled gate preserves event")
+
+            checkBreadcrumbFilter(options)
+            checkScrubbing(options)
+            checkHelperEvents()
+            #if DEBUG
+            checkDeliveryTest()
+            #endif
 
             // Exercise the race guard independently of closing the SDK.
             preferences.isCrashReportingEnabled = false
@@ -121,9 +150,157 @@ struct CrashReporterTests {
         check(SentrySDK.isActive, "SDK starts on subsequent enabled launch")
         check(!CrashReporter.relaunchRequired, "subsequent startup clears pending status")
         CrashReporter.stop()
+
+        // Nothing is recorded while reporting is off, including when an SDK
+        // is active that CrashReporter did not start in this process.
+        preferences.reset(storedChoice: false)
+        SentrySDK.reset()
+        CrashReporter.startIfEnabled()
+        CrashReporter.resetRateLimiter()
+        let report = HelperProblemReport(problem: .repairFailed, helperState: .enabled, failure: .timedOut)
+        CrashReporter.record(.problem(report))
+        CrashReporter.record(.breadcrumb(.repairFailed))
+        check(SentrySDK.capturedEvents.isEmpty && SentrySDK.breadcrumbs.isEmpty, "opted-out process records nothing")
+        SentrySDK.start { _ in }
+        preferences.isCrashReportingEnabled = true
+        CrashReporter.record(.problem(report))
+        CrashReporter.record(.breadcrumb(.repairFailed))
+        check(SentrySDK.capturedEvents.isEmpty && SentrySDK.breadcrumbs.isEmpty,
+              "an opt-in pending relaunch records nothing")
+        SentrySDK.close()
         preferences.removeFixturePreferences()
 
         print("Crash reporter tests: \(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
     }
+
+    static func checkBreadcrumbFilter(_ options: Options) {
+        let ours = Breadcrumb(level: .info, category: StateBreadcrumb.repairStarted.category)
+        ours.message = StateBreadcrumb.repairStarted.rawValue
+        check(options.beforeBreadcrumb?(ours) === ours, "state breadcrumbs pass the filter")
+        let ui = Breadcrumb(level: .info, category: "ui.click")
+        ui.message = "Clicked Add Target"
+        check(options.beforeBreadcrumb?(ui) == nil, "UI breadcrumbs are dropped")
+        let forged = Breadcrumb(level: .info, category: StateBreadcrumb.repairStarted.category)
+        forged.message = "probe.example.com"
+        check(options.beforeBreadcrumb?(forged) == nil, "free text in an allowed category is dropped")
+        let mismatched = Breadcrumb(level: .info, category: "app.setup")
+        mismatched.message = StateBreadcrumb.repairStarted.rawValue
+        check(options.beforeBreadcrumb?(mismatched) == nil, "a value under the wrong category is dropped")
+    }
+
+    static func checkScrubbing(_ options: Options) {
+        let homeImage = "/Users/oliver/Applications/Ping Warden.app/Contents/MacOS/Ping Warden"
+        let event = Event(level: .fatal)
+        event.serverName = "Olivers-MacBook-Pro.local"
+        event.context = ["device": ["name": "Oliver's MacBook Pro", "model": "Mac15,3"], "os": ["version": "15.5"]]
+        event.message = SentryMessage(formatted: "Failed to reach 192.0.2.10 via game.example.net")
+        let exception = Exception(
+            value: "-[NSURL host]: https://cloudmatchbeta.example.com/v2 refused for user@example.com at fe80::1 and 2001:db8::1",
+            type: "NSInvalidArgumentException"
+        )
+        let frame = Frame()
+        frame.package = homeImage
+        exception.stacktrace = SentryStacktrace(frames: [frame])
+        event.exceptions = [exception]
+        let thread = SentryThread()
+        let threadFrame = Frame()
+        threadFrame.package = homeImage
+        thread.stacktrace = SentryStacktrace(frames: [threadFrame])
+        event.threads = [thread]
+        let image = DebugMeta()
+        image.codeFile = homeImage
+        event.debugMeta = [image]
+        let ours = Breadcrumb(level: .info, category: StateBreadcrumb.protectionEnabled.category)
+        ours.message = StateBreadcrumb.protectionEnabled.rawValue
+        let foreign = Breadcrumb(level: .info, category: "http")
+        foreign.message = "GET https://api.gumroad.com/v2/licenses/verify"
+        event.breadcrumbs = [ours, foreign]
+
+        guard let sent = options.beforeSend?(event) else {
+            check(false, "enabled gate keeps a crash event")
+            return
+        }
+        check(sent.serverName == nil, "server name is removed")
+        check(sent.context?["device"]?["name"] == nil, "device name is removed")
+        check(sent.context?["device"]?["model"] as? String == "Mac15,3", "device model is kept")
+        let message = sent.message?.formatted ?? ""
+        check(!message.contains("192.0.2.10") && !message.contains("example.net"), "message IPs and hosts are redacted: \(message)")
+        let value = sent.exceptions?.first?.value ?? ""
+        check(value.hasPrefix("-[NSURL host]:"), "exception text outside identifiers is kept: \(value)")
+        for leaked in ["https://", "example.com", "user@", "fe80::1", "2001:db8::1"] {
+            check(!value.contains(leaked), "exception value omits \(leaked): \(value)")
+        }
+        check(sent.exceptions?.first?.type == "NSInvalidArgumentException", "exception type is kept")
+        let paths = [
+            sent.exceptions?.first?.stacktrace?.frames.first?.package,
+            sent.threads?.first?.stacktrace?.frames.first?.package,
+            sent.debugMeta?.first?.codeFile,
+        ]
+        check(paths.allSatisfy { $0 == "/Users/<user>/Applications/Ping Warden.app/Contents/MacOS/Ping Warden" },
+              "home-folder account names are removed from image paths: \(paths)")
+        check(sent.breadcrumbs?.map { $0.message } == [StateBreadcrumb.protectionEnabled.rawValue],
+              "only state breadcrumbs remain on events")
+    }
+
+    static func checkHelperEvents() {
+        SentrySDK.reset()
+        // Reinstall the production options on the fixture SDK.
+        CrashReporter.startIfEnabled()
+        var clock: TimeInterval = 1_000
+        CrashReporter.now = { clock }
+        CrashReporter.resetRateLimiter(DiagnosticEventRateLimiter(minimumInterval: 60, sessionCap: 3))
+
+        CrashReporter.record(.breadcrumb(.setupStarted))
+        check(SentrySDK.breadcrumbs.map(\.category) == ["app.setup"], "state breadcrumbs reach the SDK")
+        check(SentrySDK.breadcrumbs.first?.message == "setup.started", "breadcrumb message is the enum value")
+
+        let timeout = HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .timedOut)
+        CrashReporter.record(.problem(timeout))
+        check(SentrySDK.capturedEvents.count == 1, "a helper problem is captured")
+        if let event = SentrySDK.capturedEvents.first {
+            check(event.level == .warning, "helper problems are warnings, not crashes")
+            check(event.message?.formatted == "Helper problem: protection_enable_failed", "message is the fixed problem name")
+            check(event.fingerprint == ["helper-problem", "protection_enable_failed", "timed_out", "none", "none"], "fingerprint is stable")
+            let tags = event.tags ?? [:]
+            check(Set(tags.keys) == ["helper_problem", "helper_state", "failure_reason", "app_version", "macos_version"],
+                  "only allowlisted tags are set: \(tags.keys.sorted())")
+            check(tags["app_version"] == "9.8.7" && tags["helper_state"] == "enabled", "tags carry app version and helper state")
+            check(tags["macos_version"]?.split(separator: ".").count == 3, "macOS version is major.minor.patch")
+        }
+
+        CrashReporter.record(.problem(timeout))
+        check(SentrySDK.capturedEvents.count == 1, "a repeated problem inside the interval is dropped")
+        clock += 61
+        CrashReporter.record(.problem(timeout))
+        check(SentrySDK.capturedEvents.count == 2, "the same problem is sent again after the interval")
+        let rejected = HelperProblemReport(problem: .repairFailed, helperState: .notFound, failure: .rejected(code: 4099))
+        CrashReporter.record(.problem(rejected))
+        check(SentrySDK.capturedEvents.last?.tags?["error_domain"] == NSCocoaErrorDomain
+              && SentrySDK.capturedEvents.last?.tags?["error_code"] == "4099", "XPC errors report Cocoa domain and code")
+        clock += 1_000
+        CrashReporter.record(.problem(HelperProblemReport(problem: .helperConnectionLost, helperState: .enabled)))
+        check(SentrySDK.capturedEvents.count == 3, "the per-run cap stops a flood")
+
+        PingWardenPreferences.shared.isCrashReportingEnabled = false
+        CrashReporter.resetRateLimiter()
+        CrashReporter.record(.problem(rejected))
+        CrashReporter.record(.breadcrumb(.repairStarted))
+        check(SentrySDK.capturedEvents.count == 3 && SentrySDK.breadcrumbs.count == 1,
+              "turning reporting off stops helper events and breadcrumbs immediately")
+        PingWardenPreferences.shared.isCrashReportingEnabled = true
+        CrashReporter.now = { ProcessInfo.processInfo.systemUptime }
+        CrashReporter.resetRateLimiter()
+    }
+
+    #if DEBUG
+    static func checkDeliveryTest() {
+        let before = SentrySDK.capturedEvents.count
+        CrashReporter.sendDeliveryTestEvent()
+        check(SentrySDK.capturedEvents.count == before + 1, "Debug delivery test sends one event")
+        check(SentrySDK.capturedEvents.last?.fingerprint == CrashReporter.deliveryTestFingerprint, "delivery test groups as one issue")
+        check(SentrySDK.capturedEvents.last?.tags?["delivery_test"] == "true", "delivery test is tagged")
+        check(SentrySDK.flushCount == 1, "delivery test flushes before returning")
+    }
+    #endif
 }

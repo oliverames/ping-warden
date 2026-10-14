@@ -126,7 +126,7 @@ struct WelcomeView: View {
             if !license.canEnableProtection {
                 licenseLine
             }
-            Text("Ping Warden sends anonymous crash reports. You can turn this off in Settings → Advanced.")
+            Text("Ping Warden sends anonymous crash and error reports. You can turn this off in Settings → Advanced.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

@@ -194,6 +194,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // Anonymous crash reporting defaults on only when no choice is saved.
         // The Settings privacy toggle is checked before SDK startup.
         CrashReporter.startIfEnabled()
+#if DEBUG
+        // Proves the DSN path end to end without touching production data:
+        // Debug builds report under the `development` environment.
+        if ProcessInfo.processInfo.arguments.contains("--sentry-test-event") {
+            CrashReporter.sendDeliveryTestEvent()
+        }
+#endif
 
         // Clear any cached Settings window state from prior builds that may have
         // injected fullSizeContentView or other window customizations via onAppear.
@@ -209,6 +216,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         // Initialize monitoring before Sparkle so first-run UX can be gated on setup state.
         let monitor = PingWardenMonitor.shared
+        // Setup, repair, and protection signals reach crash reporting only
+        // while it is on; CrashReporter drops them otherwise.
+        monitor.telemetryHandler = { signal in CrashReporter.submit(signal) }
 
         // Licensing: grandfather existing installs (protection already
         // enabled and helper already approved) for 90 days, then enforce
@@ -2854,15 +2864,15 @@ struct AdvancedSettingsContent: View {
                                 StatusBadge(text: "Relaunch Required", tint: .unavailable)
                             }
                         }
-                        Text("Sends anonymous crash reports without usage data or ping targets. Turning this off takes effect immediately. Turning it on takes effect after you relaunch Ping Warden.")
+                        Text("Sends anonymous crash reports, helper error codes, and app session counts. It never sends ping targets, IP addresses, host names, network names, or license keys. Turning this off takes effect immediately. Turning it on takes effect after you relaunch Ping Warden.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
                 .accessibilityLabel("Send Crash Reports")
                 .accessibilityHint(crashReportingRelaunchRequired
-                    ? "Relaunch required to start sending anonymous crash reports. Sends no IP addresses, usage data, or ping targets."
-                    : "Sends anonymous crash details without IP addresses, usage data, or ping targets")
+                    ? "Relaunch required to start sending anonymous crash and error reports. Ping targets, IP addresses, host names, network names, and license keys are never sent."
+                    : "Sends anonymous crash reports, helper error codes, and session counts, never ping targets, IP addresses, host names, network names, or license keys")
                 .onChangeCompat(of: crashReportingEnabled) { newValue in
                     PingWardenPreferences.shared.isCrashReportingEnabled = newValue
                     if !newValue { CrashReporter.stop() }
