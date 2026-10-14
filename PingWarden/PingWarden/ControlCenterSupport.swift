@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os.log
 import Security
 #if canImport(WidgetKit)
 import WidgetKit
@@ -26,6 +27,15 @@ enum ControlCenterSupport {
             ControlCenter.shared.reloadControls(ofKind: pingProtectionControlKind)
         }
         #endif
+    }
+
+    /// Reload the control after a recovery point (#101), coalesced with any
+    /// other recovery reload requested in the same short window. Use this
+    /// rather than `reloadPingProtectionControl()` for launch, helper
+    /// recovery, Repair, and wake, which can arrive together.
+    @MainActor
+    static func requestPingProtectionRefresh(_ trigger: ControlCenterRefreshTrigger) {
+        ControlCenterRefresher.shared.request(trigger)
     }
 
     enum Availability: Equatable {
@@ -113,5 +123,40 @@ enum ControlCenterSupport {
         }
 
         return SecStaticCodeCheckValidity(code, [], req) == errSecSuccess ? .available : .unsignedOrUntrusted
+    }
+}
+
+/// Schedules coalesced Control Center reloads for recovery points (#101).
+/// A crashed process cannot reload the control, so the next process does it
+/// at launch, and recovery paths that may not write the effective-state
+/// preference (helper answering again, Repair, wake) do it as well. The
+/// widget's value provider then re-derives the state from the running app
+/// and the live awdl0 flags instead of WidgetKit's cached rendering.
+@MainActor
+final class ControlCenterRefresher {
+    static let shared = ControlCenterRefresher()
+
+    private let log = Logger(subsystem: "com.amesvt.pingwarden", category: "ControlCenter")
+    private var coalescer = ControlCenterRefreshCoalescer()
+
+    private init() {}
+
+    func request(_ trigger: ControlCenterRefreshTrigger) {
+        guard let delay = coalescer.request(
+            trigger,
+            controlCenterAvailable: ControlCenterSupport.isAvailableForCurrentApp()
+        ) else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            self?.flush()
+        }
+    }
+
+    private func flush() {
+        let triggers = coalescer.flush()
+        guard !triggers.isEmpty else { return }
+        let reasons = triggers.map(\.rawValue).joined(separator: ",")
+        log.info("Reloading the Ping Protection control (\(reasons, privacy: .public))")
+        ControlCenterSupport.reloadPingProtectionControl()
     }
 }
