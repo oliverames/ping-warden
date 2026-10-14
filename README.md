@@ -137,7 +137,7 @@ The app makes a few narrow outbound requests:
 - Sparkle checks the public appcast for updates.
 - License activation and refresh send your license key and the product ID to Gumroad over HTTPS. Your key stays in the macOS Keychain between checks.
 - The dashboard checks `status.geforcenow.com` to discover GeForce NOW target hostnames.
-- Anonymous crash and error reporting has been on by default since version 4.2.0 when no choice has been saved. Updates preserve your saved choice, including an opt-out. Turn it off under **Settings > Advanced > Privacy** to stop new reports immediately. Turning it back on takes effect after a relaunch. The next section lists exactly what it sends.
+- Anonymous crash and error reporting has been on by default since version 4.2.0 when no choice has been saved. Updates preserve your saved choice, including an opt-out. Turn it off under **Settings > Advanced > Privacy** to stop reporting immediately. The only thing sent after you turn it off is one record that the current app session ended. Turning it back on takes effect after a relaunch. The next section lists exactly what it sends.
 - TCP latency probes connect only to the target you select or ask Ping Warden to choose.
 
 Diagnostics exports are written locally. Ping Warden never uploads them for you.
@@ -146,13 +146,14 @@ Diagnostics exports are written locally. Ping Warden never uploads them for you.
 
 Reports go to Sentry. Ping Warden decides what goes in each one from a fixed list, rather than trying to spot and remove sensitive text:
 
-- Crash reports and uncaught exceptions: the exception type, how the crash happened, and the stack of each thread. Each stack frame keeps its function name, and its file path is cut down to its place inside Ping Warden.app, a macOS system path such as /System/Library/..., or just the file name. Exception messages, thread names, source code lines, and any other text the reporting library collects are removed before the report leaves your Mac.
+- Crash reports and uncaught exceptions: the exception type, how the crash happened, and the stack of each thread. Each stack frame keeps its function name and the memory addresses of code needed to match it to Ping Warden's debug symbols, and its file path is cut down to its place inside Ping Warden.app, a macOS system path such as /System/Library/..., or just the file name. Exception messages, thread names, the processor register values saved at the moment of the crash, source code lines, and any other text the reporting library collects are removed before the report leaves your Mac.
 - Helper error events when setup, Repair, or turning protection on or off fails, or when the helper stops answering. Ping Warden builds these itself from a fixed set of values: the problem's name, the helper's registration state, a system error domain and numeric code, the app version, and the macOS version. It sends at most one event per problem every 30 minutes, even if you relaunch, and no more than ten per app run.
 - Session counts for each release: when the app starts, when it quits, and whether it crashed. Sentry's library ties these to a random identifier it creates for this installation, which is how crash-free rates are counted.
 - A short trail of app state changes attached to those reports, such as "setup started" or "protection enabled."
+- Counts of reports the library dropped and why, for example because of a rate limit, with nothing from the reports themselves.
 - On every report: the app version and build, the macOS version and build, and the Mac's model and processor architecture. Everything else the library would attach, including your locale, time zone, memory size, and your Mac's name, is removed.
 
-Ping Warden never puts ping targets, host names, IP addresses, Wi-Fi network names, license keys, your Mac's name, or diagnostics exports in a report. It turns off the reporting library's default personal data, performance tracing, network request tracking, and automatic interface breadcrumbs. The Sentry project also discards the IP address a report arrives from.
+Ping Warden never puts ping targets, host names, IP addresses, Wi-Fi network names, license keys, your Mac's name, or diagnostics exports in a report. It turns off the reporting library's default personal data, performance tracing, network request tracking, and automatic interface breadcrumbs. The Sentry project is also set not to store the IP address a report arrives from.
 
 ## Support Ping Warden
 

@@ -59,7 +59,8 @@ final class SMAppService {
     static var settingsOpenCalls = 0
     static var registerCalls = 0
     static var unregisterCalls = 0
-    var status: Status { Self.fixtureStatus }
+    static var statusReads = 0
+    var status: Status { Self.statusReads += 1; return Self.fixtureStatus }
     static func daemon(plistName: String) -> SMAppService { SMAppService() }
     static func openSystemSettingsLoginItems() {
         precondition(Self.fixtureAllowsRegistration, "Settings handoff must be explicitly enabled in the fixture")

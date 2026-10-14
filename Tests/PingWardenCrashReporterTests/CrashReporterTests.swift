@@ -106,6 +106,7 @@ struct CrashReporterTests {
             check(!options.enableFileIOTracing, "file tracing stays off")
             check(!options.enableMetricKit, "MetricKit payloads stay off")
             check(!options.enableLogs, "log forwarding stays off")
+            check(options.sendClientReports, "client reports (drop counts) are on, as disclosed")
             check(options.beforeSend != nil, "event gate is installed")
             check(options.beforeBreadcrumb != nil, "breadcrumb filter is installed")
             let event = Event()
@@ -241,12 +242,18 @@ struct CrashReporterTests {
             return frame
         }
         exception.stacktrace = SentryStacktrace(frames: frames)
+        exception.stacktrace?.registers = ["x0": "0x302e3836312e323931", "rip": "0x0000000100003f20"]
         event.exceptions = [exception]
+        let request = SentryRequest()
+        request.url = "https://probe.example.com"
+        event.request = request
+        event.stacktrace = SentryStacktrace(frames: [Frame()])
         let thread = SentryThread()
         thread.name = "probe.example.com worker"
         let threadFrame = Frame()
         threadFrame.package = elsewhere
         thread.stacktrace = SentryStacktrace(frames: [threadFrame])
+        thread.stacktrace?.registers = ["x1": "0x352e312e383631", "pc": "0x0000000100003f20"]
         event.threads = [thread]
         let images = [inBundle, elsewhere, systemImage].map { path -> DebugMeta in
             let image = DebugMeta()
@@ -267,6 +274,9 @@ struct CrashReporterTests {
         check(sent.serverName == nil, "server name is removed")
         check(sent.user == nil, "event user is removed")
         check(sent.extra == nil && sent.transaction == nil && sent.modules == nil, "extra data, transaction, and modules are removed")
+        check(sent.request == nil && sent.stacktrace == nil, "request and event-level stack trace are removed")
+        check(sent.exceptions?.first?.stacktrace?.registers.isEmpty == true, "exception register values are removed")
+        check(sent.threads?.first?.stacktrace?.registers.isEmpty == true, "thread register values are removed")
         check(sent.message == nil, "crash messages are removed, not filtered")
         check(sent.tags == nil && sent.fingerprint == nil, "SDK tags and fingerprints are removed from crash events")
         check(Set(sent.context?.keys.map { $0 } ?? []) == ["device", "os", "app"], "only disclosed contexts remain: \(sent.context?.keys.sorted() ?? [])")

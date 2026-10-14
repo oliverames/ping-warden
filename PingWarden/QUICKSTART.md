@@ -58,7 +58,7 @@ Every version of the window ends with: "Ping Warden sends anonymous crash and er
 
 **Behind the scenes:** Nothing changes on your Mac until you click a setup button. The window opens automatically only once. If you choose **Not Now**, the menu bar shows **Status: Not Set Up**, and the protection item in the menu reads **Finish Setup…**. Choosing it opens the welcome window again.
 
-Crash and error reports include crash details, helper error codes, and app session counts. They never include ping targets, IP addresses, host names, network names, or license keys, and the [privacy section](../README.md#what-crash-reporting-sends) lists everything they send. To stop sending them, turn off **Send Crash Reports** under **Settings → Advanced → Privacy**. Turning it off takes effect immediately.
+Crash and error reports include crash details, helper error codes, and app session counts. They never include ping targets, IP addresses, host names, network names, or license keys, and the [privacy section](../README.md#what-crash-reporting-sends) lists everything they send. To stop sending them, turn off **Send Crash Reports** under **Settings → Advanced → Privacy**. Turning it off takes effect immediately; the only thing sent afterward is one record that the current app session ended.
 
 ### 4. Enter your license key
 
