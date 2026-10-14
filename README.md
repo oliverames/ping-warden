@@ -130,17 +130,28 @@ Enabling Ping Protection in the prebuilt app, including starting a Latency Sessi
 
 ## Privacy
 
-Latency history, protection state, settings, and intervention counts stay on your Mac. Ping Warden does not send usage analytics.
+Latency history, protection state, settings, and intervention counts stay on your Mac. Ping Warden doesn't send usage analytics.
 
 The app makes a few narrow outbound requests:
 
 - Sparkle checks the public appcast for updates.
 - License activation and refresh send your license key and the product ID to Gumroad over HTTPS. Your key stays in the macOS Keychain between checks.
 - The dashboard checks `status.geforcenow.com` to discover GeForce NOW target hostnames.
-- Starting with version 4.2.0, anonymous crash reporting is on by default when no choice has been saved. Updates preserve your saved choice, including an opt-out. Turn it off under **Settings > Advanced > Privacy** to stop new reports immediately. Turning it back on requires a relaunch. Reports exclude ping targets, network breadcrumbs, performance traces, and app-lifecycle tracking. The client disables default personally identifying data, performance tracing and session tracking.
+- Anonymous crash and error reporting has been on by default since version 4.2.0 when no choice has been saved. Updates preserve your saved choice, including an opt-out. Turn it off under **Settings > Advanced > Privacy** to stop new reports immediately. Turning it back on takes effect after a relaunch. The next section lists exactly what it sends.
 - TCP latency probes connect only to the target you select or ask Ping Warden to choose.
 
 Diagnostics exports are written locally. Ping Warden never uploads them for you.
+
+### What crash reporting sends
+
+Reports go to Sentry, and they carry only what's needed to find bugs:
+
+- Crash reports and uncaught exceptions, with the app version and build, the macOS version, and the Mac model.
+- Helper error events when setup, Repair, or turning protection on or off fails, or when the helper stops answering. Each event names the problem, the helper's registration state, and a system error domain and numeric code. Ping Warden sends at most one event per problem every 30 minutes and no more than ten per app run.
+- Session counts for each release: when the app starts, when it quits, and whether it crashed. Sentry's library ties these to a random identifier it creates for this installation, which is how crash-free rates are counted.
+- A short trail of app state changes attached to those reports, such as "setup started" or "protection enabled."
+
+Reports never include ping targets, host names, IP addresses, Wi-Fi network names, license keys, your Mac's name, or diagnostics exports. Ping Warden turns off the reporting library's default personal data, performance tracing, network request tracking, and automatic interface breadcrumbs, and it strips addresses, host names, and your macOS account name from error text before a report leaves your Mac. The Sentry project also discards the IP address a report arrives from.
 
 ## Support Ping Warden
 
