@@ -6,6 +6,93 @@
     <description>Pre-release updates for Ping Warden</description>
     <language>en</language>
     <item>
+      <title>Version 4.4.0</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.4.0</link>
+      <sparkle:version>44000</sparkle:version>
+      <sparkle:shortVersionString>4.4.0</sparkle:shortVersionString>
+      <description>&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;This update walks you through setting up Ping Protection one step at a time, turns protection on as soon as you add your license, and offers Repair when the helper stops working.&lt;/p&gt;
+&lt;h2&gt;Guided setup&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The Welcome window looks the same as before. When you click &lt;strong&gt;Set Up Ping Protection&lt;/strong&gt; or &lt;strong&gt;Turn On Ping Protection&lt;/strong&gt;, Ping Warden walks through what Ping Protection does, your license if you still need one, and helper approval in the same window.&lt;/li&gt;
+&lt;li&gt;Ping Warden only asks you to approve the helper after a license is active. The latency dashboard doesn't use the helper, so if you skip the license step you go straight to the free dashboard, and a valid key takes you right into helper approval.&lt;/li&gt;
+&lt;li&gt;If you skipped the license during setup and add it later in &lt;strong&gt;Settings → License&lt;/strong&gt; (or from &lt;strong&gt;Enter License&lt;/strong&gt; on the Dashboard), Ping Warden opens the setup window at &lt;strong&gt;Approve the helper&lt;/strong&gt; when the helper isn't approved yet. Nothing changes in macOS until you click &lt;strong&gt;Approve Helper&lt;/strong&gt;. If the setup window is already open, it moves to that step instead of opening a second window.&lt;/li&gt;
+&lt;li&gt;The approval step shows what macOS will put on screen and names the exact place in System Settings for your version of macOS: &lt;strong&gt;Login Items&lt;/strong&gt; or &lt;strong&gt;Login Items &amp;amp; Extensions&lt;/strong&gt;, and &lt;strong&gt;Allow in the Background&lt;/strong&gt; or &lt;strong&gt;App Background Activity&lt;/strong&gt;.&lt;/li&gt;
+&lt;li&gt;While you approve, the window follows along and moves on when the helper is approved. It tells you when it opens System Settings for you, and if approval doesn't arrive within a minute it offers &lt;strong&gt;Try Again&lt;/strong&gt; while it keeps watching, so a late approval still finishes setup.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Finish Setup…&lt;/strong&gt; in the menu, Settings, and the Dashboard picks up at the first step you haven't done yet instead of starting over.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;License and protection&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Adding your license now turns on Ping Protection. This works from &lt;strong&gt;Settings → License&lt;/strong&gt; and from the license step in the setup window. If the helper is ready, protection turns on right away and no window opens. If the helper isn't approved yet, protection turns on as soon as you finish approving it. A running pause or Game Mode session is left as it is.&lt;/li&gt;
+&lt;li&gt;If you don't have a license and only use the free dashboard, Ping Warden never asks you about the helper.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Repair&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Repair…&lt;/strong&gt; first checks whether the helper answers. If it does, you see &lt;strong&gt;Helper Is Responding&lt;/strong&gt; as before, and the helper's registration is left alone.&lt;/li&gt;
+&lt;li&gt;If the helper has to be approved again, Repair opens the approval step and waits for you to click &lt;strong&gt;Approve Helper&lt;/strong&gt;, so macOS doesn't show its notification before you know why. Your protection setting, pause, and session history stay as they are.&lt;/li&gt;
+&lt;li&gt;If you add your license while the helper is approved but not responding, Ping Warden runs &lt;strong&gt;Repair&lt;/strong&gt; for you. Nothing changes in macOS until you click &lt;strong&gt;Approve Helper&lt;/strong&gt;, and protection turns on once Repair succeeds.&lt;/li&gt;
+&lt;li&gt;When the helper stops responding while Ping Protection needs it, Ping Warden now offers &lt;strong&gt;Repair&lt;/strong&gt; once instead of waiting for you to notice. This covers launch, waking from sleep, turning protection on, and Game Mode. It also covers a helper that was turned off in System Settings while protection is set to be on. Ping Warden waits a few seconds first, so a short hiccup after launch or wake passes quietly. It asks only once each time something goes wrong, and it waits until you're out of a game. Nothing is repaired until you click &lt;strong&gt;Repair&lt;/strong&gt;.&lt;/li&gt;
+&lt;li&gt;If you turn on protection from the menu and the helper doesn't answer, the alert now has a &lt;strong&gt;Repair&lt;/strong&gt; button.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Control Center&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The Ping Protection control in Control Center now catches up when Ping Warden relaunches after a crash, when the helper recovers, after &lt;strong&gt;Repair&lt;/strong&gt;, and after your Mac wakes, so it no longer shows an old state.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Crash reporting&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Crash reporting now also reports problems with setup and the helper. When setup, &lt;strong&gt;Repair&lt;/strong&gt;, or turning protection on or off fails, or when the helper stops answering, Ping Warden sends an error report that holds only the problem's name, the helper's registration state, a system error code, and the app and macOS versions. It sends at most one report per problem every 30 minutes.&lt;/li&gt;
+&lt;li&gt;Ping Warden also sends session counts for each release: when the app starts, when it quits, and whether it crashed. This is how crash-free rates are counted. Reports carry a short trail of app states, such as "setup started" or "protection enabled."&lt;/li&gt;
+&lt;li&gt;Crash reports now cover uncaught exceptions too. Exception messages, thread names, and the processor's saved register values are removed before a report leaves your Mac.&lt;/li&gt;
+&lt;li&gt;Reports never include ping targets, IP addresses, host names, network names, license keys, or your Mac's name. The privacy section of the documentation lists everything a report contains.&lt;/li&gt;
+&lt;li&gt;If you turned crash reporting off, it stays off. It's on by default only when you haven't saved a choice. Turning it off under &lt;strong&gt;Settings → Advanced → Privacy&lt;/strong&gt; stops reporting right away, and the only thing sent afterward is one record that the current app session ended.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Wed, 14 Oct 2026 17:48:05 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.4.0/PingWarden-4.4.0.dmg" sparkle:version="44000" sparkle:shortVersionString="4.4.0" length="6320409" type="application/octet-stream" sparkle:edSignature="tXPZRQkyaLVUEMQVOYHQQ5BIYS0KcWogdVNfKkOPYc3R2Q6q3IYQIhQMEbnC6cURyYkSHl7gpYnlt/rnQGcCDA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.4.0-beta.1</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.4.0-beta.1</link>
       <sparkle:version>43901</sparkle:version>
@@ -2477,6 +2564,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 4VGmrCxBRBfd+Y6iUdI7qQgowkXGBqLIPTPRxlsZDuKBHVa0fBsBWIM3b0dWfCrOWQ4QtS4vNbo8J/arD2/gDA==
-length: 152550
+edSignature: yc60DzaVaIf94Dj/PWAaQOIDkajVY9bsGsHvc0GDuW2WsM3aFJj5+XQ65bfpACGim3DKsafHoe9+grMzO0eeCQ==
+length: 160824
 -->
