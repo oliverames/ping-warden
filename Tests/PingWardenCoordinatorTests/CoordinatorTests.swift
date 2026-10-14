@@ -1215,6 +1215,167 @@ do {
     settle()
 }
 
+// Repair offers (HelperRepairOffer). The handler records what would be shown.
+let offers = LockedValue<[HelperRepairOffer.Problem]>([])
+@MainActor func installOfferRecorder(presents: Bool = true, debounce: TimeInterval = 0.3) {
+    offers.withValue { $0 = [] }
+    coordinator.repairOfferDebounce = debounce
+    coordinator.repairOfferHandler = { problem in
+        offers.withValue { $0.append(problem) }
+        return presents
+    }
+}
+
+// O1: a silent helper while protection is wanted is offered Repair once,
+// after the debounce, and not again in the same episode.
+do {
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    spin(0.1)
+    check(offers.withValue { $0 }.isEmpty, "O1: nothing is offered before the debounce")
+    spin(until: { !offers.withValue { $0 }.isEmpty }, timeout: 2)
+    check(offers.withValue { $0 } == [.notResponding], "O1: Repair is offered once the problem lasts")
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    spin(0.6)
+    MainActor.assumeIsolated { coordinator.retryPendingRepairOffer() }
+    spin(0.1)
+    check(offers.withValue { $0 }.count == 1, "O1: one offer per failure episode")
+    check(SMAppService.registerCalls == 0 && SMAppService.unregisterCalls == 0
+          && SMAppService.openSettingsCalls == 0 && monitor.harnessConnection == nil,
+          "O1: an offer repairs nothing by itself")
+}
+
+// O2: a blip that recovers within the debounce is never offered; a later,
+// separate failure is a new episode. A pause still needs the helper when it
+// ends; it also keeps the automatic retry from sending a command here.
+do {
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    MainActor.assumeIsolated { coordinator.harnessSetPause(until: Date().addingTimeInterval(600)) }
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    spin(0.1)
+    monitor.helperResponseHandler?()
+    spin(0.6)
+    check(offers.withValue { $0 }.isEmpty, "O2: a helper that answers again within the debounce is not offered Repair")
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    spin(until: { !offers.withValue { $0 }.isEmpty }, timeout: 2)
+    check(offers.withValue { $0 } == [.notResponding], "O2: a new failure episode is offered")
+    monitor.helperResponseHandler?()
+    spin(0.05)
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    spin(until: { offers.withValue { $0 }.count == 2 }, timeout: 2)
+    check(offers.withValue { $0 }.count == 2, "O2: recovery ends the episode, so the next failure is offered again")
+    settle()
+}
+
+// O3: nobody who doesn't need protection is asked about the helper.
+do {
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    LicenseManager.shared.canEnableProtection = false
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    spin(0.6)
+    MainActor.assumeIsolated { coordinator.retryPendingRepairOffer() }
+    check(offers.withValue { $0 }.isEmpty, "O3: an unlicensed person on the free dashboard is not offered Repair")
+
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    spin(0.6)
+    MainActor.assumeIsolated { coordinator.retryPendingRepairOffer() }
+    check(offers.withValue { $0 }.isEmpty, "O3: protection off means no offer")
+}
+
+// O4: an offer that cannot be shown now waits, and is shown when asked again.
+do {
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder(presents: false) }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    spin(until: { !offers.withValue { $0 }.isEmpty }, timeout: 2)
+    check(offers.withValue { $0 }.count == 1, "O4: the offer was due")
+    MainActor.assumeIsolated {
+        coordinator.repairOfferHandler = { problem in
+            offers.withValue { $0.append(problem) }
+            return true
+        }
+        coordinator.retryPendingRepairOffer()
+    }
+    check(offers.withValue { $0 }.count == 2, "O4: a held-back offer is shown when the app asks again")
+    MainActor.assumeIsolated { coordinator.retryPendingRepairOffer() }
+    check(offers.withValue { $0 }.count == 2, "O4: once shown, it is not repeated")
+}
+
+// O5: launch with protection saved on but the helper not approved (turned
+// off in Login Items) is offered Repair for approval.
+do {
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    SMAppService.fixtureStatus = .requiresApproval
+    monitor.refreshHelperStatus()
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    MainActor.assumeIsolated { coordinator.noteSetupIncomplete() }
+    spin(until: { !offers.withValue { $0 }.isEmpty }, timeout: 2)
+    check(offers.withValue { $0 } == [.notApproved], "O5: an unapproved helper with protection saved on is offered Repair")
+    check(SMAppService.registerCalls == 0 && SMAppService.openSettingsCalls == 0,
+          "O5: nothing is registered and System Settings stays closed")
+}
+
+// O6: the monitor giving up on the connection marks the helper silent, so
+// Repair is offered where its message points.
+do {
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    monitor.automatedErrorHandler?(ProtectionFailureCopy.lostHelperConnection)
+    spin(until: { MainActor.assumeIsolated { coordinator.shouldOfferHelperRepair } }, timeout: 1)
+    check(MainActor.assumeIsolated { coordinator.shouldOfferHelperRepair },
+          "O6: a lost connection shows Repair in the menu and Dashboard")
+    spin(until: { !offers.withValue { $0 }.isEmpty }, timeout: 2)
+    check(offers.withValue { $0 } == [.notResponding], "O6: a lost connection is offered Repair")
+}
+
+// O7: a Repair the person ran counts as the offer: a helper still silent
+// afterwards is not offered again on its own.
+do {
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    let repaired = launchRepair()
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
+    connection.failProxies(code: xpcConnectionInvalid)
+    spin(until: { repaired.withValue { $0 } != nil }, timeout: 3)
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    spin(0.6)
+    MainActor.assumeIsolated { coordinator.retryPendingRepairOffer() }
+    check(offers.withValue { $0 }.isEmpty, "O7: no automatic offer right after the person's own Repair")
+    settle()
+}
+
+// O8: after wake, a helper protection needs is asked whether it answers;
+// silence leads to an offer, an answer to nothing.
+do {
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    MainActor.assumeIsolated { coordinator.confirmHelperAfterWake() }
+    spin(1)
+    check(offers.withValue { $0 }.isEmpty && !MainActor.assumeIsolated { coordinator.shouldOfferHelperRepair },
+          "O8: an answering helper after wake is left alone")
+    settle()
+
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    MainActor.assumeIsolated { coordinator.confirmHelperAfterWake() }
+    let connection = awaitConnection()
+    connection.failProxies(code: xpcConnectionInvalid)
+    spin(until: { !offers.withValue { $0 }.isEmpty }, timeout: 8)
+    check(offers.withValue { $0 } == [.notResponding], "O8: a silent helper after wake is offered Repair")
+    check(SMAppService.registerCalls == 0 && SMAppService.unregisterCalls == 0,
+          "O8: the wake check never touches the registration")
+    settle()
+
+    MainActor.assumeIsolated { resetAll(); installOfferRecorder() }
+    MainActor.assumeIsolated { coordinator.confirmHelperAfterWake() }
+    spin(0.2)
+    check(monitor.harnessConnection == nil, "O8: with protection off, wake asks the helper nothing")
+}
+
 MainActor.assumeIsolated { resetAll() }
 print("Coordinator checks complete. Checks: \(checks). Failures: \(failures.count)")
 exit(failures.isEmpty ? 0 : 1)

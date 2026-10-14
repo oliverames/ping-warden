@@ -58,6 +58,15 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// recovery point (#101). The app installs a coalescing handler; nil
     /// leaves the control alone.
     var controlRefreshHandler: ((ControlCenterRefreshTrigger) -> Void)?
+    /// Offers Repair when the helper is not working while protection needs
+    /// it. Returns false when the offer cannot be shown right now (a game
+    /// is in front, the setup window is open); it stays due, and
+    /// `retryPendingRepairOffer()` asks again. Nil offers nothing.
+    var repairOfferHandler: ((HelperRepairOffer.Problem) -> Bool)?
+    /// How long a helper problem lasts before Repair is offered.
+    var repairOfferDebounce: TimeInterval = HelperRepairOffer.debounce
+    private var repairOfferTracker = HelperRepairOffer.Tracker()
+    private var repairOfferCheck: Task<Void, Never>?
 
     private init() {
         restorePersistedPauseIfActive()
@@ -214,6 +223,13 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         objectWillChange.send()
         let result = await task.value
         helperRepairTask = nil
+        // The person chose Repair and has its result: a helper still not
+        // working is not offered Repair again on its own this episode.
+        let stillFailing = result.title == RepairResultCopy.failureTitle && monitor.isHelperRegistered
+        repairOfferTracker.markOffered(
+            problem: currentHelperProblem ?? (stillFailing ? .notResponding : nil),
+            now: Date()
+        )
         objectWillChange.send()
         // Whatever the outcome, the helper was rebuilt or torn down, so the
         // control's last rendering may no longer match awdl0.
@@ -366,6 +382,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// repair path without replacing a more specific message.
     func noteHelperNotResponding() {
         helperSilent = true
+        defer { evaluateRepairOffer() }
         guard lastError == nil else {
             objectWillChange.send()
             return
@@ -377,9 +394,100 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// menu already offers Finish Setup; this says why protection is off
     /// without opening Login Items for a person who did not ask.
     func noteSetupIncomplete() {
+        defer { evaluateRepairOffer() }
         guard lastError == nil else { return }
         lastError = ProtectionFailureCopy.setupIncomplete
         objectWillChange.send()
+    }
+
+    // MARK: Repair offers
+
+    /// The helper's problem as a Repair offer sees it: registered but
+    /// silent, or not approved while protection is saved as on.
+    private var currentHelperProblem: HelperRepairOffer.Problem? {
+        if monitor.isHelperRegistered {
+            return helperSilent ? .notResponding : nil
+        }
+        return preferences.isMonitoringEnabled ? .notApproved : nil
+    }
+
+    /// Protection is on, wanted, being turned on, paused (it resumes), or
+    /// held by a session or Game Mode.
+    private var protectionNeedsHelper: Bool {
+        preferences.isMonitoringEnabled
+            || monitor.isMonitoringActive
+            || monitor.isMonitoringRequested
+            || monitor.isProtectionDesired
+            || transition == .enablingProtection
+            || session.phase != .idle
+            || requestedSessionTrigger != nil
+            || gameModeActive
+            || pauseUntil != nil
+    }
+
+    /// Decide whether to offer Repair now, later, or not at all, using
+    /// `HelperRepairOffer` in Core: once per failure episode, after the
+    /// debounce, only while protection needs the helper and a license
+    /// allows it. Offering never repairs anything by itself.
+    func evaluateRepairOffer() {
+        repairOfferCheck?.cancel()
+        repairOfferCheck = nil
+        let state = HelperRepairOffer.State(
+            problem: currentHelperProblem,
+            licenseAllowsProtection: license.canEnableProtection,
+            protectionNeeded: protectionNeedsHelper,
+            busy: isTerminating || isBusy || isRepairingHelper || monitor.isHelperSetupInProgress
+        )
+        switch repairOfferTracker.evaluate(state, now: Date(), debounce: repairOfferDebounce) {
+        case .none:
+            return
+        case .wait(let delay):
+            let nanoseconds = UInt64(max(0.05, delay) * 1_000_000_000)
+            repairOfferCheck = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: nanoseconds)
+                guard !Task.isCancelled else { return }
+                self?.evaluateRepairOffer()
+            }
+        case .offer(let problem):
+            guard let repairOfferHandler else { return }
+            protectionExperienceLog.info("Offering Repair: helper \(problem.rawValue, privacy: .public)")
+            if repairOfferHandler(problem) {
+                repairOfferTracker.markOffered(problem: problem, now: Date())
+            }
+        }
+    }
+
+    /// After wake, ask a helper that protection needs whether it answers,
+    /// without touching its registration. Wake itself sends a command only
+    /// when protection must change, so a helper that died during sleep
+    /// would otherwise go unnoticed. A helper already known silent, or one
+    /// being repaired, is not asked again. The app calls this a few
+    /// seconds after wake so the helper has time to come back.
+    func confirmHelperAfterWake() {
+        guard !isTerminating, license.canEnableProtection, protectionNeedsHelper,
+              monitor.isHelperRegistered, !helperSilent, !isRepairingHelper else { return }
+        monitor.confirmHelperResponds { [weak self] responds in
+            Task { @MainActor in
+                guard let self, !responds, !self.isTerminating else { return }
+                protectionExperienceLog.warning("Helper did not answer after wake")
+                self.noteHelperNotResponding()
+            }
+        }
+    }
+
+    /// An offer that could not be shown earlier (a game in front, the setup
+    /// window open) is asked for again, for example when Ping Warden
+    /// becomes active or Game Mode ends.
+    func retryPendingRepairOffer() {
+        evaluateRepairOffer()
+    }
+
+    /// Repair was offered by another surface (the toggle's failure alert)
+    /// or started by the person: no automatic offer this episode.
+    func noteRepairOffered() {
+        repairOfferCheck?.cancel()
+        repairOfferCheck = nil
+        repairOfferTracker.markOffered(problem: currentHelperProblem, now: Date())
     }
 
     @discardableResult
@@ -876,6 +984,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         if failure?.helperDidNotAnswer == true {
             helperSilent = true
             showSilenceError(message)
+            evaluateRepairOffer()
         } else {
             lastError = message
             silenceMessage = nil
@@ -892,7 +1001,14 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     private func publishAutomatedError(_ message: String) {
         lastError = message
         silenceMessage = nil
+        if message == ProtectionFailureCopy.lostHelperConnection {
+            // The monitor gave up reconnecting: the helper is silent, so
+            // Repair is offered where this message points to it.
+            helperSilent = true
+            silenceMessage = message
+        }
         objectWillChange.send()
+        evaluateRepairOffer()
     }
 
     /// Any reply proves the helper answers again. Clear a message that said
@@ -907,6 +1023,8 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         silenceMessage = nil
         objectWillChange.send()
         guard wasSilent else { return }
+        // The episode ends: a later failure may be offered Repair again.
+        evaluateRepairOffer()
         // The helper may have restarted (and restored AWDL) while silent.
         if !isTerminating {
             controlRefreshHandler?(.helperRecovered)

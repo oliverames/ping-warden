@@ -122,6 +122,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var menuMetricsObserver: NSObjectProtocol?
     private var windowObserver: NSObjectProtocol?
     private var wakeObserver: NSObjectProtocol?
+    private var repairOfferActivationObserver: NSObjectProtocol?
     private var settingsShortcutMonitor: Any?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
@@ -202,6 +203,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             ControlCenterSupport.requestPingProtectionRefresh(trigger)
         }
         ControlCenterSupport.requestPingProtectionRefresh(.appLaunch)
+        // The coordinator decides when a helper problem is worth one offer
+        // of Repair (HelperRepairOffer in Core); this shows it.
+        protectionExperience.repairOfferHandler = { [weak self] problem in
+            self?.presentRepairOffer(for: problem) ?? false
+        }
 
         protectionExperienceObservation = protectionExperience.objectWillChange.sink { [weak self] in
             // Published changes arrive before mutation; refresh on the next
@@ -479,7 +485,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 await self.protectionExperience.handleSystemWake()
                 self.updateMenuBarIcon()
                 self.updateMenuItem()
+                // Give a helper that restarted during sleep a moment, then
+                // make sure it answers while protection needs it.
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                self.protectionExperience.confirmHelperAfterWake()
             }
+        }
+        // An offer of Repair that waited (for example while a game was in
+        // front) is shown once Ping Warden is in front again.
+        repairOfferActivationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.protectionExperience.retryPendingRepairOffer() }
         }
     }
 
@@ -546,6 +565,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
         if let observer = wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
+        if let observer = repairOfferActivationObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
         if let settingsShortcutMonitor {
             NSEvent.removeMonitor(settingsShortcutMonitor)
@@ -651,6 +673,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         Task { @MainActor in
             await protectionExperience.setGameModeActive(isActive)
             updateMenuItem()
+            // A Repair offer held back while the game was in front.
+            if !isActive { protectionExperience.retryPendingRepairOffer() }
         }
     }
 
@@ -1714,8 +1738,73 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        // A silent helper is offered Repair right here, instead of only
+        // naming where Repair lives. Nothing runs until it is clicked.
+        let offersRepair = protectionExperience.shouldOfferHelperRepair
+            && protectionExperience.canRepairHelper
+        if offersRepair {
+            alert.addButton(withTitle: HelperRepairOffer.Copy.repairButton)
+            alert.addButton(withTitle: "Cancel")
+            protectionExperience.noteRepairOffered()
+        } else {
+            alert.addButton(withTitle: "OK")
+        }
+        let response = alert.runModal()
+        if offersRepair, response == .alertFirstButtonReturn {
+            runRepairAndReport()
+        }
+    }
+
+    /// Offer Repair on the app's own initiative, once per failure episode
+    /// (the coordinator decides when). Returns false when now is a bad
+    /// moment, and the offer waits: a game is in front, the setup window
+    /// is already handling the helper, the menu or another notice is open.
+    /// A Dashboard or General settings pane already in front shows its own
+    /// Repair row, which counts as the offer.
+    private func presentRepairOffer(for problem: HelperRepairOffer.Problem) -> Bool {
+        guard !isTerminating, !protectionExperience.isTerminating else { return false }
+        if welcomeWindow != nil { return true }
+        if let settingsWindow, settingsWindow.isVisible, settingsWindow.isKeyWindow, NSApp.isActive,
+           settingsNavigation.selectedSection == .dashboard || settingsNavigation.selectedSection == .general {
+            return true
+        }
+        guard !isStatusMenuOpen, licenseNoticeWindow == nil,
+              NSApp.isActive || !protectionExperience.gameModeActive,
+              protectionExperience.canRepairHelper else { return false }
+        log.info("Offering Repair for a helper that is \(problem.rawValue, privacy: .public)")
+        let alert = NSAlert()
+        alert.messageText = HelperRepairOffer.Copy.title(for: problem)
+        alert.informativeText = HelperRepairOffer.Copy.message(for: problem)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: HelperRepairOffer.Copy.repairButton)
+        alert.addButton(withTitle: HelperRepairOffer.Copy.notNowButton)
+        // Shown after the coordinator returns, so the episode is already
+        // marked offered when the person answers.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() == .alertFirstButtonReturn {
+                self.runRepairAndReport()
+            }
+        }
+        return true
+    }
+
+    /// The Repair… menu item's work after its confirmation: check the
+    /// helper, report the result, or continue in the Repair screen when it
+    /// must be approved again.
+    private func runRepairAndReport() {
+        Task {
+            guard let report = await runHelperRepairCheck() else { return }
+            guard !protectionExperience.isTerminating else { return }
+            updateMenuItem()
+            let result = NSAlert()
+            result.messageText = report.title
+            result.informativeText = report.message
+            result.alertStyle = .informational
+            result.addButton(withTitle: "OK")
+            result.runModal()
+        }
     }
 
     private func presentLicenseDeniedAlert() {
@@ -1753,19 +1842,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         confirmation.addButton(withTitle: "Repair")
         confirmation.addButton(withTitle: "Cancel")
         guard confirmation.runModal() == .alertFirstButtonReturn else { return }
-        Task {
-            // A helper that needs approval again continues in the setup
-            // window, which explains the step before macOS shows anything.
-            guard let report = await runHelperRepairCheck() else { return }
-            guard !protectionExperience.isTerminating else { return }
-            updateMenuItem()
-            let result = NSAlert()
-            result.messageText = report.title
-            result.informativeText = report.message
-            result.alertStyle = .informational
-            result.addButton(withTitle: "OK")
-            result.runModal()
-        }
+        // A helper that needs approval again continues in the setup
+        // window, which explains the step before macOS shows anything.
+        runRepairAndReport()
     }
 
     @objc private func toggleQuickPause() {
