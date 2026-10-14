@@ -37,7 +37,9 @@
 //  beforeSend re-checks the preference as defense-in-depth, so a racing
 //  toggle-off between SDK init and first event still suppresses, and it
 //  scrubs free text the SDK collects itself (exception reasons, binary
-//  image paths) through DiagnosticScrubber.
+//  image paths) through DiagnosticScrubber: this Mac's account and
+//  computer names, URLs, email addresses, home-folder paths, IP and MAC
+//  addresses, and host names.
 //
 //  Copyright (c) 2025-2026 Oliver Ames. All rights reserved.
 //  Licensed under the MIT License.
@@ -45,6 +47,9 @@
 
 import Foundation
 import os.log
+#if canImport(SystemConfiguration)
+import SystemConfiguration
+#endif
 
 #if canImport(Sentry)
 import Sentry
@@ -202,9 +207,15 @@ enum CrashReporter {
     }
 
     /// Entry point for the helper monitor, which runs off the main actor.
+    /// Signals go through the main queue, which is FIFO, so they are
+    /// recorded in the order they were raised: a breadcrumb always lands
+    /// before the problem event that follows it. Separate Tasks would not
+    /// guarantee that order.
     nonisolated static func submit(_ signal: HelperTelemetrySignal) {
-        Task { @MainActor in
-            record(signal)
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                record(signal)
+            }
         }
     }
 
@@ -253,10 +264,10 @@ enum CrashReporter {
             event.context = kept.isEmpty ? nil : kept
         }
         if let message = event.message {
-            event.message = SentryMessage(formatted: DiagnosticScrubber.scrub(message.formatted))
+            event.message = SentryMessage(formatted: scrubText(message.formatted))
         }
         for exception in event.exceptions ?? [] {
-            exception.value = exception.value.map { DiagnosticScrubber.scrub($0) }
+            exception.value = exception.value.map { scrubText($0) }
             scrubFrames(exception.stacktrace)
         }
         for thread in event.threads ?? [] {
@@ -271,6 +282,25 @@ enum CrashReporter {
             }
         }
         return event
+    }
+
+    /// This Mac's account and computer names, which the scrubber removes
+    /// wherever they appear in SDK-collected text.
+    nonisolated static let localIdentifiers: [String] = {
+        var names = [NSUserName(), NSFullUserName()]
+        #if canImport(SystemConfiguration)
+        if let computerName = SCDynamicStoreCopyComputerName(nil, nil) as String? {
+            names.append(computerName)
+        }
+        if let localHostName = SCDynamicStoreCopyLocalHostName(nil) as String? {
+            names.append(localHostName)
+        }
+        #endif
+        return names.filter { !$0.isEmpty }
+    }()
+
+    nonisolated private static func scrubText(_ text: String) -> String {
+        DiagnosticScrubber.scrub(text, knownIdentifiers: localIdentifiers)
     }
 
     nonisolated private static func scrubFrames(_ stacktrace: SentryStacktrace?) {

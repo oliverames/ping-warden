@@ -267,12 +267,25 @@ enum DiagnosticContextPolicy {
 /// Last-line text scrubbing for strings the SDK collects on its own, such
 /// as an uncaught exception's reason. Ping Warden never puts these values in
 /// events itself; this catches text from system frameworks.
+///
+/// Passes run in a fixed order, because each one removes text a later,
+/// looser pass could otherwise split and half-redact:
+///   1. this Mac's own account, full, and computer names (`<name>`)
+///   2. URLs with a scheme (`<url>`) and email addresses (`<email>`)
+///   3. home folders: this account's, `/Users/<name>`, `/home/<name>`,
+///      `~name`, and Windows `C:\Users\<name>` paths
+///   4. IPv6 with an embedded IPv4 (`::ffff:192.0.2.1`), then MAC
+///      addresses (`<mac>`), then IPv6 with optional zone, then IPv4 (`<ip>`)
+///   5. host names, including Unicode and punycode TLDs, with any port and
+///      path that follows (`<host>`), which also covers scheme-less URLs
 enum DiagnosticScrubber {
     static let redactedURL = "<url>"
     static let redactedEmail = "<email>"
     static let redactedIP = "<ip>"
+    static let redactedMAC = "<mac>"
     static let redactedHost = "<host>"
     static let redactedUser = "<user>"
+    static let redactedName = "<name>"
 
     /// Name extensions that look like host names but are code or bundle
     /// names, kept so stack-related text stays useful. None of these is a
@@ -285,32 +298,60 @@ enum DiagnosticScrubber {
         "json", "xml", "txt", "log", "strings", "dmg",
     ]
 
-    private static let urlPattern = try! NSRegularExpression(
-        pattern: #"[A-Za-z][A-Za-z0-9+.-]*://[^\s"'<>]+"#
+    /// A top-level domain: Unicode letters, or an ASCII punycode label.
+    private static let tld = #"(\p{L}{2,63}|[Xx][Nn]--[A-Za-z0-9-]{1,59})"#
+    private static let label = #"[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?"#
+
+    private static let urlPattern = regex(#"[A-Za-z][A-Za-z0-9+.-]*://[^\s"'<>]+"#)
+    private static let emailPattern = regex(#"[\p{L}\p{N}._%+-]+@(?:"# + label + #"\.)+"# + tld + #"(?![\p{L}\p{N}_-])"#)
+    private static let usersPathPattern = regex(#"/(Users|home)/[^/\s"']+"#)
+    private static let tildeUserPattern = regex(#"(?<![\p{L}\p{N}_/~])~[A-Za-z_][A-Za-z0-9._-]*"#)
+    private static let windowsHomePattern = regex(#"(?i)\b([A-Z]):\\(Users|Documents and Settings)\\[^\\\r\n"']+"#)
+    private static let mixedIPPattern = regex(
+        #"(?<![0-9A-Za-z:.])(?:[0-9A-Fa-f]{0,4}:){2,6}(?:\d{1,3}\.){3}\d{1,3}(?:%[0-9A-Za-z._-]+)?(?![0-9A-Za-z.])"#
     )
-    private static let emailPattern = try! NSRegularExpression(
-        pattern: #"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#
+    private static let macPattern = regex(
+        #"(?<![0-9A-Fa-f:.-])(?:[0-9A-Fa-f]{2}([:-])(?:[0-9A-Fa-f]{2}\1){4}[0-9A-Fa-f]{2}|(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4})(?![0-9A-Fa-f:.-])"#
     )
-    private static let homePathPattern = try! NSRegularExpression(
-        pattern: #"/Users/[^/\s"']+"#
-    )
-    private static let ipv6Pattern = try! NSRegularExpression(
-        pattern: #"(?<![0-9A-Za-z:])(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}(?![0-9A-Za-z:])|(?<![0-9A-Za-z:])(?:[0-9A-Fa-f]{1,4}:){1,7}:(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6})?(?![0-9A-Za-z:])|(?<![0-9A-Za-z:])::(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4}){0,6})(?![0-9A-Za-z:])"#
-    )
-    private static let ipv4Pattern = try! NSRegularExpression(
-        pattern: #"(?<![0-9.])(?:\d{1,3}\.){3}\d{1,3}(?![0-9.])"#
-    )
-    private static let hostPattern = try! NSRegularExpression(
-        pattern: #"(?<![A-Za-z0-9_.-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+([A-Za-z]{2,63})(?![A-Za-z0-9_-])"#
+    private static let ipv6Pattern: NSRegularExpression = {
+        let hex = "[0-9A-Fa-f]{1,4}"
+        let zone = "(?:%[0-9A-Za-z._-]+)?"
+        let before = "(?<![0-9A-Za-z:])"
+        let after = "(?![0-9A-Za-z:])"
+        let forms = [
+            "(?:\(hex):){7}\(hex)",
+            "(?:\(hex):){1,7}:(?:\(hex)(?::\(hex)){0,6})?",
+            "::(?:\(hex)(?::\(hex)){0,6})",
+        ]
+        return regex(forms.map { before + $0 + zone + after }.joined(separator: "|"))
+    }()
+    private static let ipv4Pattern = regex(#"(?<![0-9.])(?:\d{1,3}\.){3}\d{1,3}(?![0-9.])"#)
+    private static let hostPattern = regex(
+        #"(?<![\p{L}\p{N}_.-])(?:"# + label + #"\.)+"# + tld + #"(?![\p{L}\p{N}_-])(?::\d{1,5})?(?:/[^\s"'<>]*)?"#
     )
 
-    /// Redacts URLs, email addresses, home-folder user names, IP addresses,
-    /// and host names from free text.
-    static func scrub(_ text: String, homeDirectory: String = NSHomeDirectory()) -> String {
+    /// Redacts identifying text as listed on the type. `knownIdentifiers`
+    /// are this Mac's account and computer names; values shorter than three
+    /// characters are ignored so they can't erase ordinary words.
+    static func scrub(
+        _ text: String,
+        homeDirectory: String = NSHomeDirectory(),
+        knownIdentifiers: [String] = []
+    ) -> String {
         var result = text
+        for identifier in knownIdentifiers.sorted(by: { $0.count > $1.count })
+        where identifier.trimmingCharacters(in: .whitespaces).count >= 3 {
+            result = result.replacingOccurrences(
+                of: identifier,
+                with: redactedName,
+                options: [.caseInsensitive, .diacriticInsensitive]
+            )
+        }
         result = replace(urlPattern, in: result, with: redactedURL)
         result = replace(emailPattern, in: result, with: redactedEmail)
         result = scrubPath(result, homeDirectory: homeDirectory)
+        result = replace(mixedIPPattern, in: result, with: redactedIP)
+        result = replace(macPattern, in: result, with: redactedMAC)
         result = replace(ipv6Pattern, in: result, with: redactedIP)
         result = replace(ipv4Pattern, in: result, with: redactedIP)
         result = replaceHosts(in: result)
@@ -318,29 +359,40 @@ enum DiagnosticScrubber {
     }
 
     /// Replaces this account's home folder with `~`, wherever it lives
-    /// (network and managed homes aren't always under /Users), and the
-    /// account name in any other `/Users/<name>` path. Binary image paths
-    /// carry these when the app runs from a home folder.
+    /// (network and managed homes aren't always under /Users), then the
+    /// account name in any other `/Users/<name>`, `/home/<name>`, `~name`,
+    /// or Windows `X:\Users\<name>` path. Binary image paths carry these
+    /// when the app runs from a home folder.
     static func scrubPath(_ path: String, homeDirectory: String = NSHomeDirectory()) -> String {
         var result = path
         let home = homeDirectory.hasSuffix("/") ? String(homeDirectory.dropLast()) : homeDirectory
         // A root or one-component home would redact unrelated paths.
         if home.split(separator: "/").count >= 2 {
             result = replace(
-                try! NSRegularExpression(pattern: NSRegularExpression.escapedPattern(for: home) + "(?=/|$|[\\s\"'])"),
+                regex(NSRegularExpression.escapedPattern(for: home) + #"(?=/|$|[\s"'])"#),
                 in: result,
                 with: "~"
             )
         }
-        return replace(homePathPattern, in: result, with: "/Users/\(redactedUser)")
+        result = replaceTemplate(usersPathPattern, in: result, template: "/$1/\(redactedUser)")
+        result = replace(tildeUserPattern, in: result, with: "~\(redactedUser)")
+        result = replaceTemplate(windowsHomePattern, in: result, template: #"$1:\\$2\\"# + redactedUser)
+        return result
     }
 
-    private static func replace(_ pattern: NSRegularExpression, in text: String, with template: String) -> String {
-        let range = NSRange(text.startIndex..., in: text)
-        return pattern.stringByReplacingMatches(
+    private static func regex(_ pattern: String) -> NSRegularExpression {
+        try! NSRegularExpression(pattern: pattern)
+    }
+
+    private static func replace(_ pattern: NSRegularExpression, in text: String, with literal: String) -> String {
+        replaceTemplate(pattern, in: text, template: NSRegularExpression.escapedTemplate(for: literal))
+    }
+
+    private static func replaceTemplate(_ pattern: NSRegularExpression, in text: String, template: String) -> String {
+        pattern.stringByReplacingMatches(
             in: text,
-            range: range,
-            withTemplate: NSRegularExpression.escapedTemplate(for: template)
+            range: NSRange(text.startIndex..., in: text),
+            withTemplate: template
         )
     }
 

@@ -108,6 +108,8 @@ struct CrashReporterTests {
             checkBreadcrumbFilter(options)
             checkScrubbing(options)
             checkHelperEvents()
+            checkOrderedSubmission()
+            checkLocalIdentifiers(options)
             #if DEBUG
             checkDeliveryTest()
             #endif
@@ -308,6 +310,51 @@ struct CrashReporterTests {
         PingWardenPreferences.shared.isCrashReportingEnabled = true
         CrashReporter.now = { ProcessInfo.processInfo.systemUptime }
         CrashReporter.resetRateLimiter()
+    }
+
+    /// Signals raised off the main actor arrive in the order they were raised.
+    static func checkOrderedSubmission() {
+        SentrySDK.reset()
+        CrashReporter.startIfEnabled()
+        CrashReporter.resetRateLimiter()
+        let problems: [HelperProblem] = [.repairFailed, .registrationFailed, .protectionDisableFailed, .helperUnresponsive]
+        var expected: [String] = []
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            for problem in problems {
+                CrashReporter.submit(.breadcrumb(.repairStarted))
+                CrashReporter.submit(.problem(HelperProblemReport(problem: problem, helperState: .enabled, failure: .timedOut)))
+            }
+            done.signal()
+        }
+        done.wait()
+        for problem in problems {
+            expected.append("breadcrumb:repair.started")
+            expected.append("event:Helper problem: \(problem.rawValue)")
+        }
+        let deadline = Date().addingTimeInterval(2)
+        while SentrySDK.arrivals.count < expected.count && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        check(SentrySDK.arrivals == expected, "submitted signals keep their order: \(SentrySDK.arrivals)")
+        CrashReporter.resetRateLimiter()
+    }
+
+    /// This Mac's own account and computer names are removed from SDK text.
+    static func checkLocalIdentifiers(_ options: Options) {
+        let names = CrashReporter.localIdentifiers.filter { $0.count >= 3 }
+        check(names.contains(NSUserName()), "the account name is a known identifier")
+        guard let name = names.first else { return }
+        let event = Event(level: .fatal)
+        event.message = SentryMessage(formatted: "Failed for \(name) on this Mac")
+        let exception = Exception(value: "owner \(name.uppercased())", type: "NSGenericException")
+        event.exceptions = [exception]
+        guard let sent = options.beforeSend?(event) else {
+            check(false, "enabled gate keeps the identifier event")
+            return
+        }
+        check(sent.message?.formatted == "Failed for <name> on this Mac", "account name is removed from messages: \(sent.message?.formatted ?? "")")
+        check(sent.exceptions?.first?.value == "owner <name>", "identifiers match case-insensitively")
     }
 
     #if DEBUG

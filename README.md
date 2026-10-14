@@ -151,7 +151,7 @@ Reports go to Sentry, and they carry only what's needed to find bugs:
 - Session counts for each release: when the app starts, when it quits, and whether it crashed. Sentry's library ties these to a random identifier it creates for this installation, which is how crash-free rates are counted.
 - A short trail of app state changes attached to those reports, such as "setup started" or "protection enabled."
 
-Reports never include ping targets, host names, IP addresses, Wi-Fi network names, license keys, your Mac's name, or diagnostics exports. Ping Warden turns off the reporting library's default personal data, performance tracing, network request tracking, and automatic interface breadcrumbs, and it strips addresses, host names, and your macOS account name from error text before a report leaves your Mac. The Sentry project also discards the IP address a report arrives from.
+Ping Warden never puts ping targets, host names, IP addresses, Wi-Fi network names, license keys, your Mac's name, or diagnostics exports in a report. It turns off the reporting library's default personal data, performance tracing, network request tracking, and automatic interface breadcrumbs. Before a report leaves your Mac, it also removes URLs, email addresses, IP and hardware (MAC) addresses, host names, home-folder paths, and your account and computer names from any error text the library collects on its own, such as an exception message. The Sentry project also discards the IP address a report arrives from.
 
 ## Support Ping Warden
 

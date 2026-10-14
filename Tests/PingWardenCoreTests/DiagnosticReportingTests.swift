@@ -148,6 +148,64 @@ final class DiagnosticReportingTests: XCTestCase {
         XCTAssertFalse(DiagnosticScrubber.codeSuffixes.contains("mm"))
     }
 
+    private func assertRedacted(_ input: String, leaks: [String], marker: String, file: StaticString = #filePath, line: UInt = #line) {
+        let scrubbed = DiagnosticScrubber.scrub(input, homeDirectory: "/Users/tester")
+        for leak in leaks {
+            XCTAssertFalse(scrubbed.contains(leak), "\(leak) leaked in \(scrubbed)", file: file, line: line)
+        }
+        XCTAssertTrue(scrubbed.contains(marker), "expected \(marker) in \(scrubbed)", file: file, line: line)
+    }
+
+    func testScrubberRedactsUnicodeAndPunycodeHosts() {
+        assertRedacted("relay.xn--p1ai refused", leaks: ["relay", "xn--p1ai"], marker: "<host>")
+        assertRedacted("relay.рф refused", leaks: ["relay", "рф"], marker: "<host>")
+        assertRedacted("пример.испытание timed out", leaks: ["пример"], marker: "<host>")
+        assertRedacted("xn--80ak6aa92e.com timed out", leaks: ["xn--80ak6aa92e"], marker: "<host>")
+        assertRedacted("mail user@пример.рф", leaks: ["user", "пример"], marker: "<email>")
+    }
+
+    func testScrubberRedactsMixedIPv6AsOneToken() {
+        for address in ["::ffff:192.0.2.1", "2001:db8:abcd::192.0.2.1", "64:ff9b::198.51.100.7"] {
+            let scrubbed = DiagnosticScrubber.scrub("peer \(address) closed", homeDirectory: "/Users/tester")
+            XCTAssertEqual(scrubbed, "peer <ip> closed", address)
+        }
+        XCTAssertEqual(DiagnosticScrubber.scrub("bind fe80::1%en0 failed"), "bind <ip> failed")
+        XCTAssertEqual(DiagnosticScrubber.scrub("to [2001:db8::1]:443"), "to [<ip>]:443")
+    }
+
+    func testScrubberRedactsMACAddresses() {
+        for mac in ["a4:83:e7:12:34:56", "A4-83-E7-12-34-56", "a483.e712.3456"] {
+            XCTAssertEqual(DiagnosticScrubber.scrub("router \(mac) seen"), "router <mac> seen", mac)
+        }
+        // Mixed separators are not one address.
+        XCTAssertEqual(DiagnosticScrubber.scrub("12:30:45"), "12:30:45")
+    }
+
+    func testScrubberRedactsSchemelessURLsWithPortAndPath() {
+        XCTAssertEqual(
+            DiagnosticScrubber.scrub("GET www.example.com:8443/v2/session?token=abc failed"),
+            "GET <host> failed"
+        )
+        XCTAssertEqual(DiagnosticScrubber.scrub("probe game.example.net/ping"), "probe <host>")
+        XCTAssertEqual(DiagnosticScrubber.scrub("see https://example.com/a?b=c."), "see <url>")
+    }
+
+    func testScrubberRedactsOtherHomePathForms() {
+        XCTAssertEqual(DiagnosticScrubber.scrubPath(#"C:\Users\Jane Doe\AppData\x.log"#, homeDirectory: "/Users/tester"), #"C:\Users\<user>\AppData\x.log"#)
+        XCTAssertEqual(DiagnosticScrubber.scrubPath("~jane/Library/x", homeDirectory: "/Users/tester"), "~<user>/Library/x")
+        XCTAssertEqual(DiagnosticScrubber.scrubPath("~/Library/x", homeDirectory: "/Users/tester"), "~/Library/x")
+        XCTAssertEqual(DiagnosticScrubber.scrubPath("/home/jane/.config/x", homeDirectory: "/Users/tester"), "/home/<user>/.config/x")
+    }
+
+    func testScrubberRedactsKnownIdentifiers() {
+        let scrubbed = DiagnosticScrubber.scrub(
+            "Jane Doe's MacBook Pro opened by janedoe",
+            knownIdentifiers: ["Jane Doe's MacBook Pro", "janedoe", "Jane Doe", "ab", ""]
+        )
+        XCTAssertEqual(scrubbed, "<name> opened by <name>")
+        XCTAssertEqual(DiagnosticScrubber.scrub("about tab", knownIdentifiers: ["ab"]), "about tab", "short identifiers are ignored")
+    }
+
     func testScrubberKeepsCodeIdentifiers() {
         let text = "*** -[__NSArrayM objectAtIndex:]: index 5 beyond bounds [0 .. 2] in PingWardenMonitor.swift:120 at 12:30:45 (NSRangeException)"
         XCTAssertEqual(DiagnosticScrubber.scrub(text), text)

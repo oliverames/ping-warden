@@ -116,6 +116,8 @@ public enum SentrySDK {
     public private(set) static var capturedEvents: [Event] = []
     public private(set) static var breadcrumbs: [Breadcrumb] = []
     public private(set) static var flushCount = 0
+    /// Breadcrumbs and events in the order the SDK received them.
+    public private(set) static var arrivals: [String] = []
 
     public static func start(configureOptions: (Options) -> Void) {
         let options = Options()
@@ -136,6 +138,7 @@ public enum SentrySDK {
         guard isActive, let options = lastOptions else { return SentryId() }
         if let processed = options.beforeSend.map({ $0(event) }) ?? event {
             capturedEvents.append(processed)
+            arrivals.append("event:" + (processed.message?.formatted ?? ""))
         }
         return SentryId()
     }
@@ -144,6 +147,7 @@ public enum SentrySDK {
         guard isActive, let options = lastOptions else { return }
         if let kept = options.beforeBreadcrumb.map({ $0(crumb) }) ?? crumb {
             breadcrumbs.append(kept)
+            arrivals.append("breadcrumb:" + (kept.message ?? ""))
         }
     }
 
@@ -159,5 +163,6 @@ public enum SentrySDK {
         capturedEvents = []
         breadcrumbs = []
         flushCount = 0
+        arrivals = []
     }
 }
