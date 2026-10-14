@@ -1,3 +1,41 @@
+# Ping Warden 4.4.0
+
+This update walks you through setting up Ping Protection one step at a time, turns protection on as soon as you add your license, and offers Repair when the helper stops working.
+
+## Guided setup
+
+- The Welcome window looks the same as before. When you click **Set Up Ping Protection** or **Turn On Ping Protection**, Ping Warden walks through what Ping Protection does, your license if you still need one, and helper approval in the same window.
+- Ping Warden only asks you to approve the helper after a license is active. The latency dashboard doesn't use the helper, so if you skip the license step you go straight to the free dashboard, and a valid key takes you right into helper approval.
+- If you skipped the license during setup and add it later in **Settings → License** (or from **Enter License** on the Dashboard), Ping Warden opens the setup window at **Approve the helper** when the helper isn't approved yet. Nothing changes in macOS until you click **Approve Helper**. If the setup window is already open, it moves to that step instead of opening a second window.
+- The approval step shows what macOS will put on screen and names the exact place in System Settings for your version of macOS: **Login Items** or **Login Items & Extensions**, and **Allow in the Background** or **App Background Activity**.
+- While you approve, the window follows along and moves on when the helper is approved. It tells you when it opens System Settings for you, and if approval doesn't arrive within a minute it offers **Try Again** while it keeps watching, so a late approval still finishes setup.
+- **Finish Setup…** in the menu, Settings, and the Dashboard picks up at the first step you haven't done yet instead of starting over.
+
+## License and protection
+
+- Adding your license now turns on Ping Protection. This works from **Settings → License** and from the license step in the setup window. If the helper is ready, protection turns on right away and no window opens. If the helper isn't approved yet, protection turns on as soon as you finish approving it. A running pause or Game Mode session is left as it is.
+- If you don't have a license and only use the free dashboard, Ping Warden never asks you about the helper.
+
+## Repair
+
+- **Repair…** first checks whether the helper answers. If it does, you see **Helper Is Responding** as before, and the helper's registration is left alone.
+- If the helper has to be approved again, Repair opens the approval step and waits for you to click **Approve Helper**, so macOS doesn't show its notification before you know why. Your protection setting, pause, and session history stay as they are.
+- If you add your license while the helper is approved but not responding, Ping Warden runs **Repair** for you. Nothing changes in macOS until you click **Approve Helper**, and protection turns on once Repair succeeds.
+- When the helper stops responding while Ping Protection needs it, Ping Warden now offers **Repair** once instead of waiting for you to notice. This covers launch, waking from sleep, turning protection on, and Game Mode. It also covers a helper that was turned off in System Settings while protection is set to be on. Ping Warden waits a few seconds first, so a short hiccup after launch or wake passes quietly. It asks only once each time something goes wrong, and it waits until you're out of a game. Nothing is repaired until you click **Repair**.
+- If you turn on protection from the menu and the helper doesn't answer, the alert now has a **Repair** button.
+
+## Control Center
+
+- The Ping Protection control in Control Center now catches up when Ping Warden relaunches after a crash, when the helper recovers, after **Repair**, and after your Mac wakes, so it no longer shows an old state.
+
+## Crash reporting
+
+- Crash reporting now also reports problems with setup and the helper. When setup, **Repair**, or turning protection on or off fails, or when the helper stops answering, Ping Warden sends an error report that holds only the problem's name, the helper's registration state, a system error code, and the app and macOS versions. It sends at most one report per problem every 30 minutes.
+- Ping Warden also sends session counts for each release: when the app starts, when it quits, and whether it crashed. This is how crash-free rates are counted. Reports carry a short trail of app states, such as "setup started" or "protection enabled."
+- Crash reports now cover uncaught exceptions too. Exception messages, thread names, and the processor's saved register values are removed before a report leaves your Mac.
+- Reports never include ping targets, IP addresses, host names, network names, license keys, or your Mac's name. The privacy section of the documentation lists everything a report contains.
+- If you turned crash reporting off, it stays off. It's on by default only when you haven't saved a choice. Turning it off under **Settings → Advanced → Privacy** stops reporting right away, and the only thing sent afterward is one record that the current app session ended.
+
 # Ping Warden 4.4.0-beta.1
 
 This is the first beta of Ping Warden 4.4. It includes everything from the 4.3.4 betas and 4.3.3.
