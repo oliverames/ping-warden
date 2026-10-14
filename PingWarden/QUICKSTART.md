@@ -52,13 +52,13 @@ The welcome window opens automatically on the first launch. It is titled **Welco
 - **Not Now** below them.
 - "Ping Protection is a one-time $15 purchase." with an **Enter or Buy a License…** link.
 
-Every version of the window ends with: "Ping Warden sends anonymous crash reports. You can turn this off in Settings → Advanced."
+Every version of the window ends with: "Ping Warden sends anonymous crash and error reports. You can turn this off in Settings → Advanced."
 
 **What to do:** If you already have a key, click **Enter or Buy a License…** and continue with step 4. If you are licensed or in the transition, skip to step 5. Choose **Not Now** to use the free dashboard and set up protection later.
 
 **Behind the scenes:** Nothing changes on your Mac until you click a setup button. The window opens automatically only once. If you choose **Not Now**, the menu bar shows **Status: Not Set Up**, and the protection item in the menu reads **Finish Setup…**. Choosing it opens the welcome window again.
 
-Crash reports contain no usage data or ping targets. To stop sending them, turn off **Send Crash Reports** under **Settings → Advanced → Privacy**. Turning it off takes effect immediately.
+Crash and error reports include crash details, helper error codes, and app session counts. They never include ping targets, IP addresses, host names, network names, or license keys, and the [privacy section](../README.md#what-crash-reporting-sends) lists everything they send. To stop sending them, turn off **Send Crash Reports** under **Settings → Advanced → Privacy**. Turning it off takes effect immediately.
 
 ### 4. Enter your license key
 

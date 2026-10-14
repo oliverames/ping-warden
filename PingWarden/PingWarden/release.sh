@@ -264,12 +264,18 @@ echo ""
 # stale app in build/ can never be paired with a newer source commit.
 echo -e "${GREEN}Step 1: Building release archive...${NC}"
 rm -rf "$ARCHIVE_PATH"
+# The channel is embedded in Info.plist (PingWardenReleaseChannel) so crash
+# reports from a beta build land in Sentry's beta environment however the
+# DMG was obtained. The marketing version can't carry it.
+RELEASE_CHANNEL="production"
+if [ "${BETA_CHANNEL:-0}" = "1" ]; then RELEASE_CHANNEL="beta"; fi
 xcodebuild archive \
     -project "$PROJECT_ROOT/PingWarden.xcodeproj" \
     -scheme PingWarden \
     -configuration Release \
     -archivePath "$ARCHIVE_PATH" \
     -destination 'generic/platform=macOS' \
+    PING_WARDEN_RELEASE_CHANNEL="$RELEASE_CHANNEL" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO
 
@@ -282,6 +288,11 @@ if [ ! -d "$ARCHIVE_PATH/dSYMs" ]; then
     exit 1
 fi
 validate_app_artifact "$ARCHIVED_APP_PATH" "$VERSION" 0
+ARCHIVED_RELEASE_CHANNEL="$(plist_value "$ARCHIVED_APP_PATH/Contents/Info.plist" PingWardenReleaseChannel || true)"
+if [ "$ARCHIVED_RELEASE_CHANNEL" != "$RELEASE_CHANNEL" ]; then
+    echo -e "${RED}Error: archive release channel is '$ARCHIVED_RELEASE_CHANNEL', expected '$RELEASE_CHANNEL'${NC}" >&2
+    exit 1
+fi
 
 mkdir -p "$BUILD_DIR"
 rm -rf "$BUILD_DIR/$APP_NAME.app"

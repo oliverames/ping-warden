@@ -18,6 +18,8 @@
 	<string>4.4.0</string>
 	<key>CFBundleVersion</key>
 	<string>43901</string>
+	<key>PingWardenReleaseChannel</key>
+	<string>$(PING_WARDEN_RELEASE_CHANNEL)</string>
 	<key>GCSupportsControllerUserInteraction</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>

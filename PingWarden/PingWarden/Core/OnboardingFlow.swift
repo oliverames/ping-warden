@@ -518,7 +518,7 @@ enum OnboardingCopy {
 
     static let licenseFieldPrompt = "Paste your license key"
 
-    static let crashReportCaption = "Ping Warden sends anonymous crash reports. You can turn this off in Settings → Advanced."
+    static let crashReportCaption = "Ping Warden sends anonymous crash and error reports. You can turn this off in Settings → Advanced."
 
     static let protectionTitle = "What Ping Protection does"
     static let protectionBody = "AirDrop and AirPlay use a wireless interface called AWDL. When it wakes up, your Wi\u{2011}Fi can stutter. Ping Protection keeps it paused while you play."

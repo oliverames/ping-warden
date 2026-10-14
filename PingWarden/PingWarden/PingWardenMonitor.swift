@@ -192,6 +192,36 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Called on the main queue whenever the helper answers anything.
     var helperResponseHandler: (@Sendable () -> Void)?
 
+    /// Receives state breadcrumbs and helper problems for crash reporting,
+    /// from any thread. Signals hold enum values and error codes only.
+    /// The app forwards them to `CrashReporter`, which drops them while
+    /// reporting is off.
+    ///
+    /// `shared`'s initializer can restore protection before the app installs
+    /// the handler, so signals raised earlier are held (up to
+    /// `maxPendingTelemetry`) and delivered, in order, when it is set.
+    var telemetryHandler: (@Sendable (HelperTelemetrySignal) -> Void)? {
+        get { telemetryState.withValue { $0.handler } }
+        set {
+            let pending: [HelperTelemetrySignal] = telemetryState.withValue { state in
+                state.handler = newValue
+                defer { state.pending = [] }
+                return newValue == nil ? [] : state.pending
+            }
+            if let newValue {
+                pending.forEach { newValue($0) }
+            }
+        }
+    }
+
+    private struct TelemetryState {
+        var handler: (@Sendable (HelperTelemetrySignal) -> Void)?
+        var pending: [HelperTelemetrySignal] = []
+    }
+
+    private let telemetryState = LockedValue(TelemetryState())
+    private let maxPendingTelemetry = 32
+
     /// The most recent setup or repair failure, kept so a caller with its
     /// own error surface can show it instead of a second alert. Main-thread
     /// confined.
@@ -469,6 +499,52 @@ class PingWardenMonitor: @unchecked Sendable {
         DispatchQueue.main.async { handler?() }
     }
 
+    private func recordBreadcrumb(_ state: StateBreadcrumb) {
+        emitTelemetry(.breadcrumb(state))
+    }
+
+    /// Deliver a signal, or hold it until a handler is installed.
+    private func emitTelemetry(_ signal: HelperTelemetrySignal) {
+        let limit = maxPendingTelemetry
+        let handler: (@Sendable (HelperTelemetrySignal) -> Void)? = telemetryState.withValue { state in
+            if let handler = state.handler { return handler }
+            if state.pending.count < limit { state.pending.append(signal) }
+            return nil
+        }
+        handler?(signal)
+    }
+
+    /// The only way to report a helper problem. The state breadcrumb, when
+    /// there is one, is always emitted first, so the event that follows it
+    /// carries it. The registration state comes from the short-lived status
+    /// cache, which reads the system only when stale.
+    private func recordFailure(
+        _ breadcrumb: StateBreadcrumb?,
+        problem: HelperProblem,
+        failure: HelperCommandFailure? = nil,
+        error: NSError? = nil
+    ) {
+        if let breadcrumb {
+            emitTelemetry(.breadcrumb(breadcrumb))
+        }
+        emitTelemetry(.problem(HelperProblemReport(
+            problem: problem,
+            helperState: diagnosticState(registrationStatus),
+            failure: failure,
+            error: error
+        )))
+    }
+
+    private func diagnosticState(_ status: SMAppService.Status) -> HelperDiagnosticState {
+        switch status {
+        case .enabled: return .enabled
+        case .notRegistered: return .notRegistered
+        case .requiresApproval: return .requiresApproval
+        case .notFound: return .notFound
+        @unknown default: return .unknown
+        }
+    }
+
     private func reportAutomatedError(_ message: String) {
         log.error("Reporting without an alert: \(message, privacy: .public)")
         let handler = automatedErrorHandler
@@ -574,9 +650,11 @@ class PingWardenMonitor: @unchecked Sendable {
         // Setup steps log at notice level so a customer's `log show` export
         // keeps them; info-level messages are held in memory only.
         log.notice("registerHelper() called")
+        recordBreadcrumb(.setupStarted)
 
         // Validate helper bundle before attempting registration
         if let failure = validateHelperBundle() {
+            recordFailure(.setupFailed, problem: .helperBundleInvalid)
             reportSetupFailureOnMain(
                 failure.userMessage,
                 title: failure.userTitle,
@@ -595,6 +673,7 @@ class PingWardenMonitor: @unchecked Sendable {
         switch currentStatus {
         case .enabled:
             log.notice("Helper already enabled")
+            recordBreadcrumb(.setupSucceeded)
             signposter.endInterval("RegisterHelper", state)
             connectXPC()
             completion?(true)
@@ -604,6 +683,7 @@ class PingWardenMonitor: @unchecked Sendable {
             // An earlier registration is waiting. macOS shows no new
             // notification for it, so Login Items is the approval surface.
             log.notice("Helper requires approval - opening System Settings")
+            recordBreadcrumb(.setupAwaitingApproval)
             SMAppService.openSystemSettingsLoginItems()
             startPollingForRegistration(presentsErrors: presentsErrors, openedLoginItems: true, completion: completion)
             signposter.endInterval("RegisterHelper", state)
@@ -638,10 +718,12 @@ class PingWardenMonitor: @unchecked Sendable {
                 // other domains and codes remain failures.
                 if failureStatus == .enabled {
                     log.notice("Helper is enabled after the registration request")
+                    recordBreadcrumb(.setupSucceeded)
                     connectXPC()
                     completion?(true)
                 } else if failureStatus == .requiresApproval || Self.isPendingApprovalError(error) {
                     log.notice("Registration is waiting for approval")
+                    recordBreadcrumb(.setupAwaitingApproval)
                     startPollingForRegistration(
                         presentsErrors: presentsErrors,
                         opensLoginItemsIfPending: true,
@@ -650,6 +732,7 @@ class PingWardenMonitor: @unchecked Sendable {
                         completion: completion
                     )
                 } else {
+                    recordFailure(.setupFailed, problem: .registrationFailed, error: error)
                     reportSetupFailureOnMain(
                         "Ping Warden could not register its helper. Try again. \(error.localizedDescription)",
                         title: "Helper Setup Failed",
@@ -813,6 +896,7 @@ class PingWardenMonitor: @unchecked Sendable {
         _isRegisteringHelper = true
         stateLock.unlock()
         lastSetupFailureMessage = nil
+        recordBreadcrumb(.repairStarted)
         notifyStateChange()
         return true
     }
@@ -909,7 +993,14 @@ class PingWardenMonitor: @unchecked Sendable {
         }
         let stillRequested = _isMonitoring
         let hasConnection = _xpcConnection != nil
+        let connectionFailure = _lastConnectionFailure
         stateLock.unlock()
+
+        if repaired {
+            recordBreadcrumb(.repairSucceeded)
+        } else {
+            recordFailure(.repairFailed, problem: .repairFailed, failure: connectionFailure)
+        }
 
         if reconnectWasDeferred, stillRequested, !hasConnection {
             if repaired {
@@ -965,6 +1056,7 @@ class PingWardenMonitor: @unchecked Sendable {
             pendingEnable.join(persistUserPreference: persistUserPreference, completion: completion)
             return
         }
+        recordBreadcrumb(.protectionEnableRequested)
         let operationID = beginProtectionOperation(enabled: true)
         startMonitoring(
             operationID: operationID,
@@ -1078,6 +1170,7 @@ class PingWardenMonitor: @unchecked Sendable {
             log.error("The helper did not confirm enabling Ping Protection")
             self.recordCommandTimeout()
             let failure = self.lastCommandFailure
+            self.recordFailure(.protectionEnableFailed, problem: .protectionEnableFailed, failure: failure)
             // XPC preserves message order. Queueing a compensating enable-AWDL
             // command keeps a timed-out transient request from leaving AWDL
             // blocked without a session or visible owner.
@@ -1095,6 +1188,7 @@ class PingWardenMonitor: @unchecked Sendable {
         }) else {
             log.error("Failed to get helper proxy")
             recordCommandFailure(.noConnection)
+            recordFailure(.protectionEnableFailed, problem: .protectionEnableFailed, failure: .noConnection)
             abandonEnable(operationID)
             PingWardenPreferences.shared.effectiveMonitoringEnabled = false
             notifyStateChange()
@@ -1136,10 +1230,12 @@ class PingWardenMonitor: @unchecked Sendable {
                     PingWardenPreferences.shared.lastKnownState = "down"
                     monitor.notifyStateChange()
                     log.info("✅ AWDL monitoring started")
+                    monitor.recordBreadcrumb(.protectionEnabled)
                     request.finish(true)
                 } else {
                     log.error("❌ Failed to disable AWDL")
                     monitor.recordCommandFailure(.declined)
+                    monitor.recordFailure(.protectionEnableFailed, problem: .protectionEnableFailed, failure: .declined)
                     monitor.abandonEnable(operationID)
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = false
                     monitor.notifyStateChange()
@@ -1190,6 +1286,9 @@ class PingWardenMonitor: @unchecked Sendable {
             return
         }
         let operationID = beginProtectionOperation(enabled: false)
+        if !compensating {
+            recordBreadcrumb(.protectionDisableRequested)
+        }
         log.info("┌─────────────────────────────────────────────────────┐")
         log.info("│ stopMonitoring() called                             │")
         log.info("└─────────────────────────────────────────────────────┘")
@@ -1220,6 +1319,9 @@ class PingWardenMonitor: @unchecked Sendable {
             }
             log.error("The helper did not confirm disabling Ping Protection")
             self.recordCommandTimeout()
+            if !compensating {
+                self.recordFailure(.protectionDisableFailed, problem: .protectionDisableFailed, failure: self.lastCommandFailure)
+            }
             PingWardenPreferences.shared.lastKnownState = "unknown"
             self.notifyStateChange()
             completion?(false)
@@ -1231,6 +1333,9 @@ class PingWardenMonitor: @unchecked Sendable {
         }) else {
             log.warning("No helper proxy - cannot confirm Ping Protection stopped")
             recordCommandFailure(.noConnection)
+            if !compensating {
+                recordFailure(.protectionDisableFailed, problem: .protectionDisableFailed, failure: .noConnection)
+            }
             PingWardenPreferences.shared.lastKnownState = "unknown"
             notifyStateChange()
             completion?(false)
@@ -1276,9 +1381,13 @@ class PingWardenMonitor: @unchecked Sendable {
                     PingWardenPreferences.shared.lastKnownState = "up"
                     monitor.notifyStateChange()
                     log.info("✅ AWDL monitoring stopped - AirDrop/Handoff available")
+                    monitor.recordBreadcrumb(.protectionDisabled)
                 } else {
                     log.error("❌ Failed to enable AWDL")
                     monitor.recordCommandFailure(.declined)
+                    if !compensating {
+                        monitor.recordFailure(.protectionDisableFailed, problem: .protectionDisableFailed, failure: .declined)
+                    }
                     PingWardenPreferences.shared.lastKnownState = "unknown"
                     monitor.notifyStateChange()
                 }
@@ -1370,6 +1479,7 @@ class PingWardenMonitor: @unchecked Sendable {
         if !statusAnswered && !versionAnswered {
             let failure = rejection.withValue { $0 } ?? .timedOut
             recordConnectionFailure(failure)
+            recordFailure(nil, problem: .helperUnresponsive, failure: failure)
             return (false, "The helper did not respond: \(failure.diagnosticDescription).")
         }
         helperResponded()
@@ -1655,6 +1765,7 @@ class PingWardenMonitor: @unchecked Sendable {
                     // change the outcome. Give the request up rather than
                     // leave it reconnecting forever with a session waiting.
                     log.error("Failed to reassert AWDL blocking state after reconnect")
+                    monitor.recordFailure(nil, problem: .protectionReassertFailed, failure: .declined)
                     monitor.stateLock.lock()
                     monitor._isMonitoring = false
                     monitor._confirmedMonitoring = false
@@ -1731,6 +1842,7 @@ class PingWardenMonitor: @unchecked Sendable {
         abandonedConnection?.invalidate()
 
         if wasMonitoring {
+            recordBreadcrumb(.helperConnectionInterrupted)
             PingWardenPreferences.shared.effectiveMonitoringEnabled = false
             notifyStateChange()
         }
@@ -1767,6 +1879,10 @@ class PingWardenMonitor: @unchecked Sendable {
                 }
             } else {
                 log.error("Max XPC retry attempts exceeded")
+                stateLock.lock()
+                let connectionFailure = _lastConnectionFailure
+                stateLock.unlock()
+                recordFailure(.helperConnectionLost, problem: .helperConnectionLost, failure: connectionFailure)
                 stateLock.lock()
                 _isMonitoring = false
                 _desiredProtectionEnabled = false
@@ -1866,6 +1982,7 @@ class PingWardenMonitor: @unchecked Sendable {
         registrationTimeoutTimer = Timer.scheduledTimer(withTimeInterval: registrationTimeoutSeconds, repeats: false) { [weak self] _ in
             guard let self = self else { return }
             log.warning("Registration polling timed out after \(self.registrationTimeoutSeconds)s")
+            self.recordFailure(.setupFailed, problem: .registrationApprovalTimedOut)
             self.reportSetupFailure(
                 "Ping Warden did not get approval in time. \(SystemSettingsCopy.turnOnInstruction), then try again.",
                 title: "Helper Approval Timed Out",
@@ -1897,6 +2014,7 @@ class PingWardenMonitor: @unchecked Sendable {
         switch status {
         case .enabled:
             log.notice("Helper registration approved")
+            recordBreadcrumb(.setupSucceeded)
             connectXPC()
             finishRegistrationPolling(success: true, reason: "approved")
 
@@ -1913,6 +2031,7 @@ class PingWardenMonitor: @unchecked Sendable {
             guard registrationRetriesRemaining == 0,
                   now - since >= notRegisteredGraceSeconds else { return }
             log.error("Helper registration did not complete")
+            recordFailure(.setupFailed, problem: .registrationIncomplete)
             let detail = registrationFailureDetail.map { " \($0)" } ?? ""
             reportSetupFailure(
                 "Ping Warden could not complete helper registration. Try setting up Ping Protection again.\(detail)",

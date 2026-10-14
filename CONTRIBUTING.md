@@ -32,6 +32,22 @@ For this project, test helper registration with a Release build copied to `/Appl
 
 Add focused tests for behavior that can run without AppKit or root privileges. For helper, XPC, signing, packaging, or update changes, include the exact manual validation you performed.
 
+## Crash and error reporting
+
+`CrashReporter.swift` owns the Sentry configuration, and `Core/DiagnosticReporting.swift` defines everything an event may carry: enum problem names and breadcrumbs, allowlisted error domains, numeric codes, and the rate limit. Keep new reporting inside those closed sets. Never put a host, target, address, network name, license key, or free-form error description in an event. `CrashReporter.scrub` is an allowlist: it removes every free-text field the SDK fills and reduces paths through `DiagnosticPaths`. Keep it that way, and treat `DiagnosticScrubber` as a backstop, not the mechanism the disclosure relies on. If what Ping Warden sends changes, update the disclosure in the same pull request: the Advanced toggle caption and hint in `PingWardenApp.swift`, the Welcome footnote in `WelcomeView.swift`, the README privacy section, `PingWarden/QUICKSTART.md`, `Site/home.html`, `landing.html`, and `docs/gumroad-product-description.html`.
+
+Run the reporting tests with `bash scripts/test_crash_reporter.sh`. It compiles the production reporter against a fake SDK that never sends anything, once as Release and once with `DEBUG`.
+
+To prove delivery end to end, build Debug and launch it with `--sentry-test-event`. Debug builds report under the `development` environment, so the event and its session stay out of production data. A Debug launch uses the same bundle identifier and preferences as the installed app and connects to its registered helper, so quit the installed copy first. Then check receipt with the read-only API token (the token is read from 1Password and passed on standard input, so it never appears in the process list):
+
+```bash
+op read 'op://Development/PingWarden Sentry API Token/credential' \
+  | sed 's/^/Authorization: Bearer /' \
+  | curl -sS -H @- "https://us.sentry.io/api/0/organizations/ames-consulting-llc/events/?project=4511410888704000&dataset=errors&environment=development&query=delivery_test:true&field=id&field=title&field=timestamp&field=release&statsPeriod=24h"
+```
+
+One row titled `Delivery verification` proves the event arrived. Replace the path with `sessions/?project=4511410888704000&field=sum(session)&groupBy=session.status&environment=development&statsPeriod=24h&interval=1d` to confirm the session was counted. `sentry-cli` 3.4.2 can't list organizations, so pass `--org ames-consulting-llc --project ping-warden` explicitly if you use it instead.
+
 ## Pull requests
 
 Keep each pull request to one logical change. Explain the user-visible result, list the tests you ran, and call out changes to the privileged helper, XPC authorization, entitlements, diagnostics, or update delivery.

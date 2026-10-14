@@ -1,26 +1,128 @@
-// Test-only Sentry replacement. It records configuration and never sends data.
+// Test-only Sentry replacement. It records configuration and captured
+// events and never sends data. Names and shapes follow sentry-cocoa 9.x as
+// seen from Swift.
 import Foundation
 
-public final class Event {
+public enum SentryLevel: UInt {
+    case none, debug, info, warning, error, fatal
+}
+
+public final class SentryMessage {
+    public let formatted: String
+    public var message: String?
+    public init(formatted: String) { self.formatted = formatted }
+}
+
+public final class Frame {
+    public var package: String?
+    public var fileName: String?
+    public var function: String?
+    public var contextLine: String?
+    public var preContext: [String]?
+    public var postContext: [String]?
+    public var vars: [String: Any]?
     public init() {}
+}
+
+public final class Mechanism {
+    public var type: String
+    public var desc: String?
+    public var data: [String: Any]?
+    public var helpLink: String?
+    public init(type: String) { self.type = type }
+}
+
+public final class SentryStacktrace {
+    public var frames: [Frame]
+    public init(frames: [Frame]) { self.frames = frames }
+}
+
+public final class Exception {
+    public var value: String?
+    public var type: String?
+    public var mechanism: Mechanism?
+    public var stacktrace: SentryStacktrace?
+    public init(value: String?, type: String?) {
+        self.value = value
+        self.type = type
+    }
+}
+
+public final class SentryThread {
+    public var name: String?
+    public var stacktrace: SentryStacktrace?
+    public init() {}
+}
+
+public final class DebugMeta {
+    public var codeFile: String?
+    public init() {}
+}
+
+public final class Breadcrumb {
+    public var level: SentryLevel
+    public var category: String
+    public var message: String?
+    public var type: String?
+    public init(level: SentryLevel, category: String) {
+        self.level = level
+        self.category = category
+    }
+}
+
+public final class User {
+    public var userId: String?
+    public init(userId: String?) { self.userId = userId }
+}
+
+public final class Event {
+    public var level: SentryLevel
+    public var message: SentryMessage?
+    public var serverName: String?
+    public var user: User?
+    public var extra: [String: Any]?
+    public var transaction: String?
+    public var modules: [String: String]?
+    public var tags: [String: String]?
+    public var fingerprint: [String]?
+    public var context: [String: [String: Any]]?
+    public var exceptions: [Exception]?
+    public var threads: [SentryThread]?
+    public var debugMeta: [DebugMeta]?
+    public var breadcrumbs: [Breadcrumb]?
+    public init(level: SentryLevel = .error) { self.level = level }
+}
+
+public struct SentryId: CustomStringConvertible {
+    public let description = "fake-event-id"
 }
 
 public final class Options {
     public var dsn: String?
     public var releaseName: String?
-    public var environment: String?
-    // Deliberately unsafe defaults prove production explicitly disables these.
+    public var dist: String?
+    public var environment: String = "production"
+    // Deliberately unsafe defaults prove production explicitly sets these.
     public var debug = true
     public var sendDefaultPii = true
     public var tracesSampleRate: NSNumber? = 1
     public var enableCrashHandler = false
-    public var enableAutoSessionTracking = true
+    public var enableUncaughtNSExceptionReporting = false
+    public var enableAutoSessionTracking = false
+    public var sessionTrackingIntervalMillis: UInt = 30_000
+    public var enableAutoPerformanceTracing = true
+    public var enableCoreDataTracing = true
     public var enableNetworkTracking = true
     public var enableNetworkBreadcrumbs = true
     public var enableCaptureFailedRequests = true
+    public var enableAutoBreadcrumbTracking = true
+    public var attachStacktrace = true
     public var enableAppHangTracking = true
     public var enableFileIOTracing = true
+    public var enableMetricKit = true
+    public var enableLogs = true
     public var beforeSend: ((Event) -> Event?)?
+    public var beforeBreadcrumb: ((Breadcrumb) -> Breadcrumb?)?
     public init() {}
 }
 
@@ -29,6 +131,11 @@ public enum SentrySDK {
     public private(set) static var closeCount = 0
     public private(set) static var isActive = false
     public private(set) static var lastOptions: Options?
+    public private(set) static var capturedEvents: [Event] = []
+    public private(set) static var breadcrumbs: [Breadcrumb] = []
+    public private(set) static var flushCount = 0
+    /// Breadcrumbs and events in the order the SDK received them.
+    public private(set) static var arrivals: [String] = []
 
     public static func start(configureOptions: (Options) -> Void) {
         let options = Options()
@@ -43,10 +150,37 @@ public enum SentrySDK {
         isActive = false
     }
 
+    /// Mirrors the SDK: inactive capture is a no-op, and beforeSend can drop.
+    @discardableResult
+    public static func capture(event: Event) -> SentryId {
+        guard isActive, let options = lastOptions else { return SentryId() }
+        if let processed = options.beforeSend.map({ $0(event) }) ?? event {
+            capturedEvents.append(processed)
+            arrivals.append("event:" + (processed.message?.formatted ?? ""))
+        }
+        return SentryId()
+    }
+
+    public static func addBreadcrumb(_ crumb: Breadcrumb) {
+        guard isActive, let options = lastOptions else { return }
+        if let kept = options.beforeBreadcrumb.map({ $0(crumb) }) ?? crumb {
+            breadcrumbs.append(kept)
+            arrivals.append("breadcrumb:" + (kept.message ?? ""))
+        }
+    }
+
+    public static func flush(timeout: TimeInterval) {
+        flushCount += 1
+    }
+
     public static func reset() {
         startCount = 0
         closeCount = 0
         isActive = false
         lastOptions = nil
+        capturedEvents = []
+        breadcrumbs = []
+        flushCount = 0
+        arrivals = []
     }
 }
