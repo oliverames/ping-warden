@@ -6,6 +6,92 @@
     <description>Pre-release updates for Ping Warden</description>
     <language>en</language>
     <item>
+      <title>Version 4.3.4-beta.2</title>
+      <link>https://github.com/oliverames/ping-warden/releases/tag/v4.3.4-beta.2</link>
+      <sparkle:version>43392</sparkle:version>
+      <sparkle:shortVersionString>4.3.4-beta.2</sparkle:shortVersionString>
+      <description>&lt;style&gt;
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #1d1d1f;
+    margin: 0;
+    padding: 0;
+}
+h1, h2, h3 { color: #000; font-weight: 600; }
+h1 { font-size: 18px; margin: 0 0 10px 0; }
+h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #6e6e73;
+    margin: 18px 0 6px 0;
+}
+h3 { font-size: 13px; margin: 14px 0 6px 0; }
+p { margin: 0 0 10px 0; }
+ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+li { margin-bottom: 5px; }
+li &gt; strong:first-child { color: #000; }
+code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: #f2f2f7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+a { color: #f5a542; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
+@media (prefers-color-scheme: dark) {
+    body { color: #f5f5f7; }
+    h1, h2, h3, li &gt; strong:first-child { color: #fff; }
+    h2 { color: #98989d; }
+    code { background: #2c2c2e; }
+    hr { border-top-color: #38383a; }
+}
+&lt;/style&gt;
+&lt;p&gt;This beta picks up setup where you left off once you add a license. It also includes everything from 4.3.4-beta.1 and 4.3.3.&lt;/p&gt;
+&lt;h2&gt;New in this beta&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;If you skipped the license during setup and add it later in &lt;strong&gt;Settings → License&lt;/strong&gt; (or from &lt;strong&gt;Enter License&lt;/strong&gt; on the Dashboard), Ping Warden opens the setup window at &lt;strong&gt;Approve the helper&lt;/strong&gt; when the helper isn't approved yet. Nothing changes in macOS until you click &lt;strong&gt;Approve Helper&lt;/strong&gt;. If the setup window is already open, it moves to that step instead of opening a second window. If the helper is already approved, nothing opens.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;From 4.3.4-beta.1: Guided setup&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;The Welcome window looks the same as before. When you click &lt;strong&gt;Set Up Ping Protection&lt;/strong&gt; or &lt;strong&gt;Turn On Ping Protection&lt;/strong&gt;, Ping Warden walks through what Ping Protection does, your license if you still need one, and helper approval in the same window.&lt;/li&gt;
+&lt;li&gt;Ping Warden only asks you to approve the helper after a license is active. The latency dashboard doesn't use the helper, so if you skip the license step you go straight to the free dashboard, and a valid key takes you right into helper approval.&lt;/li&gt;
+&lt;li&gt;The approval step shows what macOS will put on screen and names the exact place in System Settings for your version of macOS: &lt;strong&gt;Login Items&lt;/strong&gt; or &lt;strong&gt;Login Items &amp;amp; Extensions&lt;/strong&gt;, and &lt;strong&gt;Allow in the Background&lt;/strong&gt; or &lt;strong&gt;App Background Activity&lt;/strong&gt;.&lt;/li&gt;
+&lt;li&gt;While you approve, the window follows along and moves on when the helper is approved. It tells you when it opens System Settings for you, and if approval doesn't arrive within a minute it offers &lt;strong&gt;Try Again&lt;/strong&gt; while it keeps watching, so a late approval still finishes setup.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Finish Setup…&lt;/strong&gt; in the menu, Settings, and the Dashboard picks up at the first step you haven't done yet instead of starting over.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;From 4.3.4-beta.1: Repair&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Repair…&lt;/strong&gt; first checks whether the helper answers. If it does, you see &lt;strong&gt;Helper Is Responding&lt;/strong&gt; as before, and the helper's registration is left alone.&lt;/li&gt;
+&lt;li&gt;If the helper has to be approved again, Repair opens the approval step and waits for you to click &lt;strong&gt;Approve Helper&lt;/strong&gt;, so macOS doesn't show its notification before you know why. Your protection setting, pause, and session history stay as they are.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;From 4.3.3: Game Mode and Repair&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Turning off &lt;strong&gt;Game Mode Auto-Detect&lt;/strong&gt; while a game is in front now ends the Game Mode session. Previously, protection could stay on until Ping Warden quit.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Repair…&lt;/strong&gt; on the Dashboard now uses the same path as the menu and Settings. It no longer ends a running Game Mode session or cancels a pause when it reconnects the helper.&lt;/li&gt;
+&lt;li&gt;Stopping a Latency Session and starting a new one right away no longer cancels the new session.&lt;/li&gt;
+&lt;li&gt;The &lt;strong&gt;Toggle Ping Protection&lt;/strong&gt; shortcut now acts on whether protection is actually on. During a Game Mode session it turns protection off instead of on.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;From 4.3.3: Reliability&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;If macOS cancels a quit after Ping Warden has stopped protection, for example when a logout is cancelled, Ping Warden restores protection within about 10 seconds. Previously, protection couldn't be turned on again until you relaunched Ping Warden.&lt;/li&gt;
+&lt;li&gt;A damaged session history file no longer blocks new session recaps. Ping Warden sets the file aside and starts a new history.&lt;/li&gt;
+&lt;li&gt;Resetting the intervention counter, and reading it, now finish even if the helper can't be reached.&lt;/li&gt;
+&lt;li&gt;A slow DNS lookup for a hostname target is reused by the next probe instead of starting again on every probe.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Settings…&lt;/strong&gt; and &lt;strong&gt;Open Dashboard…&lt;/strong&gt; now bring back a minimized window, so they no longer seem to do nothing when the Dock icon is hidden.&lt;/li&gt;
+&lt;li&gt;Confirming &lt;strong&gt;Prepare to Remove&lt;/strong&gt; a second time while removal is running no longer starts a second removal.&lt;/li&gt;
+&lt;/ul&gt;
+      </description>
+      <pubDate>Wed, 14 Oct 2026 13:45:21 +0000</pubDate>
+      <enclosure url="https://github.com/oliverames/ping-warden/releases/download/v4.3.4-beta.2/PingWarden-4.3.4-beta.2.dmg" sparkle:version="43392" sparkle:shortVersionString="4.3.4-beta.2" length="6211226" type="application/octet-stream" sparkle:edSignature="uWCZMoJsckO4rD1yLBYZRbo7MkSed1L1Plj696yctxRERRsJec4dqG8YsXMHpGg/pUMoR1wSdPU1iioe5ABYBA==" />
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <sparkle:minimumAutoupdateVersion>40000</sparkle:minimumAutoupdateVersion>
+    </item>
+    <item>
       <title>Version 4.3.4-beta.1</title>
       <link>https://github.com/oliverames/ping-warden/releases/tag/v4.3.4-beta.1</link>
       <sparkle:version>43391</sparkle:version>
@@ -2299,6 +2385,6 @@ hr { border: 0; border-top: 1px solid #e5e5ea; margin: 16px 0; }
   </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: yHdubUUESRnIppKor791G9n6B9nC3QungmtifwkP6LeB+P4Waz7C81YeuEeQJsUfl6OTmFzBGKn+z9eLxtF1AA==
-length: 136945
+edSignature: weWJsj65C+qj6CHcmlsPDhm66TOQEURToviYAHFfmjM8FkrqgziNZbdXG24k0VjzliUzDVvNieHricFT7nw8AQ==
+length: 143817
 -->
