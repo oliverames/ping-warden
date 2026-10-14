@@ -824,5 +824,120 @@ do {
     check(results.withValue { $0 } == [3], "a helper count reply completes once with its value")
 }
 
+// Crash-reporting signals: a declined enable reports enum values only.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let connection = monitor.harnessConnection!
+    take(connection.helper, \.commands).1(false)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    let recorded = signals.withValue { $0 }
+    check(results.withValue { $0 } == [false], "a declined enable fails")
+    check(recorded.first == .breadcrumb(.protectionEnableRequested), "an enable request leaves a breadcrumb first")
+    check(recorded.contains(.breadcrumb(.protectionEnableFailed)), "a declined enable leaves a failure breadcrumb")
+    let crumbIndex = recorded.firstIndex(of: .breadcrumb(.protectionEnableFailed))
+    let problemIndex = recorded.firstIndex { if case .problem = $0 { return true } else { return false } }
+    check(crumbIndex != nil && problemIndex != nil && crumbIndex! < problemIndex!,
+          "the failure breadcrumb precedes its problem event")
+    check(recorded.contains(.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined))),
+          "a declined enable reports one scrubbed problem")
+    check(!recorded.contains(.breadcrumb(.protectionEnabled)), "a declined enable never claims protection")
+}
+
+// A confirmed enable and disable leave only state breadcrumbs.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    let connection = confirmed(monitor)
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.stopMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    take(connection.helper, \.commands).1(true)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    check(signals.withValue { $0 } == [.breadcrumb(.protectionDisableRequested), .breadcrumb(.protectionDisabled)],
+          "a confirmed disable records request and result breadcrumbs, no problem")
+}
+
+// A registration error reports its domain and code, never its description.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    SMAppService.fixtureRegistrationError = NSError(
+        domain: "FixtureError",
+        code: 99,
+        userInfo: [NSLocalizedDescriptionKey: "probe.example.com 192.0.2.1"]
+    )
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin()
+    let recorded = signals.withValue { $0 }
+    check(results.withValue { $0 } == [false], "a refused registration fails")
+    check(recorded == [
+        .breadcrumb(.setupStarted),
+        .breadcrumb(.setupFailed),
+        .problem(HelperProblemReport(
+            problem: .registrationFailed,
+            helperState: .notRegistered,
+            error: NSError(domain: "other", code: 99)
+        )),
+    ], "registration failure records start, failure, then a domain-and-code problem")
+    let text = String(describing: recorded)
+    check(!text.contains("example") && !text.contains("192.0.2.1") && !text.contains("FixtureError"),
+          "registration signals carry no error description or unlisted domain")
+}
+
+// A registration that never completes records setup.failed before its problem.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    SMAppService.fixtureRegistrationError = NSError(domain: NSPOSIXErrorDomain, code: 1)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.registerHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 3)
+    let recorded = signals.withValue { $0 }
+    let incomplete = HelperTelemetrySignal.problem(HelperProblemReport(problem: .registrationIncomplete, helperState: .notRegistered))
+    check(results.withValue { $0 } == [false], "an incomplete registration fails")
+    check(Array(recorded.suffix(2)) == [.breadcrumb(.setupFailed), incomplete],
+          "incomplete registration records setup.failed, then its problem: \(recorded)")
+}
+
+// Signals raised before the app installs its handler (the shared
+// initializer restores protection first) are held and delivered in order.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let results = LockedValue<[Bool]>([])
+    monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let connection = monitor.harnessConnection!
+    take(connection.helper, \.commands).1(false)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    check(signals.withValue { $0 } == [
+        .breadcrumb(.protectionEnableRequested),
+        .breadcrumb(.protectionEnableFailed),
+        .problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined)),
+    ], "signals from before the handler existed are delivered once it is installed")
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    check(signals.withValue { $0 }.count == 3, "held signals are delivered only once")
+}
+
 print("Monitor checks complete. Failures: \(failures.count)")
 exit(failures.isEmpty ? 0 : 1)

@@ -238,9 +238,11 @@ final class PingWardenPreferences: @unchecked Sendable {
     }
 
     /// Crash reporting via Sentry. Default `true`; users can opt out from
-    /// Settings → Advanced → Privacy. Reports contain no IP, network target,
-    /// usage telemetry, or session event data. Turning it off applies
-    /// immediately; turning it on starts reporting on the next launch.
+    /// Settings → Advanced → Privacy. Covers crash reports, helper error
+    /// events, release-health sessions, and state breadcrumbs; never IP
+    /// addresses, ping targets, host or network names, or license keys (see
+    /// CrashReporter.swift). Turning it off applies immediately; turning it
+    /// on starts reporting on the next launch.
     var isCrashReportingEnabled: Bool {
         get { defaults.bool(forKey: crashReportingEnabledKey) }
         set { defaults.set(newValue, forKey: crashReportingEnabledKey) }
