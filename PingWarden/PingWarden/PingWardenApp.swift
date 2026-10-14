@@ -122,12 +122,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     private var menuMetricsObserver: NSObjectProtocol?
     private var windowObserver: NSObjectProtocol?
     private var wakeObserver: NSObjectProtocol?
+    private var repairOfferActivationObserver: NSObjectProtocol?
     private var settingsShortcutMonitor: Any?
     private var statusItem: NSStatusItem?
     private var statusMenu: NSMenu?
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
+    /// The setup window: first-run introduction, Finish Setup, and Repair.
     private var welcomeWindow: NSWindow?
+    private var setupModel: OnboardingModel?
     private var licenseNoticeWindow: NSWindow?
     private var gameModeDetector: GameModeDetector?
     private var monitorStateObserverToken: UUID?
@@ -182,6 +185,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         ))
         log.info("Launch reason: \(String(describing: self.launchReasonState.reason), privacy: .public)")
 
+        OnboardingPresenter.handler = { [weak self] mode in
+            self?.showSetupWindow(mode: mode)
+        }
+        OnboardingPresenter.licenseActivationHandler = { [weak self] in
+            self?.continueSetupAfterLicenseActivation()
+        }
         sessionCoordinator.onSessionStateChanged = { [weak self] in
             self?.updateQuickActionMenuItems()
         }
@@ -194,6 +203,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             ControlCenterSupport.requestPingProtectionRefresh(trigger)
         }
         ControlCenterSupport.requestPingProtectionRefresh(.appLaunch)
+        // The coordinator decides when a helper problem is worth one offer
+        // of Repair (HelperRepairOffer in Core); this shows it.
+        protectionExperience.repairOfferHandler = { [weak self] problem in
+            self?.presentRepairOffer(for: problem) ?? false
+        }
 
         protectionExperienceObservation = protectionExperience.objectWillChange.sink { [weak self] in
             // Published changes arrive before mutation; refresh on the next
@@ -350,7 +364,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                     if self.welcomePresentation.shouldPresentAutomatically(
                         helperIsRegistered: PingWardenMonitor.shared.isHelperRegistered
                     ) {
-                        self.showWelcomeWindow()
+                        self.showSetupWindow(mode: .firstRun)
                     }
                     self.settleLaunchPresentation(.welcome)
                 }
@@ -378,7 +392,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                     }
                     guard debugWindowTarget == nil else { return }
                     if !responds, self.welcomePresentation.shouldPresentAutomatically(helperIsRegistered: false) {
-                        self.showWelcomeWindow()
+                        self.showSetupWindow(mode: .firstRun)
                     }
                     self.settleLaunchPresentation(.welcome)
                 }
@@ -481,7 +495,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
                 await self.protectionExperience.handleSystemWake()
                 self.updateMenuBarIcon()
                 self.updateMenuItem()
+                // Give a helper that restarted during sleep a moment, then
+                // make sure it answers while protection needs it.
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                self.protectionExperience.confirmHelperAfterWake()
             }
+        }
+        // An offer of Repair that waited (for example while a game was in
+        // front) is shown once Ping Warden is in front again.
+        repairOfferActivationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.protectionExperience.retryPendingRepairOffer() }
         }
     }
 
@@ -549,6 +576,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         if let observer = wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
         }
+        if let observer = repairOfferActivationObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
         if let settingsShortcutMonitor {
             NSEvent.removeMonitor(settingsShortcutMonitor)
             self.settingsShortcutMonitor = nil
@@ -608,6 +638,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
             if window === welcomeWindow {
                 welcomeWindow = nil
+                // Closing is Not Now. A registration already submitted
+                // keeps running in the monitor; only the window's polling stops.
+                setupModel?.windowWillClose()
+                setupModel = nil
                 // The introduction has been seen, so the first-run deferral is
                 // over whether or not the helper was approved. Starting here
                 // rather than when the window opens keeps Sparkle's own
@@ -649,72 +683,167 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         Task { @MainActor in
             await protectionExperience.setGameModeActive(isActive)
             updateMenuItem()
+            // A Repair offer held back while the game was in front.
+            if !isActive { protectionExperience.retryPendingRepairOffer() }
         }
     }
 
-    // MARK: - Welcome Window
+    // MARK: - Setup Window
 
     private var welcomePresentation: WelcomePresentationState {
         WelcomePresentationState(defaults: PingWardenPreferences.shared.defaults)
     }
 
-    private func showWelcomeWindow() {
-        if welcomeWindow != nil { return }
-
-        let experience = protectionExperience
-        let welcomeView = WelcomeView { completion in
-            // Repair covers first-time registration and a registration that
-            // exists but never answers, and succeeds only on a helper reply.
-            PingWardenMonitor.shared.repairHelperRegistration { registered in
-                Task { @MainActor in
-                    guard registered else {
-                        completion(false)
-                        return
-                    }
-                    // Setup is complete even without a license; only the
-                    // protection toggle itself is gated. An unlicensed
-                    // enable reports false and shows its message in the
-                    // protectionExperience error surface.
-                    _ = await experience.setPersistentProtection(true)
-                    completion(true)
-                }
+    /// Open the setup window, or bring it forward. An open window switches
+    /// to a different entry point, such as Repair, in place.
+    private func showSetupWindow(mode: OnboardingMode) {
+        if let welcomeWindow, let setupModel {
+            if setupModel.mode != mode {
+                setupModel.restart(mode: mode)
             }
-        } onOpenDashboard: {
-            self.welcomeWindow?.close()
-            self.welcomeWindow = nil
-            self.openDashboard()
-        } onDismiss: {
-            self.welcomeWindow?.close()
-            self.welcomeWindow = nil
-            self.updateDockIconVisibility()
-        } onOpenLicenseSettings: {
-            self.welcomeWindow?.close()
-            self.welcomeWindow = nil
-            self.settingsNavigation.selectedSection = .license
-            self.openSettings()
+            NSApp.setActivationPolicy(.regular)
+            welcomeWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
         }
 
+        let model = OnboardingModel(mode: mode)
+        model.actions = OnboardingModel.Actions(
+            openDashboard: { [weak self] in
+                self?.closeSetupWindow()
+                self?.openDashboard()
+            },
+            close: { [weak self] in
+                self?.closeSetupWindow()
+            },
+            bringToFront: { [weak self] in
+                guard let window = self?.welcomeWindow else { return }
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        )
+        presentSetupWindow(model: model)
+    }
+
+    /// After a license is activated in Settings, end with Ping Protection
+    /// on: at once when the helper is ready, after approval when it is not
+    /// approved yet, and after Repair when it is approved but not
+    /// answering. The decisions are `LicenseActivationFollowUp` and
+    /// `LicenseActivationProtection` in Core.
+    private func continueSetupAfterLicenseActivation() {
+        // A read of the registration, so a change made in System Settings
+        // moments ago is not hidden by the status cache.
+        PingWardenMonitor.shared.refreshHelperStatus()
+        let openWindow = setupModel.map {
+            LicenseActivationFollowUp.OpenWindow(mode: $0.mode, step: $0.step)
+        }
+        let followUp = LicenseActivationFollowUp.decide(
+            canEnableProtection: LicenseManager.shared.canEnableProtection,
+            helperStatus: OnboardingModel.liveStatus(),
+            helperResponding: !protectionExperience.shouldOfferHelperRepair,
+            openWindow: welcomeWindow == nil ? nil : openWindow
+        )
+        log.info("License activated; setup follow-up: \(String(describing: followUp), privacy: .public)")
+        switch followUp {
+        case .none:
+            return
+        case .turnProtectionOn:
+            Task { await turnOnProtectionAfterLicense(repairsSilentHelper: true) }
+        case .openApproval:
+            // Setup turns protection on when approval finishes.
+            showSetupWindow(mode: .finishSetup)
+        case .showApprovalInOpenWindow:
+            setupModel?.showApprovalAfterLicense()
+            bringSetupWindowForward()
+        case .bringOpenWindowForward:
+            // Approval turns protection on by itself; a Repair in progress
+            // is told to.
+            if setupModel?.mode == .repair {
+                setupModel?.turnsProtectionOnWhenRepaired = true
+            }
+            bringSetupWindowForward()
+        case .repairHelper:
+            Task { await repairHelperAfterLicense() }
+        }
+    }
+
+    /// Turn protection on through the toggle's own path. When that finds
+    /// the helper silent (its silence was not yet known), continue with
+    /// Repair once, as a known-silent helper would have.
+    private func turnOnProtectionAfterLicense(repairsSilentHelper: Bool) async {
+        let decision = await protectionExperience.turnOnProtectionAfterLicenseActivation()
+        updateMenuItem()
+        guard decision == .turnOn, repairsSilentHelper,
+              !protectionExperience.isTerminating,
+              !PingWardenMonitor.shared.isMonitoringActive,
+              protectionExperience.shouldOfferHelperRepair,
+              OnboardingModel.liveStatus() == .enabled else { return }
+        log.info("Protection did not turn on after license activation; the helper is silent, so Repair follows")
+        if let setupModel, welcomeWindow != nil,
+           setupModel.mode == .repair || setupModel.step == .approve {
+            if setupModel.mode == .repair { setupModel.turnsProtectionOnWhenRepaired = true }
+            bringSetupWindowForward()
+            return
+        }
+        await repairHelperAfterLicense()
+    }
+
+    /// Repair after a license activation, as from the Repair… menu item:
+    /// check whether the helper answers, and open the Repair screen (or
+    /// switch an open setup window to it in place) only when it must be
+    /// approved again. That screen waits for Approve Helper, and a
+    /// successful Repair turns protection on.
+    private func repairHelperAfterLicense() async {
+        let check = await protectionExperience.checkHelperForRepair()
+        guard !protectionExperience.isTerminating else { return }
+        switch check {
+        case .needsApproval:
+            showSetupWindow(mode: .repair)
+            setupModel?.showRepairAfterLicense()
+        case .finished(let report):
+            if report.title == RepairResultCopy.successTitle {
+                await turnOnProtectionAfterLicense(repairsSilentHelper: false)
+                return
+            }
+            // The check could not finish its work; say why, as the menu's
+            // Repair does.
+            updateMenuItem()
+            let result = NSAlert()
+            result.messageText = report.title
+            result.informativeText = report.message
+            result.alertStyle = .informational
+            result.addButton(withTitle: "OK")
+            result.runModal()
+        }
+    }
+
+    /// The setup window comes to the front in every interface mode,
+    /// including a hidden Dock icon or Control Center Only: the window
+    /// shows a Dock icon while it is open.
+    private func bringSetupWindowForward() {
+        guard let welcomeWindow else { return }
+        NSApp.setActivationPolicy(.regular)
+        welcomeWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func presentSetupWindow(model: OnboardingModel) {
+        let setupView = OnboardingView(model: model)
 #if DEBUG
-        var welcomeRootView = AnyView(welcomeView)
+        var rootView = AnyView(setupView)
         if ProcessInfo.processInfo.arguments.contains("--welcome-large-text") {
-            welcomeRootView = AnyView(
-                welcomeRootView.environment(\.dynamicTypeSize, .accessibility5)
-            )
+            rootView = AnyView(rootView.environment(\.dynamicTypeSize, .accessibility5))
         }
         if ProcessInfo.processInfo.arguments.contains("--welcome-dark") {
-            welcomeRootView = AnyView(welcomeRootView.preferredColorScheme(.dark))
+            rootView = AnyView(rootView.preferredColorScheme(.dark))
         }
-        let hostingController = NSHostingController(rootView: welcomeRootView)
+        let hostingController = NSHostingController(rootView: rootView)
 #else
-        let hostingController = NSHostingController(rootView: welcomeView)
+        let hostingController = NSHostingController(rootView: setupView)
 #endif
-#if DEBUG
-        let initialSize = ProcessInfo.processInfo.arguments.contains("--welcome-min-size")
-            ? NSSize(width: 480, height: 560)
-            : WelcomeView.defaultSize
-#else
-        let initialSize = WelcomeView.defaultSize
-#endif
+        // The window takes each screen's height as the steps change.
+        hostingController.sizingOptions = [.preferredContentSize]
+        let initialSize = hostingController.view.fittingSize
         hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
 
         let window = NSWindow(
@@ -724,7 +853,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             defer: false
         )
         window.contentViewController = hostingController
-        window.title = "Welcome to Ping Warden"
+        window.title = model.mode == .repair ? "Repair Ping Warden's Helper" : "Set Up Ping Warden"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
@@ -734,14 +863,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.delegate = self
 
         welcomeWindow = window
+        setupModel = model
 
-        // Show dock icon when welcome window opens
+        // Show dock icon while the setup window is open
         NSApp.setActivationPolicy(.regular)
 
         window.makeKeyAndOrderFront(nil)
         welcomePresentation.markPresented()
         NSApp.activate(ignoringOtherApps: true)
         ensureApplicationMenuItems()
+    }
+
+    /// Closing is Not Now: nothing is lost, and the introduction does not
+    /// open on its own again.
+    private func closeSetupWindow() {
+        welcomeWindow?.close()
+        welcomeWindow = nil
+        setupModel?.windowWillClose()
+        setupModel = nil
+        updateDockIconVisibility()
+    }
+
+    /// Repair, shared by the menu: check that the helper answers, report
+    /// success in place, and open the setup window's approval step only
+    /// when the helper must be approved again.
+    private func runHelperRepairCheck() async -> HelperTestReport? {
+        switch await protectionExperience.checkHelperForRepair() {
+        case .finished(let report):
+            return report
+        case .needsApproval:
+            guard !protectionExperience.isTerminating else { return nil }
+            showSetupWindow(mode: .repair)
+            return nil
+        }
     }
 
     // MARK: - License Transition Notice
@@ -836,6 +990,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             openSettings()
         case "about":
             showAbout()
+        case let name where name.hasPrefix("onboarding-"):
+            // A fixed setup-window state that performs nothing, for
+            // screenshots: --show-window=onboarding-approve-waiting
+            if let model = OnboardingModel.previewModel(named: String(name.dropFirst("onboarding-".count))) {
+                model.actions.close = { [weak self] in self?.closeSetupWindow() }
+                presentSetupWindow(model: model)
+            } else {
+                log.error("Unknown onboarding preview: \(name, privacy: .public)")
+            }
         default:
             log.error("Unknown debug window target: \(name, privacy: .public)")
         }
@@ -1554,7 +1717,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         // what it does.
         let action = protectionExperience.toggleAction()
         guard action != .finishSetup else {
-            showWelcomeWindow()
+            showSetupWindow(mode: .finishSetup)
             return
         }
 
@@ -1585,8 +1748,73 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        // A silent helper is offered Repair right here, instead of only
+        // naming where Repair lives. Nothing runs until it is clicked.
+        let offersRepair = protectionExperience.shouldOfferHelperRepair
+            && protectionExperience.canRepairHelper
+        if offersRepair {
+            alert.addButton(withTitle: HelperRepairOffer.Copy.repairButton)
+            alert.addButton(withTitle: "Cancel")
+            protectionExperience.noteRepairOffered()
+        } else {
+            alert.addButton(withTitle: "OK")
+        }
+        let response = alert.runModal()
+        if offersRepair, response == .alertFirstButtonReturn {
+            runRepairAndReport()
+        }
+    }
+
+    /// Offer Repair on the app's own initiative, once per failure episode
+    /// (the coordinator decides when). Returns false when now is a bad
+    /// moment, and the offer waits: a game is in front, the setup window
+    /// is already handling the helper, the menu or another notice is open.
+    /// A Dashboard or General settings pane already in front shows its own
+    /// Repair row, which counts as the offer.
+    private func presentRepairOffer(for problem: HelperRepairOffer.Problem) -> Bool {
+        guard !isTerminating, !protectionExperience.isTerminating else { return false }
+        if welcomeWindow != nil { return true }
+        if let settingsWindow, settingsWindow.isVisible, settingsWindow.isKeyWindow, NSApp.isActive,
+           settingsNavigation.selectedSection == .dashboard || settingsNavigation.selectedSection == .general {
+            return true
+        }
+        guard !isStatusMenuOpen, licenseNoticeWindow == nil,
+              NSApp.isActive || !protectionExperience.gameModeActive,
+              protectionExperience.canRepairHelper else { return false }
+        log.info("Offering Repair for a helper that is \(problem.rawValue, privacy: .public)")
+        let alert = NSAlert()
+        alert.messageText = HelperRepairOffer.Copy.title(for: problem)
+        alert.informativeText = HelperRepairOffer.Copy.message(for: problem)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: HelperRepairOffer.Copy.repairButton)
+        alert.addButton(withTitle: HelperRepairOffer.Copy.notNowButton)
+        // Shown after the coordinator returns, so the episode is already
+        // marked offered when the person answers.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() == .alertFirstButtonReturn {
+                self.runRepairAndReport()
+            }
+        }
+        return true
+    }
+
+    /// The Repair… menu item's work after its confirmation: check the
+    /// helper, report the result, or continue in the Repair screen when it
+    /// must be approved again.
+    private func runRepairAndReport() {
+        Task {
+            guard let report = await runHelperRepairCheck() else { return }
+            guard !protectionExperience.isTerminating else { return }
+            updateMenuItem()
+            let result = NSAlert()
+            result.messageText = report.title
+            result.informativeText = report.message
+            result.alertStyle = .informational
+            result.addButton(withTitle: "OK")
+            result.runModal()
+        }
     }
 
     private func presentLicenseDeniedAlert() {
@@ -1624,17 +1852,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         confirmation.addButton(withTitle: "Repair")
         confirmation.addButton(withTitle: "Cancel")
         guard confirmation.runModal() == .alertFirstButtonReturn else { return }
-        Task {
-            let report = await protectionExperience.repairHelperConnection()
-            guard !protectionExperience.isTerminating else { return }
-            updateMenuItem()
-            let result = NSAlert()
-            result.messageText = report.title
-            result.informativeText = report.message
-            result.alertStyle = .informational
-            result.addButton(withTitle: "OK")
-            result.runModal()
-        }
+        // A helper that needs approval again continues in the setup
+        // window, which explains the step before macOS shows anything.
+        runRepairAndReport()
     }
 
     @objc private func toggleQuickPause() {
@@ -2136,8 +2356,14 @@ private struct HelperRepairControl: View {
             Button("Repair") {
                 awaitingResult = true
                 Task {
-                    let report = await experience.repairHelperConnection()
-                    if !experience.isTerminating { result = report }
+                    switch await experience.checkHelperForRepair() {
+                    case .finished(let report):
+                        if !experience.isTerminating { result = report }
+                    case .needsApproval:
+                        // The setup window explains the approval before
+                        // macOS shows anything, and reports the outcome.
+                        if !experience.isTerminating { OnboardingPresenter.present(.repair) }
+                    }
                     awaitingResult = false
                 }
             }
@@ -2170,7 +2396,6 @@ struct GeneralSettingsContent: View {
     @State private var controlCenterAvailability = ControlCenterSupport.availabilityForCurrentApp()
     @State private var showingControlCenterConfirm = false
     @State private var settingsErrorMessage: String?
-    @State private var isFinishingSetup = false
 
     init(onCheckForUpdates: @escaping () -> Void = {}) {
         self.onCheckForUpdates = onCheckForUpdates
@@ -2527,33 +2752,17 @@ struct GeneralSettingsContent: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
     }
 
-    /// Covers a repair started from Advanced or the welcome window too, so
+    /// Covers a repair started from Advanced or the setup window too, so
     /// a second one cannot unregister the helper the first just rebuilt.
     private var setupInProgress: Bool {
-        isFinishingSetup || protectionExperience.isRepairingHelper
+        protectionExperience.isRepairingHelper
     }
 
+    /// Finish Setup continues in the setup window at the first incomplete
+    /// step, which shows approval progress and any failure itself.
     private func finishSetup() {
         guard !setupInProgress else { return }
-        isFinishingSetup = true
-        PingWardenMonitor.shared.repairHelperRegistration(presentsErrors: false) { success in
-            Task { @MainActor in
-                guard success else {
-                    isFinishingSetup = false
-                    settingsErrorMessage = PingWardenMonitor.shared.lastSetupFailureMessage
-                        ?? (PingWardenMonitor.shared.isHelperRegistered
-                            ? "The helper was approved but is not responding. Restart your Mac, then open Settings → Advanced and click Repair."
-                            : "Ping Warden is still waiting for approval in \(SystemSettingsCopy.loginItemsPath).")
-                    return
-                }
-                let enabled = await protectionExperience.setPersistentProtection(true)
-                isFinishingSetup = false
-                if !enabled {
-                    settingsErrorMessage = protectionExperience.lastError
-                        ?? "The helper was approved, but Ping Protection could not turn on. Open Settings → Advanced and click Repair."
-                }
-            }
-        }
+        OnboardingPresenter.present(.finishSetup)
     }
 
     private var statusColor: Color {
@@ -2732,7 +2941,13 @@ struct LicenseSettingsContent: View {
     }
 
     private var licenseMessageForLastResult: String {
-        switch license.lastVerificationResult {
+        Self.message(for: license.lastVerificationResult)
+    }
+
+    /// What a failed verification tells the person. Shared with the setup
+    /// window's license step.
+    static func message(for result: LicensePolicy.Verification?) -> String {
+        switch result {
         case .revoked:
             // Gumroad answers the same way for a mistyped key and a refunded
             // or disabled one, so the copy blames neither.
@@ -2758,6 +2973,8 @@ struct LicenseSettingsContent: View {
                 ? "License verified. Ping Protection is available."
                 : licenseMessageForLastResult
             if entitled, keyField == submittedKey { keyField = "" }
+            // Without an approved helper, setup continues at approval.
+            if entitled { OnboardingPresenter.licenseActivated() }
         }
     }
 
@@ -3926,12 +4143,4 @@ final class GameModeDetector: @unchecked Sendable {
 
 #Preview("About View") {
     AboutView()
-}
-
-#Preview("Welcome View") {
-    WelcomeView(
-        onSetup: { completion in completion(true) },
-        onOpenDashboard: {},
-        onDismiss: {}
-    )
 }

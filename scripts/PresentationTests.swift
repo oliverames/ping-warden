@@ -101,6 +101,11 @@ struct ChartHost {
     }
     func finish(_ result: Bool) { continuation?.resume(returning: result); continuation = nil }
 }
+// Records the setup hand-off a verified license triggers in production.
+@MainActor enum OnboardingPresenter {
+    static var activations = 0
+    static func licenseActivated() { activations += 1 }
+}
 @MainActor final class SubmissionHost {
     let license = SubmissionVerifier()
     var keyField = ""
@@ -177,6 +182,7 @@ final class CustomTargetHost {
         await settle()
         check(submission.licenseMessage == "Offline fixture", "failed verification presents its result")
         check(submission.keyField == "synthetic-key", "failed verification preserves entered key")
+        check(OnboardingPresenter.activations == 0, "failed verification does not continue setup")
         submission.submit()
         await settle()
         submission.keyField = "edited-during-request"
@@ -188,6 +194,7 @@ final class CustomTargetHost {
         submission.license.finish(true)
         await settle()
         check(submission.keyField.isEmpty, "successful verification clears its own submitted key")
+        check(OnboardingPresenter.activations == 2, "each successful verification continues setup once")
 
         let host = ObserverHost()
         host.start()

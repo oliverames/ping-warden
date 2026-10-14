@@ -65,9 +65,12 @@ def prepare(destination, license_state="paid"):
 
     app = project / "PingWarden"
     license_source = app / "LicenseManager.swift"
-    initial_state = ("cachedLicenseValid: true, lastVerifiedAt: now, grandfatherDeadline: nil"
-                     if license_state == "paid" else
-                     "cachedLicenseValid: false, lastVerifiedAt: nil, grandfatherDeadline: now.addingTimeInterval(21 * 86400)")
+    initial_state = {
+        "paid": "cachedLicenseValid: true, lastVerifiedAt: now, grandfatherDeadline: nil",
+        "transition": "cachedLicenseValid: false, lastVerifiedAt: nil, grandfatherDeadline: now.addingTimeInterval(21 * 86400)",
+        # No license and no transition window, so setup shows its license step.
+        "unlicensed": "cachedLicenseValid: false, lastVerifiedAt: nil, grandfatherDeadline: nil",
+    }[license_state]
     replace_body(license_source, "private init()", '''        defaults = Self.sharedDefaults()
         // Seed only once so same-identity upgrade tests exercise preservation.
         if defaults.object(forKey: Self.sealKey) == nil {
@@ -111,7 +114,7 @@ def prepare(destination, license_state="paid"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("destination", type=Path, help="New scratch directory, outside this checkout")
-    parser.add_argument("--license-state", choices=["paid", "transition"], default="paid",
+    parser.add_argument("--license-state", choices=["paid", "transition", "unlicensed"], default="paid",
                         help="Initial synthetic entitlement; an existing sealed state is preserved")
     arguments = parser.parse_args()
     prepare(arguments.destination, arguments.license_state)

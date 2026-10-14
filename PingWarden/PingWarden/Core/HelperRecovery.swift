@@ -108,3 +108,19 @@ enum HelperRecovery {
         return interfaceUp == true
     }
 }
+
+/// What Repair's first step found, before it changes anything. Only a
+/// helper that answered is left alone; the other two outcomes need the
+/// person's go-ahead, because registering again makes macOS announce the
+/// helper and may ask for approval.
+enum HelperProbeOutcome: Equatable, Sendable {
+    /// The helper replied to a version request.
+    case responding
+    /// The registration is not enabled, so there is no helper to ask.
+    case notEnabled
+    /// The registration is enabled but the helper never replied.
+    case silent
+
+    /// Whether Repair has to register the helper again.
+    var needsReregistration: Bool { self != .responding }
+}

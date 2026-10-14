@@ -50,8 +50,8 @@ struct HelperTestReport: Equatable, Sendable {
 /// Feedback after Repair in the Advanced pane.
 enum RepairResultCopy {
     static let confirmationTitle = "Repair Helper Connection?"
-    static let confirmationMessage = "Ping Warden will check that the helper answers. If it does not, Ping Warden registers the helper again, which macOS may announce with a Background Items Added notification. Your protection preference, settings, and session history stay as they are."
-    static let accessibilityHint = "Checks the helper connection and offers to register it again without changing your protection preference"
+    static let confirmationMessage = "Ping Warden will check that the helper answers. If it does not, you may need to approve it again in System Settings. Your protection preference, settings, and session history stay as they are."
+    static let accessibilityHint = "Checks the helper connection and, if it does not answer, walks you through approving it again without changing your protection preference"
     static let restoringFailureMessage = "The helper is responding again, but Ping Warden could not restore protection. Your saved protection preference has not changed."
     static let successTitle = "Helper Is Responding"
 

@@ -487,6 +487,115 @@ do {
           "repair rebuilds the registration once, not in a loop")
 }
 
+// Repair's probe on its own: an answering helper is reported as responding
+// and its registration is never touched.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessFastReplies()
+    let results = LockedValue<[HelperProbeOutcome]>([])
+    monitor.probeHelper { value in results.withValue { $0.append(value) } }
+    spin()
+    check(monitor.isRepairingHelper, "the probe is exposed as a repair in progress")
+    NSXPCConnection.instances.last!.helper.versions.removeFirst()("fixture-helper")
+    spin()
+    check(results.withValue { $0 } == [.responding], "an answering helper probes as responding exactly once")
+    check(!monitor.isRepairingHelper, "the probe clears its in-progress flag")
+    check(SMAppService.unregisterCalls == 0 && SMAppService.registerCalls == 0 && SMAppService.settingsOpenCalls == 0,
+          "the probe never registers, unregisters, or opens System Settings")
+}
+
+// The probe reports an unapproved helper without registering it, so macOS
+// announces nothing before the person presses Approve Helper.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    SMAppService.fixtureStatus = .requiresApproval
+    let results = LockedValue<[HelperProbeOutcome]>([])
+    monitor.probeHelper { value in results.withValue { $0.append(value) } }
+    spin()
+    check(results.withValue { $0 } == [.notEnabled], "an unapproved helper probes as not enabled")
+    check(SMAppService.registerCalls == 0 && SMAppService.settingsOpenCalls == 0,
+          "the probe of an unapproved helper registers nothing and opens nothing")
+}
+
+// A silent helper probes as silent and keeps its registration; rebuilding it
+// waits for the person.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    monitor.harnessFastReplies()
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    let results = LockedValue<[HelperProbeOutcome]>([])
+    monitor.probeHelper { value in results.withValue { $0.append(value) } }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 3)
+    spin()
+    check(results.withValue { $0 } == [.silent], "a silent helper probes as silent exactly once")
+    check(SMAppService.unregisterCalls == 0 && SMAppService.registerCalls == 0,
+          "the probe never rebuilds a silent helper's registration")
+    check(!monitor.isRepairingHelper, "a failed probe clears its in-progress flag")
+}
+
+// The re-register step rebuilds an enabled but silent registration with the
+// same unregister and register calls as a full repair.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    monitor.harnessFastReplies()
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    let results = LockedValue<[Bool]>([])
+    monitor.reregisterHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(until: { SMAppService.registerCalls == 1 }, timeout: 3)
+    check(SMAppService.unregisterCalls == 1 && SMAppService.registerCalls == 1,
+          "re-registering a silent helper rebuilds it once")
+    check(results.withValue { $0 }.isEmpty, "the rebuilt helper still needs a reply")
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 4)
+    spin()
+    check(results.withValue { $0 } == [true], "the rebuilt helper's reply completes re-registration once")
+    check(!monitor.isRepairingHelper, "re-registration clears its in-progress flag")
+}
+
+// Re-registering an unregistered helper registers it without unregistering,
+// and a pending approval opens Login Items only after the handoff delay.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .requiresApproval
+    let results = LockedValue<[Bool]>([])
+    monitor.reregisterHelper(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(0.1)
+    check(SMAppService.registerCalls == 1 && SMAppService.unregisterCalls == 0,
+          "an unregistered helper is registered, never unregistered")
+    check(SMAppService.settingsOpenCalls == 0 && !monitor.registrationOpenedLoginItems,
+          "a fresh registration leaves Login Items closed during the handoff delay")
+    spin(until: { SMAppService.settingsOpenCalls == 1 }, timeout: 1)
+    check(SMAppService.settingsOpenCalls == 1 && monitor.registrationOpenedLoginItems,
+          "pending approval opens Login Items once after the handoff, and says so")
+    SMAppService.fixtureStatus = .enabled
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 3)
+    check(results.withValue { $0 } == [true], "approval then a reply completes re-registration")
+}
+
+// An earlier pending request opens Login Items at once and reports it.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .requiresApproval
+    monitor.registerHelper(presentsErrors: false) { _ in }
+    spin()
+    check(SMAppService.settingsOpenCalls == 1 && SMAppService.registerCalls == 0 && monitor.registrationOpenedLoginItems,
+          "an earlier request opens Login Items at once without registering again")
+}
+
 // Only Operation not permitted (code 1) in the SMAppService or POSIX domain
 // means a daemon awaits approval. Other domains, codes, and English
 // descriptions are real failures.

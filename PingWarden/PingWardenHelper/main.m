@@ -21,7 +21,7 @@
 #define LOG PingWardenHelperLog()
 // Fallback only — the live version is read from the embedded Info.plist by
 // helperVersionString(). Kept current so the fallback is never stale.
-#define HELPER_VERSION @"4.3.3"
+#define HELPER_VERSION @"4.4.0"
 
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"

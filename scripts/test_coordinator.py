@@ -39,6 +39,8 @@ CORE_SOURCES = (
     "SettingsCopy.swift",
     "DiagnosticReporting.swift",
     "ControlCenterRefreshPolicy.swift",
+    "LicenseActivationProtection.swift",
+    "HelperRepairOffer.swift",
 )
 
 

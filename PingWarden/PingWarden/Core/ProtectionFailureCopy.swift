@@ -55,20 +55,68 @@ enum ProtectionFailureCopy {
 }
 
 /// Names of System Settings panes that the app points people to. macOS 15
-/// renamed Login Items to Login Items & Extensions, so directions written
-/// for one release are wrong on the other. Kept Foundation-only because the
-/// monitor and coordinator test harnesses compile this file directly.
+/// renamed Login Items to Login Items & Extensions, and macOS 26 renamed the
+/// switch section from Allow in the Background to App Background Activity,
+/// so directions written for one release are wrong on another. Kept
+/// Foundation-only because the monitor and coordinator test harnesses
+/// compile this file directly.
 enum SystemSettingsCopy {
+    /// The three layouts of the Login Items pane that the copy distinguishes.
+    enum Variant: Equatable, Sendable {
+        /// macOS 13 and 14: Login Items, Allow in the Background.
+        case loginItems
+        /// macOS 15: Login Items & Extensions, Allow in the Background.
+        case loginItemsAndExtensions
+        /// macOS 26 and later: Login Items & Extensions, App Background Activity.
+        case appBackgroundActivity
+
+        init(osMajorVersion: Int) {
+            switch osMajorVersion {
+            case ..<15: self = .loginItems
+            case 15..<26: self = .loginItemsAndExtensions
+            default: self = .appBackgroundActivity
+            }
+        }
+
+        var paneName: String {
+            self == .loginItems ? "Login Items" : "Login Items & Extensions"
+        }
+
+        var backgroundSectionName: String {
+            self == .appBackgroundActivity ? "App Background Activity" : "Allow in the Background"
+        }
+    }
+
     static func loginItemsPaneName(osMajorVersion: Int) -> String {
-        osMajorVersion >= 15 ? "Login Items & Extensions" : "Login Items"
+        Variant(osMajorVersion: osMajorVersion).paneName
     }
 
     static func loginItemsPath(osMajorVersion: Int) -> String {
         "System Settings → General → \(loginItemsPaneName(osMajorVersion: osMajorVersion))"
     }
 
+    /// The section that holds Ping Warden's switch.
+    static func backgroundSectionName(osMajorVersion: Int) -> String {
+        Variant(osMajorVersion: osMajorVersion).backgroundSectionName
+    }
+
+    /// Each level of the path to the switch, for a breadcrumb.
+    static func switchBreadcrumb(osMajorVersion: Int) -> [String] {
+        let variant = Variant(osMajorVersion: osMajorVersion)
+        return ["System Settings", "General", variant.paneName, variant.backgroundSectionName]
+    }
+
+    /// "Turn on Ping Warden under <section> in <path>."
+    static func turnOnInstruction(osMajorVersion: Int) -> String {
+        "Turn on Ping Warden under \(backgroundSectionName(osMajorVersion: osMajorVersion)) in \(loginItemsPath(osMajorVersion: osMajorVersion))"
+    }
+
+    static let variant = Variant(osMajorVersion: currentMajorVersion)
     static let loginItemsPaneName = loginItemsPaneName(osMajorVersion: currentMajorVersion)
     static let loginItemsPath = loginItemsPath(osMajorVersion: currentMajorVersion)
+    static let backgroundSectionName = backgroundSectionName(osMajorVersion: currentMajorVersion)
+    static let switchBreadcrumb = switchBreadcrumb(osMajorVersion: currentMajorVersion)
+    static let turnOnInstruction = turnOnInstruction(osMajorVersion: currentMajorVersion)
 
     private static var currentMajorVersion: Int {
         ProcessInfo.processInfo.operatingSystemVersion.majorVersion

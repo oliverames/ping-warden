@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>4.3.3</string>
+	<string>4.4.0</string>
 	<key>CFBundleVersion</key>
-	<string>43300</string>
+	<string>44000</string>
 	<key>PingWardenReleaseChannel</key>
 	<string>$(PING_WARDEN_RELEASE_CHANNEL)</string>
 	<key>GCSupportsControllerUserInteraction</key>

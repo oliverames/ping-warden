@@ -61,6 +61,11 @@ extension ProtectionExperienceCoordinator {
         gameModeActive = false
         requestedSessionTrigger = nil
         clearPause()
+        repairOfferCheck?.cancel()
+        repairOfferCheck = nil
+        repairOfferTracker = HelperRepairOffer.Tracker()
+        repairOfferHandler = nil
+        repairOfferDebounce = HelperRepairOffer.debounce
     }
     func harnessSetPause(until date: Date) {
         pauseUntil = date

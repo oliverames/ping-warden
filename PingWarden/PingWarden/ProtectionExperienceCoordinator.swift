@@ -58,6 +58,15 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// recovery point (#101). The app installs a coalescing handler; nil
     /// leaves the control alone.
     var controlRefreshHandler: ((ControlCenterRefreshTrigger) -> Void)?
+    /// Offers Repair when the helper is not working while protection needs
+    /// it. Returns false when the offer cannot be shown right now (a game
+    /// is in front, the setup window is open); it stays due, and
+    /// `retryPendingRepairOffer()` asks again. Nil offers nothing.
+    var repairOfferHandler: ((HelperRepairOffer.Problem) -> Bool)?
+    /// How long a helper problem lasts before Repair is offered.
+    var repairOfferDebounce: TimeInterval = HelperRepairOffer.debounce
+    private var repairOfferTracker = HelperRepairOffer.Tracker()
+    private var repairOfferCheck: Task<Void, Never>?
 
     private init() {
         restorePersistedPauseIfActive()
@@ -96,7 +105,67 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// Called only after an explicit Repair confirmation. Reconcile current
     /// policy instead of replaying a snapshot of the saved preference: a
     /// pause, session, license change or newer Off must still win.
+    /// Checks the helper and rebuilds its registration in one go. The
+    /// Repair surfaces use `checkHelperForRepair` and `reapproveHelper`
+    /// instead, so macOS announces nothing before the person is told why.
     func repairHelperConnection() async -> HelperTestReport {
+        await performHelperRepair { monitor, done in
+            monitor.repairHelperRegistration(presentsErrors: false, completion: done)
+        }
+    }
+
+    /// What Repair's check found.
+    enum RepairCheck: Equatable {
+        /// The helper answered and current protection policy was
+        /// reconciled. The report says so, or explains what was not restored.
+        case finished(HelperTestReport)
+        /// The helper must be registered again, which needs the person's
+        /// approval in System Settings. Nothing has changed yet.
+        case needsApproval(HelperProbeOutcome)
+    }
+
+    /// Repair's first step. Asks whether the helper answers without
+    /// touching its registration. An answering helper finishes Repair here,
+    /// with the same reconciliation as a full repair.
+    func checkHelperForRepair() async -> RepairCheck {
+        let outcome = ProbeOutcomeBox()
+        let report = await performHelperRepair { monitor, done in
+            monitor.probeHelper { result in
+                outcome.value = result
+                done(result == .responding)
+            }
+        }
+        if let result = outcome.value, result.needsReregistration,
+           report.title == RepairResultCopy.failureTitle {
+            return .needsApproval(result)
+        }
+        return .finished(report)
+    }
+
+    /// Repair's second step, started from the Approve Helper button:
+    /// register the helper again, wait for approval and a reply, then
+    /// reconcile current protection policy.
+    func reapproveHelper() async -> HelperTestReport {
+        await performHelperRepair { monitor, done in
+            monitor.reregisterHelper(presentsErrors: false, completion: done)
+        }
+    }
+
+    /// Carries the probe's outcome out of the monitor's callback.
+    private final class ProbeOutcomeBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: HelperProbeOutcome?
+        var value: HelperProbeOutcome? {
+            get { lock.lock(); defer { lock.unlock() }; return stored }
+            set { lock.lock(); stored = newValue; lock.unlock() }
+        }
+    }
+
+    /// The shared repair operation: one at a time, reassertion held back
+    /// while the monitor works, then reconciliation of current policy.
+    private func performHelperRepair(
+        _ step: @escaping @MainActor (PingWardenMonitor, @escaping @Sendable (Bool) -> Void) -> Void
+    ) async -> HelperTestReport {
         if let helperRepairTask { return await helperRepairTask.value }
         guard canRepairHelper else {
             return HelperTestReport(
@@ -109,7 +178,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
             monitor.defersProtectionReassertion = true
             defer { monitor.defersProtectionReassertion = false }
             let repaired = await withCheckedContinuation { continuation in
-                monitor.repairHelperRegistration(presentsErrors: false) {
+                step(monitor) {
                     continuation.resume(returning: $0)
                 }
             }
@@ -154,6 +223,13 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         objectWillChange.send()
         let result = await task.value
         helperRepairTask = nil
+        // The person chose Repair and has its result: a helper still not
+        // working is not offered Repair again on its own this episode.
+        let stillFailing = result.title == RepairResultCopy.failureTitle && monitor.isHelperRegistered
+        repairOfferTracker.markOffered(
+            problem: currentHelperProblem ?? (stillFailing ? .notResponding : nil),
+            now: Date()
+        )
         objectWillChange.send()
         // Whatever the outcome, the helper was rebuilt or torn down, so the
         // control's last rendering may no longer match awdl0.
@@ -306,6 +382,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// repair path without replacing a more specific message.
     func noteHelperNotResponding() {
         helperSilent = true
+        defer { evaluateRepairOffer() }
         guard lastError == nil else {
             objectWillChange.send()
             return
@@ -317,9 +394,100 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// menu already offers Finish Setup; this says why protection is off
     /// without opening Login Items for a person who did not ask.
     func noteSetupIncomplete() {
+        defer { evaluateRepairOffer() }
         guard lastError == nil else { return }
         lastError = ProtectionFailureCopy.setupIncomplete
         objectWillChange.send()
+    }
+
+    // MARK: Repair offers
+
+    /// The helper's problem as a Repair offer sees it: registered but
+    /// silent, or not approved while protection is saved as on.
+    private var currentHelperProblem: HelperRepairOffer.Problem? {
+        if monitor.isHelperRegistered {
+            return helperSilent ? .notResponding : nil
+        }
+        return preferences.isMonitoringEnabled ? .notApproved : nil
+    }
+
+    /// Protection is on, wanted, being turned on, paused (it resumes), or
+    /// held by a session or Game Mode.
+    private var protectionNeedsHelper: Bool {
+        preferences.isMonitoringEnabled
+            || monitor.isMonitoringActive
+            || monitor.isMonitoringRequested
+            || monitor.isProtectionDesired
+            || transition == .enablingProtection
+            || session.phase != .idle
+            || requestedSessionTrigger != nil
+            || gameModeActive
+            || pauseUntil != nil
+    }
+
+    /// Decide whether to offer Repair now, later, or not at all, using
+    /// `HelperRepairOffer` in Core: once per failure episode, after the
+    /// debounce, only while protection needs the helper and a license
+    /// allows it. Offering never repairs anything by itself.
+    func evaluateRepairOffer() {
+        repairOfferCheck?.cancel()
+        repairOfferCheck = nil
+        let state = HelperRepairOffer.State(
+            problem: currentHelperProblem,
+            licenseAllowsProtection: license.canEnableProtection,
+            protectionNeeded: protectionNeedsHelper,
+            busy: isTerminating || isBusy || isRepairingHelper || monitor.isHelperSetupInProgress
+        )
+        switch repairOfferTracker.evaluate(state, now: Date(), debounce: repairOfferDebounce) {
+        case .none:
+            return
+        case .wait(let delay):
+            let nanoseconds = UInt64(max(0.05, delay) * 1_000_000_000)
+            repairOfferCheck = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: nanoseconds)
+                guard !Task.isCancelled else { return }
+                self?.evaluateRepairOffer()
+            }
+        case .offer(let problem):
+            guard let repairOfferHandler else { return }
+            protectionExperienceLog.info("Offering Repair: helper \(problem.rawValue, privacy: .public)")
+            if repairOfferHandler(problem) {
+                repairOfferTracker.markOffered(problem: problem, now: Date())
+            }
+        }
+    }
+
+    /// After wake, ask a helper that protection needs whether it answers,
+    /// without touching its registration. Wake itself sends a command only
+    /// when protection must change, so a helper that died during sleep
+    /// would otherwise go unnoticed. A helper already known silent, or one
+    /// being repaired, is not asked again. The app calls this a few
+    /// seconds after wake so the helper has time to come back.
+    func confirmHelperAfterWake() {
+        guard !isTerminating, license.canEnableProtection, protectionNeedsHelper,
+              monitor.isHelperRegistered, !helperSilent, !isRepairingHelper else { return }
+        monitor.confirmHelperResponds { [weak self] responds in
+            Task { @MainActor in
+                guard let self, !responds, !self.isTerminating else { return }
+                protectionExperienceLog.warning("Helper did not answer after wake")
+                self.noteHelperNotResponding()
+            }
+        }
+    }
+
+    /// An offer that could not be shown earlier (a game in front, the setup
+    /// window open) is asked for again, for example when Ping Warden
+    /// becomes active or Game Mode ends.
+    func retryPendingRepairOffer() {
+        evaluateRepairOffer()
+    }
+
+    /// Repair was offered by another surface (the toggle's failure alert)
+    /// or started by the person: no automatic offer this episode.
+    func noteRepairOffered() {
+        repairOfferCheck?.cancel()
+        repairOfferCheck = nil
+        repairOfferTracker.markOffered(problem: currentHelperProblem, now: Date())
     }
 
     @discardableResult
@@ -407,6 +575,30 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         }
         objectWillChange.send()
         return success
+    }
+
+    /// Turn protection on after the person explicitly activated a license,
+    /// through the same path as their own toggle. Only the license
+    /// activation surfaces call this, never launch-time or periodic
+    /// re-verification. A pause, a session, or a change already in flight
+    /// is left alone; `LicenseActivationProtection` says why.
+    @discardableResult
+    func turnOnProtectionAfterLicenseActivation() async -> LicenseActivationProtection {
+        let decision = LicenseActivationProtection.decide(LicenseActivationProtection.State(
+            canEnableProtection: license.canEnableProtection,
+            protectionOn: monitor.isMonitoringActive,
+            savedChoiceOn: preferences.isMonitoringEnabled,
+            pauseActive: isPauseActive,
+            sessionActive: session.phase != .idle,
+            changeInFlight: isTerminating || isBusy || isRepairingHelper
+                || monitor.isProtectionCommandInFlight
+        ))
+        protectionExperienceLog.info(
+            "License activated; protection follow-up: \(String(describing: decision), privacy: .public)"
+        )
+        guard decision == .turnOn else { return decision }
+        await setPersistentProtection(true)
+        return decision
     }
 
     @discardableResult
@@ -792,6 +984,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         if failure?.helperDidNotAnswer == true {
             helperSilent = true
             showSilenceError(message)
+            evaluateRepairOffer()
         } else {
             lastError = message
             silenceMessage = nil
@@ -808,7 +1001,14 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     private func publishAutomatedError(_ message: String) {
         lastError = message
         silenceMessage = nil
+        if message == ProtectionFailureCopy.lostHelperConnection {
+            // The monitor gave up reconnecting: the helper is silent, so
+            // Repair is offered where this message points to it.
+            helperSilent = true
+            silenceMessage = message
+        }
         objectWillChange.send()
+        evaluateRepairOffer()
     }
 
     /// Any reply proves the helper answers again. Clear a message that said
@@ -823,6 +1023,8 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         silenceMessage = nil
         objectWillChange.send()
         guard wasSilent else { return }
+        // The episode ends: a later failure may be offered Repair again.
+        evaluateRepairOffer()
         // The helper may have restarted (and restored AWDL) while silent.
         if !isTerminating {
             controlRefreshHandler?(.helperRecovered)
