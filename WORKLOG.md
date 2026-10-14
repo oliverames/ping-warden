@@ -1,5 +1,29 @@
 # Ping Warden Worklog
 
+## 2026-10-14 - Ping Warden 4.4.0 released (stable)
+
+**What changed:** Published [4.4.0](https://github.com/oliverames/ping-warden/releases/tag/v4.4.0) (build 44000) to the stable and beta feeds from main `7623b97` ([#125](https://github.com/oliverames/ping-warden/pull/125)). Oliver renamed the planned 4.3.4 to 4.4. It contains:
+- Guided setup and Repair ([#124](https://github.com/oliverames/ping-warden/issues/124), verified by Oliver on 4.4.0-beta.1).
+- License activation turns protection on; a silent helper after activation runs Repair; Repair is offered once per failure episode when the helper stops working while protection is needed.
+- Control Center refresh after a crash, helper recovery, Repair and wake ([#130](https://github.com/oliverames/ping-warden/pull/130), closes [#101](https://github.com/oliverames/ping-warden/issues/101)).
+- Full Sentry integration ([#131](https://github.com/oliverames/ping-warden/pull/131), [#133](https://github.com/oliverames/ping-warden/pull/133), closes [#100](https://github.com/oliverames/ping-warden/issues/100)): allowlist events, helper error events (one per problem per 30 minutes, persisted), one session per run, registers stripped, build-time release channel.
+- [#132](https://github.com/oliverames/ping-warden/pull/132): a busy DMG detach that finishes late now counts as detached.
+
+Betas shipped earlier the same day: 4.3.4-beta.2 (43392) and 4.4.0-beta.1 (43901). Homebrew tap bumped to 4.4.0 (`507d573`); the in-repo cask copy now matches it.
+
+**Decisions made:**
+- Build numbers: stable 4.4.0 is 44000; betas for a release sit just below it.
+- Crash reporting stays on by default (unchanged since 4.3.3); a saved opt-out is respected. Turning it off sends one session-end record, which the disclosure now states because sentry-cocoa 9.26.0 has no supported way to drop it.
+- Sentry project `scrubIPAddresses` is on (read-only check).
+
+**Verification:** release.sh completed: notarized and stapled app and DMG, both appcasts signed and verified, GitHub release, Sentry release `com.amesvt.pingwarden@4.4.0+44000`, Gumroad deliverable, Linear confirmed. Live stable feed leads with 44000 then 43300; beta leads with 44000 then 43901.
+
+**Left off at:** Not yet confirmed at runtime: a live Sentry test event, session-end record on opt-out, and register stripping. Known gaps: widget toggle failures and helper-side AWDL enforcement failures are not reported to the app. Release tooling lesson: release.sh archives by itself; never stage an app inside `PingWarden/PingWarden/build`.
+
+**Open questions:** None.
+
+---
+
 ## 2026-10-13 - 4.3.4-beta.1, feed incident, release guard, cleanup
 
 **What changed:** Published [4.3.4-beta.1](https://github.com/oliverames/ping-warden/releases/tag/v4.3.4-beta.1) (build 43391, pre-release) on the beta channel from `42de8f0` on `onboarding-4.4` (draft [#125](https://github.com/oliverames/ping-warden/pull/125), issue [#124](https://github.com/oliverames/ping-warden/issues/124)). It adds the guided setup and Repair flow:
