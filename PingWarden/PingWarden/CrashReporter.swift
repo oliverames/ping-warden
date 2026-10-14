@@ -10,11 +10,13 @@
 //  Reports is on, which is the default when no choice is saved) is an
 //  allowlist enforced in beforeSend, not a text filter:
 //    • Crash reports and uncaught Objective-C exceptions: exception type and
-//      mechanism, and each thread's stack frames (function, image, and a
-//      path reduced by DiagnosticPaths to its place inside Ping Warden.app,
-//      a macOS system path, or a bare file name). Exception messages,
-//      thread names, source context, frame variables, extra data, tags,
-//      and the transaction name are removed.
+//      mechanism, and each thread's stack frames (function, image, the
+//      memory addresses of code needed for symbolication, and a path
+//      reduced by DiagnosticPaths to its place inside Ping Warden.app, a
+//      macOS system path, or a bare file name). Exception messages, thread
+//      names, CPU register values (which can hold short strings), source
+//      context, frame variables, extra data, tags, the request, the
+//      event-level stack trace, and the transaction name are removed.
 //    • Non-fatal helper error events built only from enumerated fields: the
 //      problem name, the helper's registration state, an allowlisted error
 //      domain and numeric code, the app version, and the macOS version. At
@@ -27,6 +29,16 @@
 //      SDK contexts, the server name, and the event user are removed.
 //    • Breadcrumbs of app state transitions (setup, repair, protection,
 //      helper connection), as enum values only.
+//    • Client reports: counts of reports the SDK dropped and why (for
+//      example a rate limit), with no report contents.
+//
+//  Turning reporting off calls SentrySDK.close(). In sentry-cocoa 9.26.0
+//  that ends the current session first and sends that one session-end
+//  record (start/end time, status, error count; no event data) before the
+//  client is disabled. No supported API drops it: there is no session
+//  hook, the hub and client aren't reachable through public Swift API,
+//  and mutating Options after start is undocumented. The disclosure says
+//  so instead of relying on a hack.
 //
 //  What is never sent: ping targets, host names, IP addresses (no
 //  sendDefaultPii; server-side IP scrubbing), network names, license keys,
@@ -191,6 +203,8 @@ enum CrashReporter {
             options.enableAppHangTracking = false
             options.enableMetricKit = false
             options.enableLogs = false
+            // Drop counts only (category, reason, quantity), disclosed.
+            options.sendClientReports = true
 
             options.beforeSend = { event in
                 guard PingWardenPreferences.shared.isCrashReportingEnabled else {
@@ -286,6 +300,8 @@ enum CrashReporter {
         event.extra = nil
         event.transaction = nil
         event.modules = nil
+        event.request = nil
+        event.stacktrace = nil
         if let context = event.context {
             let kept = DiagnosticContextPolicy.filter(context)
             event.context = kept.isEmpty ? nil : kept
@@ -342,9 +358,12 @@ enum CrashReporter {
         DiagnosticScrubber.scrub(text, knownIdentifiers: localIdentifiers)
     }
 
-    /// Keep function names and images; reduce paths; drop source context
-    /// and variables.
+    /// Keep function names, images, and code addresses; reduce paths; drop
+    /// register values, source context, and variables. Registers can hold a
+    /// Swift small string (up to 15 bytes, enough for an IP address) as
+    /// raw bytes.
     nonisolated private static func reduceFrames(_ stacktrace: SentryStacktrace?) {
+        stacktrace?.registers = [:]
         for frame in stacktrace?.frames ?? [] {
             frame.package = frame.package.map { DiagnosticPaths.reduce($0, bundlePath: bundlePath) }
             frame.fileName = frame.fileName.map { DiagnosticPaths.reduce($0, bundlePath: bundlePath) }

@@ -897,6 +897,25 @@ do {
           "registration signals carry no error description or unlisted domain")
 }
 
+// Reporting a failure never reads the registration status from the system:
+// it uses the last observed value, so a failure path gains no system call.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let connection = monitor.harnessConnection!
+    let (_, reply) = take(connection.helper, \.commands)
+    let readsBefore = SMAppService.statusReads
+    reply(false)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    check(SMAppService.statusReads == readsBefore, "a reported failure adds no status read (\(SMAppService.statusReads - readsBefore))")
+    check(signals.withValue { $0 }.contains(.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined))),
+          "the last observed state is still reported")
+}
+
 // A registration that never completes records setup.failed before its problem.
 do {
     let monitor = PingWardenMonitor.harnessMonitor()

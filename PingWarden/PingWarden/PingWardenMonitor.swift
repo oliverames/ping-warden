@@ -315,6 +315,9 @@ class PingWardenMonitor: @unchecked Sendable {
     /// several times per redraw, so UI reads share this value. Decisions
     /// that register, repair, or command the helper still read it live.
     private var _cachedHelperStatus: SMAppService.Status?
+    /// The most recent status read from the system, kept when the cache is
+    /// invalidated. Diagnostics report it so they never trigger a read.
+    private var _lastObservedHelperStatus: SMAppService.Status?
     private var _cachedHelperStatusTime: TimeInterval = 0
 
     /// Longest a cached status is trusted. Registration changes made in
@@ -407,6 +410,7 @@ class PingWardenMonitor: @unchecked Sendable {
         let now = ProcessInfo.processInfo.systemUptime
         stateLock.lock()
         _cachedHelperStatus = status
+        _lastObservedHelperStatus = status
         _cachedHelperStatusTime = now
         stateLock.unlock()
         return status
@@ -511,8 +515,10 @@ class PingWardenMonitor: @unchecked Sendable {
 
     /// The only way to report a helper problem. The state breadcrumb, when
     /// there is one, is always emitted first, so the event that follows it
-    /// carries it. The registration state comes from the short-lived status
-    /// cache, which reads the system only when stale.
+    /// carries it. The registration state is the last value read from the
+    /// system (or `unknown`), never a fresh read: reporting must not add a
+    /// synchronous SMAppService call to a failure path, and reporting may
+    /// be off.
     private func recordFailure(
         _ breadcrumb: StateBreadcrumb?,
         problem: HelperProblem,
@@ -524,10 +530,17 @@ class PingWardenMonitor: @unchecked Sendable {
         }
         emitTelemetry(.problem(HelperProblemReport(
             problem: problem,
-            helperState: diagnosticState(registrationStatus),
+            helperState: cachedDiagnosticState(),
             failure: failure,
             error: error
         )))
+    }
+
+    private func cachedDiagnosticState() -> HelperDiagnosticState {
+        stateLock.lock()
+        let observed = _lastObservedHelperStatus
+        stateLock.unlock()
+        return observed.map(diagnosticState) ?? .unknown
     }
 
     private func diagnosticState(_ status: SMAppService.Status) -> HelperDiagnosticState {
