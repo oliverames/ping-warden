@@ -1130,6 +1130,91 @@ do {
     MainActor.assumeIsolated { coordinator.controlRefreshHandler = nil }
 }
 
+func launchLicenseFollowUp() -> LockedValue<LicenseActivationProtection?> {
+    let result = LockedValue<LicenseActivationProtection?>(nil)
+    Task { @MainActor in
+        let decision = await coordinator.turnOnProtectionAfterLicenseActivation()
+        result.withValue { $0 = decision }
+    }
+    return result
+}
+
+// L1: an explicitly activated license turns protection on through the
+// toggle's own path, saving the choice; a second activation sends nothing.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    let result = launchLicenseFollowUp()
+    let connection = awaitConnection()
+    awaitCommands(on: connection)
+    connection.helper.versions.forEach { $0("fixture-helper") }
+    connection.helper.versions.removeAll()
+    take(connection.helper, \.commands).1(true)
+    spin(until: { result.withValue { $0 } != nil }, timeout: 2)
+    settle()
+    check(result.withValue { $0 } == .turnOn, "L1: a ready helper turns protection on")
+    check(monitor.isMonitoringActive && PingWardenPreferences.shared.isMonitoringEnabled,
+          "L1: protection is on and saved as the person's choice")
+    let again = launchLicenseFollowUp()
+    spin(until: { again.withValue { $0 } != nil }, timeout: 2)
+    check(again.withValue { $0 } == .alreadyOn && connection.helper.commands.isEmpty,
+          "L1: protection already on sends no second command")
+}
+
+// L2: a pause is kept; protection resumes from the saved choice when it ends.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    PingWardenPreferences.shared.isMonitoringEnabled = true
+    MainActor.assumeIsolated { coordinator.harnessSetPause(until: Date().addingTimeInterval(600)) }
+    let result = launchLicenseFollowUp()
+    spin(until: { result.withValue { $0 } != nil }, timeout: 2)
+    check(result.withValue { $0 } == .pauseActive, "L2: an active pause is reported")
+    check(MainActor.assumeIsolated { coordinator.isPauseActive } && !monitor.isMonitoringActive
+          && monitor.harnessConnection == nil,
+          "L2: the pause continues and no command is sent")
+}
+
+// L3: a running session (manual or Game Mode) is left alone.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    MainActor.assumeIsolated { session.phase = .active; session.activeTrigger = .gameMode }
+    let result = launchLicenseFollowUp()
+    spin(until: { result.withValue { $0 } != nil }, timeout: 2)
+    check(result.withValue { $0 } == .sessionActive
+          && !PingWardenPreferences.shared.isMonitoringEnabled
+          && MainActor.assumeIsolated { session.endings.isEmpty }
+          && monitor.harnessConnection == nil,
+          "L3: a session keeps protection and the saved choice is unchanged")
+}
+
+// L4: without a license nothing is turned on.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    LicenseManager.shared.canEnableProtection = false
+    let result = launchLicenseFollowUp()
+    spin(until: { result.withValue { $0 } != nil }, timeout: 2)
+    check(result.withValue { $0 } == .notLicensed
+          && !PingWardenPreferences.shared.isMonitoringEnabled
+          && monitor.harnessConnection == nil,
+          "L4: unlicensed activation changes nothing")
+}
+
+// L5: a helper that turns out to be silent leaves protection off and
+// offers Repair, the signal the app follows into Repair after a license.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    let result = launchLicenseFollowUp()
+    let connection = awaitConnection()
+    connection.failProxies(code: xpcConnectionInvalid)
+    spin(until: { result.withValue { $0 } != nil }, timeout: 6)
+    // Read at once: the harness's reconnect answers status requests, which
+    // a later settle would count as the helper recovering.
+    let offersRepair = MainActor.assumeIsolated { coordinator.shouldOfferHelperRepair }
+    check(result.withValue { $0 } == .turnOn && !monitor.isMonitoringActive,
+          "L5: protection stays off when the helper does not answer")
+    check(offersRepair, "L5: the silent helper is offered Repair")
+    settle()
+}
+
 MainActor.assumeIsolated { resetAll() }
 print("Coordinator checks complete. Checks: \(checks). Failures: \(failures.count)")
 exit(failures.isEmpty ? 0 : 1)

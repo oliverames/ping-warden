@@ -469,6 +469,30 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         return success
     }
 
+    /// Turn protection on after the person explicitly activated a license,
+    /// through the same path as their own toggle. Only the license
+    /// activation surfaces call this, never launch-time or periodic
+    /// re-verification. A pause, a session, or a change already in flight
+    /// is left alone; `LicenseActivationProtection` says why.
+    @discardableResult
+    func turnOnProtectionAfterLicenseActivation() async -> LicenseActivationProtection {
+        let decision = LicenseActivationProtection.decide(LicenseActivationProtection.State(
+            canEnableProtection: license.canEnableProtection,
+            protectionOn: monitor.isMonitoringActive,
+            savedChoiceOn: preferences.isMonitoringEnabled,
+            pauseActive: isPauseActive,
+            sessionActive: session.phase != .idle,
+            changeInFlight: isTerminating || isBusy || isRepairingHelper
+                || monitor.isProtectionCommandInFlight
+        ))
+        protectionExperienceLog.info(
+            "License activated; protection follow-up: \(String(describing: decision), privacy: .public)"
+        )
+        guard decision == .turnOn else { return decision }
+        await setPersistentProtection(true)
+        return decision
+    }
+
     @discardableResult
     func startManualSession() async -> Bool {
         await startSession(trigger: .manual, gameModeRequest: nil)

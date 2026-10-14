@@ -17,10 +17,12 @@ enum OnboardingPresenter {
     }
 
     /// A license was just activated outside the setup window (Settings →
-    /// License, which the Dashboard unlock card opens). When the helper is
-    /// not approved yet, setup continues at the idle Approve step. The
-    /// setup window's own license step continues by itself and never calls
-    /// this, so the window cannot open twice.
+    /// License, which the Dashboard unlock card opens). Protection turns on
+    /// when the helper is ready; otherwise setup continues at the idle
+    /// Approve step, or Repair runs for an approved helper that stopped
+    /// answering (`LicenseActivationFollowUp`). The setup window's own
+    /// license step continues by itself and never calls this, so the
+    /// window cannot open twice.
     static func licenseActivated() {
         licenseActivationHandler?()
     }
@@ -49,6 +51,11 @@ final class OnboardingModel: ObservableObject {
     @Published private(set) var protectionOnAtDone = false
     @Published var showsHelperInfo = false
     @Published var showsProtectionIllustration = false
+    /// Set when this Repair follows a license the person just activated:
+    /// a successful Repair then turns protection on, instead of only
+    /// restoring the saved choice as Repair otherwise does. Cleared when
+    /// the window switches to another entry point.
+    var turnsProtectionOnWhenRepaired = false
 
     var actions: Actions
     private var pollTimer: Timer?
@@ -103,7 +110,19 @@ final class OnboardingModel: ObservableObject {
             tracker = Self.freshTracker(mode: mode)
         }
         repairReport = nil
+        turnsProtectionOnWhenRepaired = false
         stepDidChange()
+    }
+
+    /// Switch to Repair after a license was activated while Repair's check
+    /// found a helper that must be approved again. Repair then ends with
+    /// protection on.
+    func showRepairAfterLicense() {
+        guard !isPreview else { return }
+        if mode != .repair {
+            restart(mode: .repair)
+        }
+        turnsProtectionOnWhenRepaired = true
     }
 
     /// Show the idle Approve step after a license arrived from Settings
@@ -268,7 +287,7 @@ final class OnboardingModel: ObservableObject {
                     ? await experience.reapproveHelper()
                     : await experience.repairHelperConnection()
                 operationInFlight = false
-                handleRepairReport(report)
+                await handleRepairReport(report)
             }
         } else {
             // Covers a first registration, an earlier pending request, and
@@ -304,7 +323,24 @@ final class OnboardingModel: ObservableObject {
         tracker.registrationFailed(message: message)
     }
 
-    private func handleRepairReport(_ report: HelperTestReport) {
+    private func handleRepairReport(_ report: HelperTestReport) async {
+        var report = report
+        if report.title == RepairResultCopy.successTitle,
+           mode == .repair, turnsProtectionOnWhenRepaired {
+            // This Repair followed a license activation, which is meant to
+            // end with protection on. Repair itself restored the saved
+            // choice; turn protection on through the toggle's own path.
+            turnsProtectionOnWhenRepaired = false
+            let decision = await ProtectionExperienceCoordinator.shared.turnOnProtectionAfterLicenseActivation()
+            if decision == .turnOn {
+                report = HelperTestReport(
+                    title: report.title,
+                    message: RepairResultCopy.successMessage(
+                        protectionOn: PingWardenMonitor.shared.isMonitoringActive
+                    )
+                )
+            }
+        }
         if report.title == RepairResultCopy.failureTitle {
             if Self.liveStatus() == .enabled {
                 // Approved, but the helper still does not answer.
@@ -373,14 +409,50 @@ final class OnboardingModel: ObservableObject {
                 licenseMessage = "License verified. Ping Protection is available."
                 licenseMessageIsError = false
                 if licenseKey == key { licenseKey = "" }
-                // A valid key continues straight into helper approval.
-                if step == .license, mode != .repair {
+                guard step == .license, mode != .repair else { return }
+                // A valid key continues straight into helper approval, and
+                // setup turns protection on when approval finishes. An
+                // approved helper that stopped answering goes through
+                // Repair's check instead.
+                PingWardenMonitor.shared.refreshHelperStatus()
+                let followUp = LicenseActivationFollowUp.decide(
+                    canEnableProtection: LicenseManager.shared.canEnableProtection,
+                    helperStatus: Self.liveStatus(),
+                    helperResponding: !ProtectionExperienceCoordinator.shared.shouldOfferHelperRepair,
+                    openWindow: LicenseActivationFollowUp.OpenWindow(mode: mode, step: step)
+                )
+                if followUp == .repairHelper {
+                    await repairAfterLicense()
+                } else {
                     continueTapped()
                 }
             } else {
                 licenseMessage = LicenseSettingsContent.message(for: license.lastVerificationResult)
                 licenseMessageIsError = true
             }
+        }
+    }
+
+    /// Repair's check, run in place after a license was activated on the
+    /// license step while the approved helper was not answering. A helper
+    /// that must be approved again switches this window to Repair, which
+    /// waits for Approve Helper and ends with protection on. One that
+    /// answers after all continues to approval, which confirms it, turns
+    /// protection on, and shows Done.
+    private func repairAfterLicense() async {
+        licenseMessage = "License verified. Checking Ping Warden's helper…"
+        licenseMessageIsError = false
+        let check = await ProtectionExperienceCoordinator.shared.checkHelperForRepair()
+        // The person may have moved on, or the app may be quitting.
+        guard !ProtectionExperienceCoordinator.shared.isTerminating,
+              step == .license, mode != .repair else { return }
+        licenseMessage = "License verified. Ping Protection is available."
+        switch check {
+        case .needsApproval:
+            showRepairAfterLicense()
+            actions.bringToFront()
+        case .finished:
+            continueTapped()
         }
     }
 

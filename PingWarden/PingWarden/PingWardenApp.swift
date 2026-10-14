@@ -691,10 +691,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         presentSetupWindow(model: model)
     }
 
-    /// After a license is activated in Settings, continue setup at the idle
-    /// Approve step when the helper is not approved yet. Protection is left
-    /// as the license screen always left it; the decision is
-    /// `LicenseActivationFollowUp` in Core.
+    /// After a license is activated in Settings, end with Ping Protection
+    /// on: at once when the helper is ready, after approval when it is not
+    /// approved yet, and after Repair when it is approved but not
+    /// answering. The decisions are `LicenseActivationFollowUp` and
+    /// `LicenseActivationProtection` in Core.
     private func continueSetupAfterLicenseActivation() {
         // A read of the registration, so a change made in System Settings
         // moments ago is not hidden by the status cache.
@@ -705,19 +706,80 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         let followUp = LicenseActivationFollowUp.decide(
             canEnableProtection: LicenseManager.shared.canEnableProtection,
             helperStatus: OnboardingModel.liveStatus(),
+            helperResponding: !protectionExperience.shouldOfferHelperRepair,
             openWindow: welcomeWindow == nil ? nil : openWindow
         )
         log.info("License activated; setup follow-up: \(String(describing: followUp), privacy: .public)")
         switch followUp {
         case .none:
             return
+        case .turnProtectionOn:
+            Task { await turnOnProtectionAfterLicense(repairsSilentHelper: true) }
         case .openApproval:
+            // Setup turns protection on when approval finishes.
             showSetupWindow(mode: .finishSetup)
         case .showApprovalInOpenWindow:
             setupModel?.showApprovalAfterLicense()
             bringSetupWindowForward()
         case .bringOpenWindowForward:
+            // Approval turns protection on by itself; a Repair in progress
+            // is told to.
+            if setupModel?.mode == .repair {
+                setupModel?.turnsProtectionOnWhenRepaired = true
+            }
             bringSetupWindowForward()
+        case .repairHelper:
+            Task { await repairHelperAfterLicense() }
+        }
+    }
+
+    /// Turn protection on through the toggle's own path. When that finds
+    /// the helper silent (its silence was not yet known), continue with
+    /// Repair once, as a known-silent helper would have.
+    private func turnOnProtectionAfterLicense(repairsSilentHelper: Bool) async {
+        let decision = await protectionExperience.turnOnProtectionAfterLicenseActivation()
+        updateMenuItem()
+        guard decision == .turnOn, repairsSilentHelper,
+              !protectionExperience.isTerminating,
+              !PingWardenMonitor.shared.isMonitoringActive,
+              protectionExperience.shouldOfferHelperRepair,
+              OnboardingModel.liveStatus() == .enabled else { return }
+        log.info("Protection did not turn on after license activation; the helper is silent, so Repair follows")
+        if let setupModel, welcomeWindow != nil,
+           setupModel.mode == .repair || setupModel.step == .approve {
+            if setupModel.mode == .repair { setupModel.turnsProtectionOnWhenRepaired = true }
+            bringSetupWindowForward()
+            return
+        }
+        await repairHelperAfterLicense()
+    }
+
+    /// Repair after a license activation, as from the Repair… menu item:
+    /// check whether the helper answers, and open the Repair screen (or
+    /// switch an open setup window to it in place) only when it must be
+    /// approved again. That screen waits for Approve Helper, and a
+    /// successful Repair turns protection on.
+    private func repairHelperAfterLicense() async {
+        let check = await protectionExperience.checkHelperForRepair()
+        guard !protectionExperience.isTerminating else { return }
+        switch check {
+        case .needsApproval:
+            showSetupWindow(mode: .repair)
+            setupModel?.showRepairAfterLicense()
+        case .finished(let report):
+            if report.title == RepairResultCopy.successTitle {
+                await turnOnProtectionAfterLicense(repairsSilentHelper: false)
+                return
+            }
+            // The check could not finish its work; say why, as the menu's
+            // Repair does.
+            updateMenuItem()
+            let result = NSAlert()
+            result.messageText = report.title
+            result.informativeText = report.message
+            result.alertStyle = .informational
+            result.addButton(withTitle: "OK")
+            result.runModal()
         }
     }
 

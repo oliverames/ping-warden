@@ -290,14 +290,46 @@ final class OnboardingCopyTests: XCTestCase {
 
 final class LicenseActivationFollowUpTests: XCTestCase {
     private typealias Window = LicenseActivationFollowUp.OpenWindow
+    private static let notApproved: [HelperRegistrationState] = [.notRegistered, .requiresApproval, .notFound]
+
+    private func decide(
+        licensed: Bool = true,
+        _ status: HelperRegistrationState,
+        responding: Bool = true,
+        window: Window? = nil
+    ) -> LicenseActivationFollowUp {
+        LicenseActivationFollowUp.decide(
+            canEnableProtection: licensed,
+            helperStatus: status,
+            helperResponding: responding,
+            openWindow: window
+        )
+    }
+
+    // MARK: Ready helper
+
+    func testLicensedWithAReadyHelperTurnsProtectionOnWithoutAWindow() {
+        XCTAssertEqual(decide(.enabled), .turnProtectionOn)
+    }
+
+    func testAReadyHelperLeavesAnOpenWindowWhereItIs() {
+        for window in [
+            Window(mode: .firstRun, step: .freeDashboard),
+            Window(mode: .firstRun, step: .welcome),
+            Window(mode: .finishSetup, step: .license),
+            Window(mode: .finishSetup, step: .done),
+        ] {
+            XCTAssertEqual(decide(.enabled, window: window), .turnProtectionOn, "\(window)")
+        }
+    }
+
+    // MARK: Helper not approved yet
 
     func testLicensedWithoutAnApprovedHelperOpensApproval() {
-        for status in [HelperRegistrationState.notRegistered, .requiresApproval, .notFound] {
-            XCTAssertEqual(
-                LicenseActivationFollowUp.decide(canEnableProtection: true, helperStatus: status, openWindow: nil),
-                .openApproval,
-                "\(status)"
-            )
+        for status in Self.notApproved {
+            XCTAssertEqual(decide(status), .openApproval, "\(status)")
+            // Silence does not matter before approval: approval comes first.
+            XCTAssertEqual(decide(status, responding: false), .openApproval, "\(status)")
         }
     }
 
@@ -319,71 +351,162 @@ final class LicenseActivationFollowUpTests: XCTestCase {
         XCTAssertFalse(pending.confirmsOnEntry)
     }
 
-    func testLicensedWithAReadyHelperOpensNothing() {
+    func testProtectionTurnsOnAfterApproval() {
+        // Approval finishing hands a licensed person to protection on: the
+        // follow-up after approval sees an enabled, answering helper, and
+        // the protection decision for a fresh setup is to turn it on.
+        XCTAssertEqual(decide(.enabled), .turnProtectionOn)
         XCTAssertEqual(
-            LicenseActivationFollowUp.decide(canEnableProtection: true, helperStatus: .enabled, openWindow: nil),
-            .none
+            LicenseActivationProtection.decide(.init(
+                canEnableProtection: true, protectionOn: false, savedChoiceOn: false,
+                pauseActive: false, sessionActive: false, changeInFlight: false
+            )),
+            .turnOn
         )
-        XCTAssertEqual(
-            LicenseActivationFollowUp.decide(
-                canEnableProtection: true, helperStatus: .enabled,
-                openWindow: Window(mode: .firstRun, step: .freeDashboard)
-            ),
-            .none
-        )
-    }
-
-    func testUnlicensedDoesNothing() {
-        for status in [HelperRegistrationState.notRegistered, .requiresApproval, .notFound, .enabled] {
-            XCTAssertEqual(
-                LicenseActivationFollowUp.decide(canEnableProtection: false, helperStatus: status, openWindow: nil),
-                .none
-            )
-            XCTAssertEqual(
-                LicenseActivationFollowUp.decide(
-                    canEnableProtection: false, helperStatus: status,
-                    openWindow: Window(mode: .firstRun, step: .license)
-                ),
-                .none
-            )
-        }
+        // Approval leads to Done, the screen that reports protection on.
+        var nav = OnboardingNavigator(mode: .finishSetup, canEnableProtection: true)
+        nav.advance(canEnableProtection: true)
+        XCTAssertEqual(nav.step, .done)
     }
 
     func testAnOpenWindowSwitchesToApprovalInsteadOfOpeningASecond() {
         for step in [OnboardingStep.welcome, .protection, .license, .freeDashboard] {
             XCTAssertEqual(
-                LicenseActivationFollowUp.decide(
-                    canEnableProtection: true, helperStatus: .notRegistered,
-                    openWindow: Window(mode: .firstRun, step: step)
-                ),
+                decide(.notRegistered, window: Window(mode: .firstRun, step: step)),
                 .showApprovalInOpenWindow,
                 "\(step)"
             )
         }
         XCTAssertEqual(
-            LicenseActivationFollowUp.decide(
-                canEnableProtection: true, helperStatus: .requiresApproval,
-                openWindow: Window(mode: .finishSetup, step: .license)
-            ),
+            decide(.requiresApproval, window: Window(mode: .finishSetup, step: .license)),
             .showApprovalInOpenWindow
         )
     }
 
     func testAnOpenWindowAlreadyApprovingIsOnlyBroughtForward() {
         XCTAssertEqual(
-            LicenseActivationFollowUp.decide(
-                canEnableProtection: true, helperStatus: .requiresApproval,
-                openWindow: Window(mode: .finishSetup, step: .approve)
-            ),
+            decide(.requiresApproval, window: Window(mode: .finishSetup, step: .approve)),
             .bringOpenWindowForward
         )
         XCTAssertEqual(
-            LicenseActivationFollowUp.decide(
-                canEnableProtection: true, helperStatus: .notRegistered,
-                openWindow: Window(mode: .repair, step: .approve)
-            ),
+            decide(.notRegistered, window: Window(mode: .repair, step: .approve)),
             .bringOpenWindowForward,
             "a Repair in progress is never restarted"
         )
+    }
+
+    // MARK: Approved but not answering
+
+    func testAnEnabledButSilentHelperGoesToRepair() {
+        XCTAssertEqual(decide(.enabled, responding: false), .repairHelper)
+    }
+
+    func testRepairFromAnOpenWindowOnAnotherScreenRunsInPlace() {
+        // Repair's check runs first; the window switches to Repair in
+        // place only if the helper must be approved again. No second window.
+        for window in [
+            Window(mode: .firstRun, step: .welcome),
+            Window(mode: .firstRun, step: .license),
+            Window(mode: .finishSetup, step: .license),
+            Window(mode: .firstRun, step: .freeDashboard),
+            Window(mode: .finishSetup, step: .done),
+        ] {
+            XCTAssertEqual(decide(.enabled, responding: false, window: window), .repairHelper, "\(window)")
+        }
+    }
+
+    func testAnOpenRepairOrApprovalIsOnlyBroughtForwardForASilentHelper() {
+        for window in [
+            Window(mode: .repair, step: .approve),
+            Window(mode: .repair, step: .repairFailed),
+            Window(mode: .repair, step: .done),
+            Window(mode: .finishSetup, step: .approve),
+            Window(mode: .firstRun, step: .approve),
+        ] {
+            XCTAssertEqual(
+                decide(.enabled, responding: false, window: window),
+                .bringOpenWindowForward,
+                "\(window)"
+            )
+        }
+    }
+
+    func testRepairStartsAtTheIdleApproveStepWithNothingAskedOfMacOS() {
+        // A helper that must be approved again opens Repair at its idle
+        // Approve step, waiting for the person's click.
+        let nav = OnboardingNavigator(mode: .repair, canEnableProtection: true)
+        XCTAssertEqual(nav.step, .approve)
+        let tracker = HelperApprovalTracker(status: .enabled, needsNewRegistration: true)
+        XCTAssertFalse(tracker.confirmsOnEntry)
+    }
+
+    // MARK: Unlicensed
+
+    func testUnlicensedDoesNothing() {
+        for status in Self.notApproved + [.enabled] {
+            for responding in [true, false] {
+                XCTAssertEqual(decide(licensed: false, status, responding: responding), .none)
+                for window in [
+                    Window(mode: .firstRun, step: .license),
+                    Window(mode: .repair, step: .approve),
+                ] {
+                    XCTAssertEqual(
+                        decide(licensed: false, status, responding: responding, window: window),
+                        .none
+                    )
+                }
+            }
+        }
+    }
+}
+
+final class LicenseActivationProtectionTests: XCTestCase {
+    private func decide(
+        licensed: Bool = true,
+        on: Bool = false,
+        saved: Bool = false,
+        paused: Bool = false,
+        session: Bool = false,
+        inFlight: Bool = false
+    ) -> LicenseActivationProtection {
+        LicenseActivationProtection.decide(.init(
+            canEnableProtection: licensed,
+            protectionOn: on,
+            savedChoiceOn: saved,
+            pauseActive: paused,
+            sessionActive: session,
+            changeInFlight: inFlight
+        ))
+    }
+
+    func testAnActivatedLicenseTurnsProtectionOn() {
+        XCTAssertEqual(decide(), .turnOn)
+        // Saved as on but not running (for example after a helper restart).
+        XCTAssertEqual(decide(saved: true), .turnOn)
+        // Running but not saved as on: saving the choice is still needed.
+        XCTAssertEqual(decide(on: true), .turnOn)
+    }
+
+    func testAlreadyOnIsLeftAlone() {
+        XCTAssertEqual(decide(on: true, saved: true), .alreadyOn)
+    }
+
+    func testUnlicensedNeverTurnsOn() {
+        XCTAssertEqual(decide(licensed: false), .notLicensed)
+        XCTAssertEqual(decide(licensed: false, paused: true, session: true, inFlight: true), .notLicensed)
+    }
+
+    func testAPauseIsKept() {
+        XCTAssertEqual(decide(saved: true, paused: true), .pauseActive)
+    }
+
+    func testASessionIsLeftAlone() {
+        XCTAssertEqual(decide(on: true, session: true), .sessionActive)
+        XCTAssertEqual(decide(paused: true, session: true), .sessionActive)
+    }
+
+    func testAChangeInFlightIsNotSuperseded() {
+        XCTAssertEqual(decide(inFlight: true), .changeInFlight)
+        XCTAssertEqual(decide(session: true, inFlight: true), .changeInFlight)
     }
 }

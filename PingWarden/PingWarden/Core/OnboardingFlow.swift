@@ -148,26 +148,44 @@ enum HelperRegistrationState: Equatable, Sendable {
     case notFound
 }
 
-/// What follows a license activated outside the setup window's own license
-/// step (Settings → License, which the Dashboard unlock card opens). The
-/// setup window's license step already continues to approval itself, so it
-/// never asks this.
+/// What follows a license the person just activated: in Settings →
+/// License (which the Dashboard unlock card opens), or in the setup
+/// window's own license step, which asks with the window it is in.
 ///
-/// A licensed person whose helper is not approved yet is taken to the
-/// Approve step, idle: nothing changes in macOS until they click Approve
-/// Helper. A helper that is approved and answering needs nothing, and the
-/// license screen's own behavior (protection stays as it was) is kept.
+/// An explicit activation is meant to end with Ping Protection on:
+/// - A helper that is approved and answering: protection turns on at once,
+///   and no window opens.
+/// - A helper that is not approved yet: setup continues at the idle Approve
+///   step. Nothing changes in macOS until Approve Helper is clicked, and
+///   setup turns protection on when approval finishes.
+/// - A helper that is approved but has stopped answering: Repair runs, as
+///   from the Repair… menu item. It first checks whether the helper
+///   answers; only a helper that must be approved again opens the Repair
+///   screen, which waits for the person's click. Protection turns on once
+///   Repair succeeds.
+///
+/// Whether protection may turn on at that moment (a pause, a session, a
+/// change in flight) is `LicenseActivationProtection`.
 enum LicenseActivationFollowUp: Equatable, Sendable {
     /// Leave everything as it is.
     case none
+    /// Turn protection on now; the helper is ready. No window opens, and an
+    /// open setup window is left where it is.
+    case turnProtectionOn
     /// Open the setup window at the Approve step.
     case openApproval
     /// The setup window is open on another screen: switch it to the
     /// Approve step and bring it forward.
     case showApprovalInOpenWindow
     /// The setup window is already approving, or repairing, the helper:
-    /// bring it forward without disturbing it.
+    /// bring it forward without disturbing it. Protection turns on when
+    /// that approval or Repair succeeds.
     case bringOpenWindowForward
+    /// Run Repair's check. A helper that must be approved again opens the
+    /// Repair screen (an open setup window switches to it in place, as the
+    /// Repair… menu item does); a helper that answers after all needs no
+    /// window, and protection turns on.
+    case repairHelper
 
     /// The setup window as it stands, when one is open.
     struct OpenWindow: Equatable, Sendable {
@@ -177,24 +195,32 @@ enum LicenseActivationFollowUp: Equatable, Sendable {
 
     /// - Parameters:
     ///   - canEnableProtection: The license state after activation.
-    ///   - helperStatus: The helper's registration as macOS reports it. An
-    ///     enabled helper that stopped answering is left alone too: it needs
-    ///     Repair, which the app already offers, and entering approval with
-    ///     an enabled status would rebuild the registration before the
-    ///     person clicked anything.
+    ///   - helperStatus: The helper's registration as macOS reports it.
+    ///   - helperResponding: False once a request to an enabled helper went
+    ///     unanswered, or while a Repair is running: the signal that makes
+    ///     the app offer Repair. Unknown (nothing asked yet) counts as
+    ///     responding; if turning protection on then finds the helper
+    ///     silent, the app continues with Repair.
     ///   - openWindow: The setup window, if one is open.
     static func decide(
         canEnableProtection: Bool,
         helperStatus: HelperRegistrationState,
+        helperResponding: Bool,
         openWindow: OpenWindow?
     ) -> LicenseActivationFollowUp {
         guard canEnableProtection else { return .none }
-        guard helperStatus != .enabled else { return .none }
-        guard let openWindow else { return .openApproval }
-        if openWindow.mode == .repair || openWindow.step == .approve {
-            return .bringOpenWindowForward
+        let windowIsApprovingOrRepairing = openWindow.map {
+            $0.mode == .repair || $0.step == .approve
+        } ?? false
+        if helperStatus == .enabled {
+            if helperResponding { return .turnProtectionOn }
+            // Entering approval with an enabled status would rebuild the
+            // registration before the person clicked anything. Repair
+            // checks first and asks before it changes anything.
+            return windowIsApprovingOrRepairing ? .bringOpenWindowForward : .repairHelper
         }
-        return .showApprovalInOpenWindow
+        guard openWindow != nil else { return .openApproval }
+        return windowIsApprovingOrRepairing ? .bringOpenWindowForward : .showApprovalInOpenWindow
     }
 }
 
