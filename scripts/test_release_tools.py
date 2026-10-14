@@ -168,8 +168,13 @@ case "$1" in
     attach) printf '%s\\n' "$PW_FAKE_ATTACH_OUTPUT" ;;
     detach)
         busy="$(cat "$PW_FAKE_BUSY")"
+        if [ ! -d "$2" ]; then
+            echo "hdiutil: detach failed - No such file or directory" >&2
+            exit 1
+        fi
         if [ "$busy" -gt 0 ]; then
             echo $((busy - 1)) > "$PW_FAKE_BUSY"
+            if [ -n "$PW_FAKE_LATE_UNMOUNT" ]; then rmdir "$2"; fi
             echo "hdiutil: couldn't unmount \\"disk9\\" - Resource busy" >&2
             exit 16
         fi
@@ -232,6 +237,12 @@ esac
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(detaches, [f"detach {mount}"] * 3)
         self.assertIn("attempt 2 of 5", result.stderr)
+        self.assertNotIn("Error:", result.stderr)
+
+    def test_busy_detach_that_finishes_late_counts_as_detached(self):
+        result, detaches, mount = self.run_validation(busy=99, extra_env={"PW_FAKE_LATE_UNMOUNT": "1"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(detaches, [f"detach {mount}"])
         self.assertNotIn("Error:", result.stderr)
 
     def test_persistently_busy_volume_fails_with_guidance_and_never_forces(self):
