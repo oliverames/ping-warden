@@ -54,6 +54,10 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     /// All repair entry points share one operation, including the final
     /// reconciliation. A second caller waits for the same result.
     private var helperRepairTask: Task<HelperTestReport, Never>?
+    /// Asks Control Center to re-query the Ping Protection control after a
+    /// recovery point (#101). The app installs a coalescing handler; nil
+    /// leaves the control alone.
+    var controlRefreshHandler: ((ControlCenterRefreshTrigger) -> Void)?
 
     private init() {
         restorePersistedPauseIfActive()
@@ -211,6 +215,11 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         let result = await task.value
         helperRepairTask = nil
         objectWillChange.send()
+        // Whatever the outcome, the helper was rebuilt or torn down, so the
+        // control's last rendering may no longer match awdl0.
+        if !isTerminating {
+            controlRefreshHandler?(.repairFinished)
+        }
         return result
     }
 
@@ -693,6 +702,7 @@ final class ProtectionExperienceCoordinator: ObservableObject {
     func handleSystemWake() async {
         objectWillChange.send()
         guard !isTerminating else { return }
+        controlRefreshHandler?(.systemWake)
         if let pauseUntil {
             if pauseUntil <= Date() {
                 await resumeProtection()
@@ -873,6 +883,10 @@ final class ProtectionExperienceCoordinator: ObservableObject {
         silenceMessage = nil
         objectWillChange.send()
         guard wasSilent else { return }
+        // The helper may have restarted (and restored AWDL) while silent.
+        if !isTerminating {
+            controlRefreshHandler?(.helperRecovered)
+        }
         // One automatic retry per minute keeps a helper that answers some
         // requests but not others from producing a retry loop.
         if let lastAutomaticRetry, Date().timeIntervalSince(lastAutomaticRetry) < 60 {

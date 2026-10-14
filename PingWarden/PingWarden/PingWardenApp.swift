@@ -193,6 +193,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         sessionCoordinator.onSessionStateChanged = { [weak self] in
             self?.updateQuickActionMenuItems()
         }
+        // A crashed process cannot reload the Control Center control, so it
+        // may still show Protected from before the crash (#101). Ask for a
+        // fresh value now; the value provider checks the running app and the
+        // live awdl0 flags. Recovery points the coordinator sees (helper
+        // answering again, Repair, wake) share the same coalesced reload.
+        protectionExperience.controlRefreshHandler = { trigger in
+            ControlCenterSupport.requestPingProtectionRefresh(trigger)
+        }
+        ControlCenterSupport.requestPingProtectionRefresh(.appLaunch)
+
         protectionExperienceObservation = protectionExperience.objectWillChange.sink { [weak self] in
             // Published changes arrive before mutation; refresh on the next
             // main-actor turn so the menu sees the settled repair state.

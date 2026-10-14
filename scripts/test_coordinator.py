@@ -37,6 +37,7 @@ CORE_SOURCES = (
     "ProtectionFailureCopy.swift",
     "ProtectionExperiencePolicy.swift",
     "SettingsCopy.swift",
+    "ControlCenterRefreshPolicy.swift",
 )
 
 
