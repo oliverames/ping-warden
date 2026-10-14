@@ -971,6 +971,63 @@ do {
     check(!MainActor.assumeIsolated { coordinator.isRepairingHelper }, "107: failed Repair releases shared busy state")
 }
 
+// #101: recovery points ask Control Center for a fresh value; ordinary
+// replies do not, so a healthy helper causes no reload traffic.
+do {
+    MainActor.assumeIsolated { resetAll() }
+    let refreshes = LockedValue<[ControlCenterRefreshTrigger]>([])
+    MainActor.assumeIsolated {
+        coordinator.controlRefreshHandler = { trigger in refreshes.withValue { $0.append(trigger) } }
+    }
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    let firstProbe = LockedValue<Bool?>(nil)
+    monitor.confirmHelperResponds(attempts: 1) { ok in firstProbe.withValue { $0 = ok } }
+    spin(until: { firstProbe.withValue { $0 } != nil }, timeout: 3)
+    spin(0.1)
+    check(firstProbe.withValue { $0 } == true && refreshes.withValue { $0 }.isEmpty,
+          "101: an ordinary helper reply does not reload the control")
+
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    let secondProbe = LockedValue<Bool?>(nil)
+    monitor.confirmHelperResponds(attempts: 1) { ok in secondProbe.withValue { $0 = ok } }
+    spin(until: { secondProbe.withValue { $0 } != nil && !refreshes.withValue { $0 }.isEmpty }, timeout: 3)
+    check(refreshes.withValue { $0 } == [.helperRecovered],
+          "101: the helper answering after silence reloads the control once")
+    settle()
+
+    MainActor.assumeIsolated { resetAll() }
+    refreshes.withValue { $0 = [] }
+    MainActor.assumeIsolated { coordinator.harnessSetPause(until: Date().addingTimeInterval(300)) }
+    let wake = launchVoid { await coordinator.handleSystemWake() }
+    spin(until: { wake.withValue { $0 } }, timeout: 1)
+    check(refreshes.withValue { $0 } == [.systemWake], "101: wake reloads the control")
+
+    MainActor.assumeIsolated { resetAll() }
+    refreshes.withValue { $0 = [] }
+    let repair = launchRepair()
+    let connection = awaitConnection()
+    awaitVersionRequests(on: connection)
+    connection.failProxies(code: xpcConnectionInvalid)
+    spin(until: { repair.withValue { $0 } != nil }, timeout: 3)
+    spin(0.05)
+    check(repair.withValue { $0 }?.title == RepairResultCopy.failureTitle
+          && refreshes.withValue { $0 }.last == .repairFinished,
+          "101: Repair reloads the control even when it fails")
+
+    MainActor.assumeIsolated { resetAll() }
+    refreshes.withValue { $0 = [] }
+    MainActor.assumeIsolated { coordinator.noteHelperNotResponding() }
+    _ = MainActor.assumeIsolated { coordinator.prepareForTermination {} }
+    FakeHelper.autoReplyVersion = "fixture-helper"
+    let quittingProbe = LockedValue<Bool?>(nil)
+    monitor.confirmHelperResponds(attempts: 1) { ok in quittingProbe.withValue { $0 = ok } }
+    spin(until: { quittingProbe.withValue { $0 } != nil }, timeout: 3)
+    spin(0.1)
+    check(refreshes.withValue { $0 }.isEmpty, "101: a quitting app does not reload the control")
+    settle()
+    MainActor.assumeIsolated { coordinator.controlRefreshHandler = nil }
+}
+
 MainActor.assumeIsolated { resetAll() }
 print("Coordinator checks complete. Checks: \(checks). Failures: \(failures.count)")
 exit(failures.isEmpty ? 0 : 1)
