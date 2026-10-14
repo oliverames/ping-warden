@@ -1,3 +1,46 @@
+# Ping Warden 4.4.0-beta.1
+
+This is the first beta of Ping Warden 4.4. It includes everything from the 4.3.4 betas and 4.3.3.
+
+## New in this beta
+
+- Adding your license now turns on Ping Protection. This works from **Settings → License** and from the license step in the setup window. If the helper is ready, protection turns on right away and no window opens. If the helper isn't approved yet, protection turns on as soon as you finish approving it. A running pause or Game Mode session is left as it is.
+- If you add your license while the helper is approved but not responding, Ping Warden runs **Repair** for you. Repair first checks whether the helper answers, and it only opens the approval step if the helper has to be approved again. Nothing changes in macOS until you click **Approve Helper**, and protection turns on once Repair succeeds.
+- When the helper stops responding while Ping Protection needs it, Ping Warden now offers **Repair** once instead of waiting for you to notice. This covers launch, waking from sleep, turning protection on, and Game Mode. It also covers a helper that was turned off in System Settings while protection is set to be on. Ping Warden waits a few seconds first, so a short hiccup after launch or wake passes quietly. It asks only once each time something goes wrong, and it waits until you're out of a game. Nothing is repaired until you click **Repair**.
+- If you turn on protection from the menu and the helper doesn't answer, the alert now has a **Repair** button.
+- If you don't have a license and only use the free dashboard, Ping Warden never asks you about the helper.
+- The Ping Protection control in Control Center now catches up when Ping Warden relaunches after a crash, when the helper recovers, after **Repair**, and after your Mac wakes, so it no longer shows an old state.
+
+## Guided setup
+
+- The Welcome window looks the same as before. When you click **Set Up Ping Protection** or **Turn On Ping Protection**, Ping Warden walks through what Ping Protection does, your license if you still need one, and helper approval in the same window.
+- Ping Warden only asks you to approve the helper after a license is active. The latency dashboard doesn't use the helper, so if you skip the license step you go straight to the free dashboard, and a valid key takes you right into helper approval.
+- If you skipped the license during setup and add it later in **Settings → License** (or from **Enter License** on the Dashboard), Ping Warden opens the setup window at **Approve the helper** when the helper isn't approved yet. Nothing changes in macOS until you click **Approve Helper**. If the setup window is already open, it moves to that step instead of opening a second window.
+- The approval step shows what macOS will put on screen and names the exact place in System Settings for your version of macOS: **Login Items** or **Login Items & Extensions**, and **Allow in the Background** or **App Background Activity**.
+- While you approve, the window follows along and moves on when the helper is approved. It tells you when it opens System Settings for you, and if approval doesn't arrive within a minute it offers **Try Again** while it keeps watching, so a late approval still finishes setup.
+- **Finish Setup…** in the menu, Settings, and the Dashboard picks up at the first step you haven't done yet instead of starting over.
+
+## Repair
+
+- **Repair…** first checks whether the helper answers. If it does, you see **Helper Is Responding** as before, and the helper's registration is left alone.
+- If the helper has to be approved again, Repair opens the approval step and waits for you to click **Approve Helper**, so macOS doesn't show its notification before you know why. Your protection setting, pause, and session history stay as they are.
+
+## From 4.3.3: Game Mode and Repair
+
+- Turning off **Game Mode Auto-Detect** while a game is in front now ends the Game Mode session. Previously, protection could stay on until Ping Warden quit.
+- **Repair…** on the Dashboard now uses the same path as the menu and Settings. It no longer ends a running Game Mode session or cancels a pause when it reconnects the helper.
+- Stopping a Latency Session and starting a new one right away no longer cancels the new session.
+- The **Toggle Ping Protection** shortcut now acts on whether protection is actually on. During a Game Mode session it turns protection off instead of on.
+
+## From 4.3.3: Reliability
+
+- If macOS cancels a quit after Ping Warden has stopped protection, for example when a logout is cancelled, Ping Warden restores protection within about 10 seconds. Previously, protection couldn't be turned on again until you relaunched Ping Warden.
+- A damaged session history file no longer blocks new session recaps. Ping Warden sets the file aside and starts a new history.
+- Resetting the intervention counter, and reading it, now finish even if the helper can't be reached.
+- A slow DNS lookup for a hostname target is reused by the next probe instead of starting again on every probe.
+- **Settings…** and **Open Dashboard…** now bring back a minimized window, so they no longer seem to do nothing when the Dock icon is hidden.
+- Confirming **Prepare to Remove** a second time while removal is running no longer starts a second removal.
+
 # Ping Warden 4.3.4-beta.2
 
 This beta picks up setup where you left off once you add a license. It also includes everything from 4.3.4-beta.1 and 4.3.3.
