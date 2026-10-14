@@ -9,9 +9,20 @@ import ServiceManagement
 @MainActor
 enum OnboardingPresenter {
     static var handler: ((OnboardingMode) -> Void)?
+    /// Installed by the delegate; see `licenseActivated()`.
+    static var licenseActivationHandler: (() -> Void)?
 
     static func present(_ mode: OnboardingMode) {
         handler?(mode)
+    }
+
+    /// A license was just activated outside the setup window (Settings →
+    /// License, which the Dashboard unlock card opens). When the helper is
+    /// not approved yet, setup continues at the idle Approve step. The
+    /// setup window's own license step continues by itself and never calls
+    /// this, so the window cannot open twice.
+    static func licenseActivated() {
+        licenseActivationHandler?()
     }
 }
 
@@ -93,6 +104,15 @@ final class OnboardingModel: ObservableObject {
         }
         repairReport = nil
         stepDidChange()
+    }
+
+    /// Show the idle Approve step after a license arrived from Settings
+    /// while this window was on another screen. Finish Setup with a license
+    /// starts at approval, and nothing is asked of macOS until Approve
+    /// Helper is clicked.
+    func showApprovalAfterLicense() {
+        guard !isPreview, mode != .repair, step != .approve else { return }
+        restart(mode: .finishSetup)
     }
 
     func windowWillClose() {

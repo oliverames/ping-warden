@@ -287,3 +287,103 @@ final class OnboardingCopyTests: XCTestCase {
         XCTAssertFalse(OnboardingCopy.cardCaptions.joined().contains("Allow"))
     }
 }
+
+final class LicenseActivationFollowUpTests: XCTestCase {
+    private typealias Window = LicenseActivationFollowUp.OpenWindow
+
+    func testLicensedWithoutAnApprovedHelperOpensApproval() {
+        for status in [HelperRegistrationState.notRegistered, .requiresApproval, .notFound] {
+            XCTAssertEqual(
+                LicenseActivationFollowUp.decide(canEnableProtection: true, helperStatus: status, openWindow: nil),
+                .openApproval,
+                "\(status)"
+            )
+        }
+    }
+
+    func testOpeningApprovalLandsOnTheIdleApproveStep() {
+        // The window opens as Finish Setup with a license, which starts at
+        // approval rather than the Welcome or the protection explainer.
+        let nav = OnboardingNavigator(mode: .finishSetup, canEnableProtection: true)
+        XCTAssertEqual(nav.step, .approve)
+        XCTAssertEqual(nav.pageSteps, [.approve, .done])
+        // Nothing has been asked of macOS until Approve Helper.
+        for status in [HelperRegistrationState.notRegistered, .notFound] {
+            let tracker = HelperApprovalTracker(status: status, variant: .appBackgroundActivity)
+            XCTAssertEqual(tracker.phase, .ready)
+            XCTAssertEqual(tracker.primaryAction, .approveHelper)
+            XCTAssertFalse(tracker.confirmsOnEntry)
+        }
+        let pending = HelperApprovalTracker(status: .requiresApproval, variant: .appBackgroundActivity)
+        XCTAssertEqual(pending.phase, .ready)
+        XCTAssertFalse(pending.confirmsOnEntry)
+    }
+
+    func testLicensedWithAReadyHelperOpensNothing() {
+        XCTAssertEqual(
+            LicenseActivationFollowUp.decide(canEnableProtection: true, helperStatus: .enabled, openWindow: nil),
+            .none
+        )
+        XCTAssertEqual(
+            LicenseActivationFollowUp.decide(
+                canEnableProtection: true, helperStatus: .enabled,
+                openWindow: Window(mode: .firstRun, step: .freeDashboard)
+            ),
+            .none
+        )
+    }
+
+    func testUnlicensedDoesNothing() {
+        for status in [HelperRegistrationState.notRegistered, .requiresApproval, .notFound, .enabled] {
+            XCTAssertEqual(
+                LicenseActivationFollowUp.decide(canEnableProtection: false, helperStatus: status, openWindow: nil),
+                .none
+            )
+            XCTAssertEqual(
+                LicenseActivationFollowUp.decide(
+                    canEnableProtection: false, helperStatus: status,
+                    openWindow: Window(mode: .firstRun, step: .license)
+                ),
+                .none
+            )
+        }
+    }
+
+    func testAnOpenWindowSwitchesToApprovalInsteadOfOpeningASecond() {
+        for step in [OnboardingStep.welcome, .protection, .license, .freeDashboard] {
+            XCTAssertEqual(
+                LicenseActivationFollowUp.decide(
+                    canEnableProtection: true, helperStatus: .notRegistered,
+                    openWindow: Window(mode: .firstRun, step: step)
+                ),
+                .showApprovalInOpenWindow,
+                "\(step)"
+            )
+        }
+        XCTAssertEqual(
+            LicenseActivationFollowUp.decide(
+                canEnableProtection: true, helperStatus: .requiresApproval,
+                openWindow: Window(mode: .finishSetup, step: .license)
+            ),
+            .showApprovalInOpenWindow
+        )
+    }
+
+    func testAnOpenWindowAlreadyApprovingIsOnlyBroughtForward() {
+        XCTAssertEqual(
+            LicenseActivationFollowUp.decide(
+                canEnableProtection: true, helperStatus: .requiresApproval,
+                openWindow: Window(mode: .finishSetup, step: .approve)
+            ),
+            .bringOpenWindowForward
+        )
+        XCTAssertEqual(
+            LicenseActivationFollowUp.decide(
+                canEnableProtection: true, helperStatus: .notRegistered,
+                openWindow: Window(mode: .repair, step: .approve)
+            ),
+            .bringOpenWindowForward,
+            "a Repair in progress is never restarted"
+        )
+    }
+}

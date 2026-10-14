@@ -187,6 +187,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         OnboardingPresenter.handler = { [weak self] mode in
             self?.showSetupWindow(mode: mode)
         }
+        OnboardingPresenter.licenseActivationHandler = { [weak self] in
+            self?.continueSetupAfterLicenseActivation()
+        }
         sessionCoordinator.onSessionStateChanged = { [weak self] in
             self?.updateQuickActionMenuItems()
         }
@@ -676,6 +679,46 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
         )
         presentSetupWindow(model: model)
+    }
+
+    /// After a license is activated in Settings, continue setup at the idle
+    /// Approve step when the helper is not approved yet. Protection is left
+    /// as the license screen always left it; the decision is
+    /// `LicenseActivationFollowUp` in Core.
+    private func continueSetupAfterLicenseActivation() {
+        // A read of the registration, so a change made in System Settings
+        // moments ago is not hidden by the status cache.
+        PingWardenMonitor.shared.refreshHelperStatus()
+        let openWindow = setupModel.map {
+            LicenseActivationFollowUp.OpenWindow(mode: $0.mode, step: $0.step)
+        }
+        let followUp = LicenseActivationFollowUp.decide(
+            canEnableProtection: LicenseManager.shared.canEnableProtection,
+            helperStatus: OnboardingModel.liveStatus(),
+            openWindow: welcomeWindow == nil ? nil : openWindow
+        )
+        log.info("License activated; setup follow-up: \(String(describing: followUp), privacy: .public)")
+        switch followUp {
+        case .none:
+            return
+        case .openApproval:
+            showSetupWindow(mode: .finishSetup)
+        case .showApprovalInOpenWindow:
+            setupModel?.showApprovalAfterLicense()
+            bringSetupWindowForward()
+        case .bringOpenWindowForward:
+            bringSetupWindowForward()
+        }
+    }
+
+    /// The setup window comes to the front in every interface mode,
+    /// including a hidden Dock icon or Control Center Only: the window
+    /// shows a Dock icon while it is open.
+    private func bringSetupWindowForward() {
+        guard let welcomeWindow else { return }
+        NSApp.setActivationPolicy(.regular)
+        welcomeWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func presentSetupWindow(model: OnboardingModel) {
@@ -2769,6 +2812,8 @@ struct LicenseSettingsContent: View {
                 ? "License verified. Ping Protection is available."
                 : licenseMessageForLastResult
             if entitled, keyField == submittedKey { keyField = "" }
+            // Without an approved helper, setup continues at approval.
+            if entitled { OnboardingPresenter.licenseActivated() }
         }
     }
 

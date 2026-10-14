@@ -148,6 +148,56 @@ enum HelperRegistrationState: Equatable, Sendable {
     case notFound
 }
 
+/// What follows a license activated outside the setup window's own license
+/// step (Settings → License, which the Dashboard unlock card opens). The
+/// setup window's license step already continues to approval itself, so it
+/// never asks this.
+///
+/// A licensed person whose helper is not approved yet is taken to the
+/// Approve step, idle: nothing changes in macOS until they click Approve
+/// Helper. A helper that is approved and answering needs nothing, and the
+/// license screen's own behavior (protection stays as it was) is kept.
+enum LicenseActivationFollowUp: Equatable, Sendable {
+    /// Leave everything as it is.
+    case none
+    /// Open the setup window at the Approve step.
+    case openApproval
+    /// The setup window is open on another screen: switch it to the
+    /// Approve step and bring it forward.
+    case showApprovalInOpenWindow
+    /// The setup window is already approving, or repairing, the helper:
+    /// bring it forward without disturbing it.
+    case bringOpenWindowForward
+
+    /// The setup window as it stands, when one is open.
+    struct OpenWindow: Equatable, Sendable {
+        let mode: OnboardingMode
+        let step: OnboardingStep
+    }
+
+    /// - Parameters:
+    ///   - canEnableProtection: The license state after activation.
+    ///   - helperStatus: The helper's registration as macOS reports it. An
+    ///     enabled helper that stopped answering is left alone too: it needs
+    ///     Repair, which the app already offers, and entering approval with
+    ///     an enabled status would rebuild the registration before the
+    ///     person clicked anything.
+    ///   - openWindow: The setup window, if one is open.
+    static func decide(
+        canEnableProtection: Bool,
+        helperStatus: HelperRegistrationState,
+        openWindow: OpenWindow?
+    ) -> LicenseActivationFollowUp {
+        guard canEnableProtection else { return .none }
+        guard helperStatus != .enabled else { return .none }
+        guard let openWindow else { return .openApproval }
+        if openWindow.mode == .repair || openWindow.step == .approve {
+            return .bringOpenWindowForward
+        }
+        return .showApprovalInOpenWindow
+    }
+}
+
 /// The Approve step's live state, driven by polling the registration
 /// status that the monitor already reads once a second. Timing mirrors the
 /// monitor: Login Items opens 10 seconds after a fresh registration if
