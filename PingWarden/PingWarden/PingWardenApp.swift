@@ -2874,7 +2874,7 @@ struct AdvancedSettingsContent: View {
                                 StatusBadge(text: "Relaunch Required", tint: .unavailable)
                             }
                         }
-                        Text("Sends anonymous crash reports, helper error codes, and app session counts. It never sends ping targets, IP addresses, host names, network names, or license keys. Turning this off takes effect immediately. Turning it on takes effect after you relaunch Ping Warden.")
+                        Text("Sends anonymous crash reports, helper error codes, and app session counts. It never sends ping targets, IP addresses, host names, network names, or license keys. Turning this off takes effect immediately, after one record that the current session ended. Turning it on takes effect after you relaunch Ping Warden.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
