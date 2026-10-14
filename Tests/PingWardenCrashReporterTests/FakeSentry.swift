@@ -34,6 +34,7 @@ public final class Mechanism {
 
 public final class SentryStacktrace {
     public var frames: [Frame]
+    public var registers: [String: String] = [:]
     public init(frames: [Frame]) { self.frames = frames }
 }
 
@@ -75,6 +76,11 @@ public final class User {
     public init(userId: String?) { self.userId = userId }
 }
 
+public final class SentryRequest {
+    public var url: String?
+    public init() {}
+}
+
 public final class Event {
     public var level: SentryLevel
     public var message: SentryMessage?
@@ -83,6 +89,8 @@ public final class Event {
     public var extra: [String: Any]?
     public var transaction: String?
     public var modules: [String: String]?
+    public var request: SentryRequest?
+    public var stacktrace: SentryStacktrace?
     public var tags: [String: String]?
     public var fingerprint: [String]?
     public var context: [String: [String: Any]]?
@@ -121,6 +129,7 @@ public final class Options {
     public var enableFileIOTracing = true
     public var enableMetricKit = true
     public var enableLogs = true
+    public var sendClientReports = false
     public var beforeSend: ((Event) -> Event?)?
     public var beforeBreadcrumb: ((Breadcrumb) -> Breadcrumb?)?
     public init() {}
