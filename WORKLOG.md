@@ -1,5 +1,34 @@
 # Ping Warden Worklog
 
+## 2026-10-13 - 4.3.4-beta.1, feed incident, release guard, cleanup
+
+**What changed:** Published [4.3.4-beta.1](https://github.com/oliverames/ping-warden/releases/tag/v4.3.4-beta.1) (build 43391, pre-release) on the beta channel from `42de8f0` on `onboarding-4.4` (draft [#125](https://github.com/oliverames/ping-warden/pull/125), issue [#124](https://github.com/oliverames/ping-warden/issues/124)). It adds the guided setup and Repair flow:
+- The Welcome window is unchanged from 4.3.2.
+- Helper approval appears only after a license is active.
+- Screens are balanced and their System Settings copy changes by macOS version.
+- Repair checks the helper before handing off to the approval step.
+
+[#126](https://github.com/oliverames/ping-warden/pull/126) recorded the 4.3.3 feeds on main. [#127](https://github.com/oliverames/ping-warden/pull/127) (`c47e9d1`) makes `release.sh` abort when its local feeds lack an item already published on gh-pages, both in pre-flight and again before Step 8. Every merged or superseded branch and worktree is pruned. Oliver deleted the paused migration branch and worktree himself.
+
+**Decisions made:**
+- Beta build numbers sit between stable builds. 43391 is above 4.3.3's 43300 and below a future stable 4.3.4's 43400, so beta users still receive the stable release.
+- The in-app setup copy attempt was reverted, and the guided flow replaces it.
+
+**Incident (resolved):** `BETA_CHANNEL=1 release.sh` ran from a branch whose `appcast.xml` predated the 4.3.3 entry, so the published stable feed dropped 4.3.3. That stable feed was live from about 20:51 to 20:53 UTC. gh-pages `f59a005` restored it:
+- Stable leads with 4.3.3.
+- Beta leads with 4.3.4-beta.1, then 4.3.3.
+- Both feeds re-signed and verified against the app key, and every enclosure signature is unchanged.
+
+The Linear report was retried and confirmed for both releases.
+
+**Verification:**
+- Beta DMG: its SHA-256 matches GitHub's digest, it is Notarized Developer ID, its staple validated, and it holds 4.3.4 build 43391.
+- 279 Core tests passed.
+- `test_release_tools.py`: 37 tests passed, including 5 guard tests under Bash 3.2.
+- All six CI checks were green on #127.
+
+**Left off at:** The live macOS approval path in the beta has not been run, because it needs Oliver to click Allow. After the beta soaks, merge #125 and release stable 4.3.4 (build 43400). Outreach drafts are in `docs/2026-10-13-outreach-drafts.md`. Still open: #93, #94, #96, #100, #101, #105, #106, #124.
+
 ## 2026-10-13 - Release 4.3.3, site, Gumroad and launch work
 
 **What changed:** Published [4.3.3](https://github.com/oliverames/ping-warden/releases/tag/v4.3.3), build 43300, from `5274efe` ([#123](https://github.com/oliverames/ping-warden/pull/123)). #123 combined #115 and #118 through #121 with reliability fixes and per-surface Gumroad referrer tags, so CI ran once under the strict up-to-date rule; those PRs are closed as superseded and [#103](https://github.com/oliverames/ping-warden/issues/103) is closed. The reliability fixes cover the Shortcuts toggle, a cancelled quit, corrupt session history, XPC completion for intervention-count reads and resets, minimized windows and the removal guard. The changes to in-app setup copy were reverted at Oliver's request. A guided onboarding flow is in progress for 4.4 ([#124](https://github.com/oliverames/ping-warden/issues/124), draft [#125](https://github.com/oliverames/ping-warden/pull/125)).
