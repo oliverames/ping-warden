@@ -1,5 +1,17 @@
 # Ping Warden Worklog
 
+## 2026-10-17 - Setup page search title and description
+
+**What changed:** Retuned the `/docs/setup` title and description for search ([#135](https://github.com/oliverames/ping-warden/pull/135), `73ce4fe`), then dropped the repeated brand from the title because the build appends " | Ping Warden" (this PR). The live title is "Setup for Mac: Install, Approve, Verify | Ping Warden". The geforce page was retuned earlier in `5274efe`.
+
+**Verification:** `npm run build` and `Site/check.py` passed; the Website workflow deployed #135 and the live page served the new metadata.
+
+**Left off at:** [#129](https://github.com/oliverames/ping-warden/issues/129) stays open for the 30-day click-through re-check around 2026-11-13. Baselines: `/docs/setup` 96 impressions and 0 clicks, `/docs/geforce-now-mac-stutter` 248 impressions and 2 clicks.
+
+**Open questions:** None.
+
+---
+
 ## 2026-10-14 - Ping Warden 4.4.0 released (stable)
 
 **What changed:** Published [4.4.0](https://github.com/oliverames/ping-warden/releases/tag/v4.4.0) (build 44000) to the stable and beta feeds from main `7623b97` ([#125](https://github.com/oliverames/ping-warden/pull/125)). Oliver renamed the planned 4.3.4 to 4.4. It contains:
