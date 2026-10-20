@@ -1,5 +1,23 @@
 # Ping Warden Worklog
 
+## 2026-10-20 - Gumroad reviews on the home page, and discoverability follow-ups
+
+**What changed:** Added the written Gumroad reviews to the home page testimonials, quoted verbatim with the existing "Verified buyer" attribution ([#141](https://github.com/oliverames/ping-warden/pull/141), commits `f42b576` and `2a6581d`). The page now shows six Gumroad reviews and the two Reddit comments that were already there. Drafted replies to the two unanswered Gumroad reviews and to the new one. They are drafts only and were not posted. Opened [#140](https://github.com/oliverames/ping-warden/issues/140): the Protection-on panel in the off-vs-on image shows an 83 ms spike, and the image is labeled 4.3.2 while the current release is 4.4.0. Opened [#142](https://github.com/oliverames/ping-warden/issues/142) for search and discoverability work beyond per-page metadata, and [#143](https://github.com/oliverames/ping-warden/issues/143) for the Reddit comments that are still pending.
+
+**Verification:** `npm run build` built 12 pages, and `npm run check` passed (Python checks, then 7 worker tests) for both commits. The live site was not checked after deploy. The Gumroad page showed six ratings and five written reviews at the first read, and a sixth written review arrived later.
+
+**Decisions made:** Reddit reviews are deferred because the Chrome browser tool blocks reddit.com. Anonymous Gumroad reviewers are not named in replies. Oliver asked for auto-merge on #141 once its checks pass, and it is enabled with squash. Direct pushes to `main` are rejected by repository rules, so changes to main go through a pull request.
+
+**Resolved this session:** The Gumroad review gap. Every written Gumroad review is now on the home page.
+
+**Still open:** #140, #142, and #143. #129's 30-day click-through re-check is due around 2026-11-13, and #106's Search Console performance data was still processing at the last check.
+
+**Left off at:** PR #141 is open with auto-merge enabled. At the last read, `Analyze Swift and Objective-C` and `build` were pending, and the website, shell-lint, and linux-core-tests checks had passed. Delete the `website-gumroad-reviews` branch after the merge.
+
+**Open questions:** Whether to post the three Gumroad replies as drafted. Which Reddit comments count as reviews, and whether the intro "Selected public reviews and comments from Mac gamers" should change. Both are in #143.
+
+---
+
 ## 2026-10-17 - Setup page search title and description
 
 **What changed:** Retuned the `/docs/setup` title and description for search ([#135](https://github.com/oliverames/ping-warden/pull/135), `73ce4fe`), then dropped the repeated brand from the title because the build appends " | Ping Warden" (this PR). The live title is "Setup for Mac: Install, Approve, Verify | Ping Warden". The geforce page was retuned earlier in `5274efe`.
