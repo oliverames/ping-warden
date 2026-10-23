@@ -40,12 +40,25 @@ final class NSXPCConnection {
     var interruptionHandler: (() -> Void)?
     var invalidationHandler: (() -> Void)?
     var errorHandler: ((Error) -> Void)?
+    // Every proxy's handler, oldest first, for a connection that fails them all.
+    var errorHandlers: [(Error) -> Void] = []
     var didInvalidate = false
     let helper = FakeHelper()
     init(machServiceName: String, options: Options) { Self.instances.append(self) }
     func activate() {}
     func invalidate() { guard !didInvalidate else { return }; didInvalidate = true; invalidationHandler?() }
-    func remoteObjectProxyWithErrorHandler(_ callback: @escaping (Error) -> Void) -> Any { errorHandler = callback; return helper }
+    func remoteObjectProxyWithErrorHandler(_ callback: @escaping (Error) -> Void) -> Any {
+        errorHandler = callback
+        errorHandlers.append(callback)
+        return helper
+    }
+    /// Fail every pending request in the order it was sent, as an invalid
+    /// connection does (no launchd job, for example).
+    func failAllRequests(code: Int) {
+        let handlers = errorHandlers
+        errorHandlers = []
+        handlers.forEach { $0(NSError(domain: "fixture", code: code)) }
+    }
 }
 final class NSXPCInterface { init(with type: Any.Type) {} }
 final class SMAppService {

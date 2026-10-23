@@ -65,6 +65,19 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Pause between attempts while confirming the helper answers.
     private var helperRetryDelay: TimeInterval = 1.0
 
+    /// How long the helper gets to confirm turning protection on or off.
+    private var protectionCommandTimeout: TimeInterval = 5.0
+
+    /// How much longer than `protectionCommandTimeout` a timed-out enable's
+    /// event waits for the helper's late reply. The wait ends 30 seconds
+    /// after the command was sent, however late the timeout itself runs,
+    /// and the event then says no reply came.
+    private var lateReplyGrace: TimeInterval = 25.0
+
+    /// Enable timeouts whose events wait for a late reply, by operation.
+    /// Main-thread confined.
+    private var heldTimeoutReports: [UInt64: HelperProblemReport] = [:]
+
     /// Reply attempts for a helper that was just registered or approved.
     /// launchd starts it on the first connection, which can take longer
     /// than an established helper on older Macs.
@@ -125,6 +138,11 @@ class PingWardenMonitor: @unchecked Sendable {
     /// choice after a rapid on/off transition or reconnect.
     private var _protectionOperationGeneration: UInt64 = 0
     private var _desiredProtectionEnabled = false
+
+    /// The operation the latest connection drop ended, and the token the
+    /// drop moved to. A command that ended this way failed; one a newer
+    /// command superseded did not.
+    private var _operationEndedByConnectionDrop: (ended: UInt64, next: UInt64)?
 
     /// Why the most recent protection command failed, or `nil` after a
     /// success. Callers use it to tell a silent helper from one that
@@ -524,21 +542,52 @@ class PingWardenMonitor: @unchecked Sendable {
     /// system (or `unknown`), never a fresh read: reporting must not add a
     /// synchronous SMAppService call to a failure path, and reporting may
     /// be off.
+    ///
+    /// With `heldForLateReply` (main thread only), a timeout's event waits
+    /// until that operation's late reply or the given deadline (see
+    /// `releaseHeldTimeoutReport`), so it can say whether the helper was
+    /// slow or silent.
     private func recordFailure(
         _ breadcrumb: StateBreadcrumb?,
         problem: HelperProblem,
         failure: HelperCommandFailure? = nil,
-        error: NSError? = nil
+        error: NSError? = nil,
+        heldForLateReply hold: (operationID: UInt64, until: DispatchTime)? = nil
     ) {
         if let breadcrumb {
             emitTelemetry(.breadcrumb(breadcrumb))
         }
-        emitTelemetry(.problem(HelperProblemReport(
+        let report = HelperProblemReport(
             problem: problem,
             helperState: cachedDiagnosticState(),
             failure: failure,
             error: error
-        )))
+        )
+        guard let hold, failure == .timedOut else {
+            emitTelemetry(.problem(report))
+            return
+        }
+        heldTimeoutReports[hold.operationID] = report
+        DispatchQueue.main.asyncAfter(deadline: hold.until) { [weak self] in
+            self?.releaseHeldTimeoutReport(for: hold.operationID, replyDelay: nil)
+        }
+    }
+
+    /// Send a held timeout's event with what its wait observed: the delay
+    /// of the late reply, or `nil` when none came. Main thread.
+    private func releaseHeldTimeoutReport(for operationID: UInt64, replyDelay: TimeInterval?) {
+        guard let report = heldTimeoutReports.removeValue(forKey: operationID) else { return }
+        emitTelemetry(.problem(report.withLateReply(HelperLateReply(replyDelay: replyDelay))))
+    }
+
+    /// Hand over every held timeout event now, for a quit that cannot wait
+    /// out the grace. They carry no late-reply value, because the wait did
+    /// not finish. `deliver` runs synchronously on the main thread.
+    func flushHeldTelemetry(_ deliver: (HelperTelemetrySignal) -> Void) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let held = heldTimeoutReports.sorted { $0.key < $1.key }.map(\.value)
+        heldTimeoutReports = [:]
+        held.forEach { deliver(.problem($0)) }
     }
 
     private func cachedDiagnosticState() -> HelperDiagnosticState {
@@ -1164,6 +1213,9 @@ class PingWardenMonitor: @unchecked Sendable {
                 return true
             }
         }
+        // Fixed from the send, so a main thread that runs the timeout late
+        // cannot stretch the wait for a late reply.
+        let lateReplyWaitEnds = DispatchTime.now() + protectionCommandTimeout + lateReplyGrace
         // A timeout and an XPC error on this command both mean the helper
         // never confirmed it.
         let failUnanswered: @Sendable () -> Void = { [weak self] in
@@ -1176,6 +1228,14 @@ class PingWardenMonitor: @unchecked Sendable {
                 self.pendingEnable = nil
             }
             guard self.isCurrentProtectionOperation(operationID) else {
+                // A dropped connection ends the command without superseding
+                // it. An invalid connection fails its validation request
+                // first, and that teardown must not hide this failure.
+                if self.wasEndedByConnectionDrop(operationID) {
+                    log.error("The helper connection failed before it confirmed enabling Ping Protection")
+                    self.recordCommandTimeout()
+                    self.recordFailure(.protectionEnableFailed, problem: .protectionEnableFailed, failure: self.lastCommandFailure)
+                }
                 self.notifyStateChange()
                 request.finish(false)
                 return
@@ -1183,7 +1243,12 @@ class PingWardenMonitor: @unchecked Sendable {
             log.error("The helper did not confirm enabling Ping Protection")
             self.recordCommandTimeout()
             let failure = self.lastCommandFailure
-            self.recordFailure(.protectionEnableFailed, problem: .protectionEnableFailed, failure: failure)
+            self.recordFailure(
+                .protectionEnableFailed,
+                problem: .protectionEnableFailed,
+                failure: failure,
+                heldForLateReply: (operationID, lateReplyWaitEnds)
+            )
             // XPC preserves message order. Queueing a compensating enable-AWDL
             // command keeps a timed-out transient request from leaving AWDL
             // blocked without a session or visible owner.
@@ -1213,17 +1278,26 @@ class PingWardenMonitor: @unchecked Sendable {
         pendingEnable = request
         notifyStateChange()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + protectionCommandTimeout) {
             failUnanswered()
         }
 
+        let sentAt = ProcessInfo.processInfo.systemUptime
         proxy.setAWDLEnabled(false, reply: { [weak self] success in
+            // Timed here, before the main-queue hop, so a busy main thread
+            // does not stretch the measured delay.
+            let replyDelay = ProcessInfo.processInfo.systemUptime - sentAt
             guard let monitor = self else { return }
             DispatchQueue.main.async {
                 // Even a reply that arrives after the deadline proves the
                 // helper answers.
                 monitor.helperResponded()
-                guard claimCompletion() else { return }
+                guard claimCompletion() else {
+                    // The deadline already failed this command. Its held
+                    // event now says how late the helper answered.
+                    monitor.releaseHeldTimeoutReport(for: operationID, replyDelay: replyDelay)
+                    return
+                }
                 if monitor.pendingEnable === request {
                     monitor.pendingEnable = nil
                 }
@@ -1361,7 +1435,7 @@ class PingWardenMonitor: @unchecked Sendable {
             notifyStateChange()
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + protectionCommandTimeout) {
             failUnanswered()
         }
 
@@ -1593,6 +1667,15 @@ class PingWardenMonitor: @unchecked Sendable {
         stateLock.lock()
         defer { stateLock.unlock() }
         return operationID == _protectionOperationGeneration
+    }
+
+    /// Whether `operationID` stopped being current only because its
+    /// connection dropped, with no newer protection command since.
+    private func wasEndedByConnectionDrop(_ operationID: UInt64) -> Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard let drop = _operationEndedByConnectionDrop else { return false }
+        return drop.ended == operationID && drop.next == _protectionOperationGeneration
     }
 
     /// Atomically increment the XPC retry counter and return the new value.
@@ -1841,8 +1924,10 @@ class PingWardenMonitor: @unchecked Sendable {
         _xpcConnection = nil
         _confirmedMonitoring = false
         // Replies from the interrupted connection cannot confirm new state.
+        let endedOperationID = _protectionOperationGeneration
         _protectionOperationGeneration &+= 1
         let reconnectOperationID = _protectionOperationGeneration
+        _operationEndedByConnectionDrop = (endedOperationID, reconnectOperationID)
         let wasMonitoring = _isMonitoring
         stateLock.unlock()
 
