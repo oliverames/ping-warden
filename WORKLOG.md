@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-10-23 - Security and dead-code review
+
+**What changed:** Removed `OnboardingModel.enterLicenseTapped()`, which nothing has called since it arrived in #125.
+
+**Reviewed, no change needed:** The helper admits XPC peers through the listener's `connectionCodeSigningRequirement` (team ID plus the app and widget identifiers), refuses to serve when its own signature fails, and confines callers to root or the console user. It changes awdl0 with a fixed-name ioctl, and the app's `Process` calls (`route`, `ifconfig`, `launchctl`) use fixed argument arrays. Sparkle requires a signed feed with `SUVerifyUpdateBeforeExtraction`. The license key lives in the Keychain. The site has 0 npm advisories, and its worker only redirects production hosts to the canonical HTTPS origin. Gitleaks found nothing in history. The repository's default workflow token is read-only, so the workflows without a `permissions` block get no write access.
+
+**Verification:** The unsigned Release app built with `xcodebuild build -configuration Release -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO`.
+
+---
+
 ## 2026-10-23 - Visual consistency pass across every window
 
 **What changed:** Reviewed every window state and fixed the layout bugs and inconsistencies it turned up ([#147](https://github.com/oliverames/ping-warden/pull/147)). The setup window keeps one 528-point height from Protection through Done, so the footer buttons stay put, and the current approval card's accent outline draws now. The dashboard uses one status palette, draws its chart as soon as samples exist, keeps the Network Quality card's height when a probe fails, and shows Ping Protection side by side at the default window size. Settings buttons are one size across panes, and busy buttons keep their width. The latest-value chart label never rendered, so it's gone.
