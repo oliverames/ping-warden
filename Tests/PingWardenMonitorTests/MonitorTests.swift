@@ -1139,6 +1139,26 @@ do {
     check(problemSignals(signals).count == 1, "a reply after the wait adds no second event")
 }
 
+// The wait ends a fixed time after the command was sent. A main thread that
+// stalls past the whole wait runs the timeout late, and the event must go
+// out at once instead of starting a fresh grace from the late timeout.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    // The wait ends 1.2 s after the send. The stall ends at 1.5 s, so a
+    // grace restarted from the late timeout would not end until 2.5 s.
+    monitor.harnessCommandTiming(timeout: 0.2, lateReplyGrace: 1.0)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    monitor.startMonitoring(persistUserPreference: false)
+    _ = take(monitor.harnessConnection!.helper, \.commands)
+    Thread.sleep(forTimeInterval: 1.5)
+    spin(until: { !problemSignals(signals).isEmpty }, timeout: 0.6)
+    let silent = HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .timedOut, lateReply: HelperLateReply.none)
+    check(problemSignals(signals) == [.problem(silent)],
+          "a timeout that runs after the wait has ended is reported without a second wait: \(problemSignals(signals))")
+}
+
 // A quit hands over a held event at once, with no late-reply value because
 // the wait did not finish, and the wait ending later sends nothing.
 do {

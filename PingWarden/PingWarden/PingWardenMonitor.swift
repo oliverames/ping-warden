@@ -68,9 +68,10 @@ class PingWardenMonitor: @unchecked Sendable {
     /// How long the helper gets to confirm turning protection on or off.
     private var protectionCommandTimeout: TimeInterval = 5.0
 
-    /// How long a timed-out enable's event waits for the helper's late
-    /// reply, counted from the timeout. 30 seconds after the command was
-    /// sent, the event goes out saying no reply came.
+    /// How much longer than `protectionCommandTimeout` a timed-out enable's
+    /// event waits for the helper's late reply. The wait ends 30 seconds
+    /// after the command was sent, however late the timeout itself runs,
+    /// and the event then says no reply came.
     private var lateReplyGrace: TimeInterval = 25.0
 
     /// Enable timeouts whose events wait for a late reply, by operation.
@@ -542,8 +543,8 @@ class PingWardenMonitor: @unchecked Sendable {
     /// synchronous SMAppService call to a failure path, and reporting may
     /// be off.
     ///
-    /// With `heldForLateReplyTo` (main thread only), a timeout's event
-    /// waits for that operation's late reply (see
+    /// With `heldForLateReply` (main thread only), a timeout's event waits
+    /// until that operation's late reply or the given deadline (see
     /// `releaseHeldTimeoutReport`), so it can say whether the helper was
     /// slow or silent.
     private func recordFailure(
@@ -551,7 +552,7 @@ class PingWardenMonitor: @unchecked Sendable {
         problem: HelperProblem,
         failure: HelperCommandFailure? = nil,
         error: NSError? = nil,
-        heldForLateReplyTo operationID: UInt64? = nil
+        heldForLateReply hold: (operationID: UInt64, until: DispatchTime)? = nil
     ) {
         if let breadcrumb {
             emitTelemetry(.breadcrumb(breadcrumb))
@@ -562,13 +563,13 @@ class PingWardenMonitor: @unchecked Sendable {
             failure: failure,
             error: error
         )
-        guard let operationID, failure == .timedOut else {
+        guard let hold, failure == .timedOut else {
             emitTelemetry(.problem(report))
             return
         }
-        heldTimeoutReports[operationID] = report
-        DispatchQueue.main.asyncAfter(deadline: .now() + lateReplyGrace) { [weak self] in
-            self?.releaseHeldTimeoutReport(for: operationID, replyDelay: nil)
+        heldTimeoutReports[hold.operationID] = report
+        DispatchQueue.main.asyncAfter(deadline: hold.until) { [weak self] in
+            self?.releaseHeldTimeoutReport(for: hold.operationID, replyDelay: nil)
         }
     }
 
@@ -1212,6 +1213,9 @@ class PingWardenMonitor: @unchecked Sendable {
                 return true
             }
         }
+        // Fixed from the send, so a main thread that runs the timeout late
+        // cannot stretch the wait for a late reply.
+        let lateReplyWaitEnds = DispatchTime.now() + protectionCommandTimeout + lateReplyGrace
         // A timeout and an XPC error on this command both mean the helper
         // never confirmed it.
         let failUnanswered: @Sendable () -> Void = { [weak self] in
@@ -1243,7 +1247,7 @@ class PingWardenMonitor: @unchecked Sendable {
                 .protectionEnableFailed,
                 problem: .protectionEnableFailed,
                 failure: failure,
-                heldForLateReplyTo: operationID
+                heldForLateReply: (operationID, lateReplyWaitEnds)
             )
             // XPC preserves message order. Queueing a compensating enable-AWDL
             // command keeps a timed-out transient request from leaving AWDL
