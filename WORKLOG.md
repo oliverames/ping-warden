@@ -8,11 +8,11 @@
 
 **Decisions made:** Oliver declined computer-use control of the fixture, so a scratch-only patch adds a Debug capture tour that shows each window without taking focus, and the shell captures them by window ID. The method is in memory as the capture-tour reference. Liquid Glass stays on the dashboard cards (7424c6f). The Network Quality hero stays colored by the smoothed median quality. CI triggers aren't path-scoped, because main's ruleset requires `build`, `linux-core-tests`, `shell-lint`, and CodeQL on every PR.
 
-**Still open:** In the unlicensed state the dashboard shows both "Unlock Ping Protection" and "Finish Setup…", and which one leads is Oliver's call.
+**Still open:** In the unlicensed state the dashboard shows both "Unlock Ping Protection" and "Finish Setup…", and which one leads is Oliver's call ([#148](https://github.com/oliverames/ping-warden/issues/148)). The status menu and the Control Center control weren't captured, and nothing was checked on macOS versions before 26.
 
-**Left off at:** PR #147 merges once its required checks pass on the last push. The verification pass caught a taller Fastest Target row and a dropped time label at the chart's trailing edge, and both are fixed in the follow-up commit.
+**Left off at:** #147 merged as `891d443` after all six checks passed. The verification pass caught a taller Fastest Target row and a dropped time label at the chart's trailing edge, and both are fixed in the follow-up commit.
 
-**Open questions:** Whether the unlicensed dashboard should drop one of its two calls to action.
+**Open questions:** Whether the unlicensed dashboard should drop one of its two calls to action (#148).
 
 ---
 
