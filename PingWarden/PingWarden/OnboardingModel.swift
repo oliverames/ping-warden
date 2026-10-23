@@ -157,12 +157,6 @@ final class OnboardingModel: ObservableObject {
         }
     }
 
-    func enterLicenseTapped() {
-        guard !isPreview else { return }
-        navigator.show(.license)
-        stepDidChange()
-    }
-
     func openDashboardTapped() {
         guard !isPreview else { return }
         actions.openDashboard()
