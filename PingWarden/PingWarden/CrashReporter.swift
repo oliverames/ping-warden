@@ -18,10 +18,12 @@
 //      context, frame variables, extra data, tags, the request, the
 //      event-level stack trace, and the transaction name are removed.
 //    • Non-fatal helper error events built only from enumerated fields: the
-//      problem name, the helper's registration state, an allowlisted error
-//      domain and numeric code, the app version, and the macOS version. At
-//      most one per problem every 30 minutes (persisted across launches)
-//      and ten per app run.
+//      problem name, the helper's registration state, the failure reason,
+//      an allowlisted error domain and numeric code, the app version, and
+//      the macOS version. An enable that timed out waits up to 30 seconds
+//      for a late reply and adds its coarse delay range (HelperLateReply).
+//      At most one per problem every 30 minutes (persisted across
+//      launches) and ten per app run.
 //    • Release health: one session per app run (start, end, crashed or not)
 //      with a random installation identifier created by the SDK.
 //    • On every event: app version and build, macOS name, version, and

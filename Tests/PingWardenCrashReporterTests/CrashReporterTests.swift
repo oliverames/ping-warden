@@ -346,8 +346,13 @@ struct CrashReporterTests {
         CrashReporter.record(.problem(timeout))
         check(SentrySDK.capturedEvents.count == 1, "a repeated problem inside the interval is dropped")
         clock += 61
-        CrashReporter.record(.problem(timeout))
+        CrashReporter.record(.problem(timeout.withLateReply(.under20Seconds)))
         check(SentrySDK.capturedEvents.count == 2, "the same problem is sent again after the interval")
+        if let event = SentrySDK.capturedEvents.last {
+            check(event.tags?["late_reply"] == "10_to_20s", "a held timeout's late-reply range survives scrubbing")
+            check(event.fingerprint == ["helper-problem", "protection_enable_failed", "timed_out", "none", "none"],
+                  "a late reply keeps the timeout's fingerprint")
+        }
         let declined = HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined)
         CrashReporter.record(.problem(declined))
         check(SentrySDK.capturedEvents.count == 2, "a different reason for the same problem shares its rate limit")

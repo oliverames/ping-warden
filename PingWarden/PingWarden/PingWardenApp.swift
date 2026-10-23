@@ -546,6 +546,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         log.info("Ping Warden terminating...")
         isTerminating = true
 
+        // A timed-out enable's event may still be waiting for a late reply.
+        // Record it on this thread, not through the main-queue hop the
+        // telemetry handler uses, so it is stored before the process exits.
+        PingWardenMonitor.shared.flushHeldTelemetry { CrashReporter.record($0) }
+
         gameModeDetector?.stop()
         protectionExperience.finishForTermination()
         protectionExperienceObservation = nil

@@ -62,6 +62,26 @@ enum HelperFailureReason: String, Sendable {
     }
 }
 
+/// When the helper answered a command that had already timed out, in coarse
+/// ranges measured from when the command was sent. `none` means no reply
+/// arrived while the event waited for one. A slow helper start answers
+/// late; a helper that is not running never does.
+enum HelperLateReply: String, Sendable, CaseIterable {
+    case under10Seconds = "under_10s"
+    case under20Seconds = "10_to_20s"
+    case over20Seconds = "over_20s"
+    case none
+
+    init(replyDelay: TimeInterval?) {
+        switch replyDelay {
+        case nil: self = .none
+        case let delay? where delay < 10: self = .under10Seconds
+        case let delay? where delay < 20: self = .under20Seconds
+        case _?: self = .over20Seconds
+        }
+    }
+}
+
 /// One scrubbed helper problem: every field is an enum value, an allowlisted
 /// error domain, or a number.
 struct HelperProblemReport: Equatable, Sendable {
@@ -81,15 +101,19 @@ struct HelperProblemReport: Equatable, Sendable {
     let failureReason: HelperFailureReason?
     let errorDomain: String?
     let errorCode: Int?
+    /// Set only on a timeout whose event waited for a late reply.
+    private(set) var lateReply: HelperLateReply?
 
     init(
         problem: HelperProblem,
         helperState: HelperDiagnosticState,
         failure: HelperCommandFailure? = nil,
-        error: NSError? = nil
+        error: NSError? = nil,
+        lateReply: HelperLateReply? = nil
     ) {
         self.problem = problem
         self.helperState = helperState
+        self.lateReply = lateReply
         self.failureReason = failure.map(HelperFailureReason.init)
         if let error {
             errorDomain = Self.reportableDomain(error.domain)
@@ -106,6 +130,13 @@ struct HelperProblemReport: Equatable, Sendable {
 
     static func reportableDomain(_ domain: String) -> String {
         reportableErrorDomains.contains(domain) ? domain : "other"
+    }
+
+    /// This report with what its wait for a late reply observed.
+    func withLateReply(_ lateReply: HelperLateReply) -> HelperProblemReport {
+        var report = self
+        report.lateReply = lateReply
+        return report
     }
 
     /// Rate-limit key: one event per problem per interval, whatever its
@@ -138,6 +169,7 @@ struct HelperProblemReport: Equatable, Sendable {
             "macos_version": macOSVersion,
         ]
         if let failureReason { tags["failure_reason"] = failureReason.rawValue }
+        if let lateReply { tags["late_reply"] = lateReply.rawValue }
         if let errorDomain { tags["error_domain"] = errorDomain }
         if let errorCode { tags["error_code"] = String(errorCode) }
         return tags
