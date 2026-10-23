@@ -1113,7 +1113,13 @@ struct PingGraphCard: View {
                 AxisGridLine()
                 AxisTick()
                 if let date = value.as(Date.self) {
-                    AxisValueLabel {
+                    // The plot runs to the card's edge, so a tick in the
+                    // last 15% of the window has no room for a label to its
+                    // right; that one sits to the left of its tick instead
+                    // of being dropped.
+                    let nearTrailingEdge = snapshot.windowEnd.timeIntervalSince(date)
+                        < TimeInterval(snapshot.timeframeMinutes * 60) * 0.15
+                    AxisValueLabel(anchor: nearTrailingEdge ? .topTrailing : nil) {
                         if ChartTimeAxis.labelsIncludeSeconds(forTimeframeMinutes: snapshot.timeframeMinutes) {
                             Text(date, format: .dateTime.hour().minute().second())
                                 .font(.caption2.monospacedDigit())
@@ -1742,22 +1748,9 @@ struct ServerSelectionSettingsSection: View {
                 }
             }
 
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                // Titled like the Ping Target and Update Interval rows.
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Fastest Target")
-                    Text("Compare available ping targets")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let selectedTarget = viewModel.selectedTarget,
-                       let baseline = viewModel.baselineLatencyResults[selectedTarget.id] {
-                        Text(String(format: "Baseline %.0f ms", baseline))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
+            // A titled row with its button laid out like the Settings rows
+            // that use LabeledContent, so it matches their height.
+            LabeledContent {
                 Button {
                     viewModel.autoSelectNearestEndpoint()
                 } label: {
@@ -1777,6 +1770,20 @@ struct ServerSelectionSettingsSection: View {
                         ? "Finding fastest ping target"
                         : "Find fastest ping target"
                 )
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Fastest Target")
+                    Text("Compare available ping targets")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let selectedTarget = viewModel.selectedTarget,
+                       let baseline = viewModel.baselineLatencyResults[selectedTarget.id] {
+                        Text(String(format: "Baseline %.0f ms", baseline))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             if let autoSelectionError = viewModel.autoSelectionError {

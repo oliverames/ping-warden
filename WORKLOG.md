@@ -1,5 +1,21 @@
 # Ping Warden Worklog
 
+## 2026-10-23 - Visual consistency pass across every window
+
+**What changed:** Reviewed every window state and fixed the layout bugs and inconsistencies it turned up ([#147](https://github.com/oliverames/ping-warden/pull/147)). The setup window keeps one 528-point height from Protection through Done, so the footer buttons stay put, and the current approval card's accent outline draws now. The dashboard uses one status palette, draws its chart as soon as samples exist, keeps the Network Quality card's height when a probe fails, and shows Ping Protection side by side at the default window size. Settings buttons are one size across panes, and busy buttons keep their width. The latest-value chart label never rendered, so it's gone.
+
+**Verification:** I captured every Settings pane, the dashboard, all 17 setup previews, About, the transition notice, and the diagnostics sheet from an isolated Debug build of the 92 Test fixture, in light and dark, at the default, tall, and 760 by 520 sizes, and in the paid, unlicensed, and transition license states. Six review agents measured the code and the captures, and a seventh compared before and after captures for regressions. `scripts/test_presentation.py` passed all 37 checks. The status menu and the Control Center control weren't captured, and nothing was checked on macOS versions before 26.
+
+**Decisions made:** Oliver declined computer-use control of the fixture, so a scratch-only patch adds a Debug capture tour that shows each window without taking focus, and the shell captures them by window ID. The method is in memory as the capture-tour reference. Liquid Glass stays on the dashboard cards (7424c6f). The Network Quality hero stays colored by the smoothed median quality. CI triggers aren't path-scoped, because main's ruleset requires `build`, `linux-core-tests`, `shell-lint`, and CodeQL on every PR.
+
+**Still open:** In the unlicensed state the dashboard shows both "Unlock Ping Protection" and "Finish Setup…", and which one leads is Oliver's call.
+
+**Left off at:** PR #147 merges once its required checks pass on the last push. The verification pass caught a taller Fastest Target row and a dropped time label at the chart's trailing edge, and both are fixed in the follow-up commit.
+
+**Open questions:** Whether the unlicensed dashboard should drop one of its two calls to action.
+
+---
+
 ## 2026-10-20 - Gumroad reviews on the home page, and discoverability follow-ups
 
 **What changed:** Added the written Gumroad reviews to the home page testimonials, quoted verbatim with the existing "Verified buyer" attribution ([#141](https://github.com/oliverames/ping-warden/pull/141), commits `f42b576` and `2a6581d`). The page now shows six Gumroad reviews and the two Reddit comments that were already there. Drafted replies to the two unanswered Gumroad reviews and to the new one. They are drafts only and were not posted. Opened [#140](https://github.com/oliverames/ping-warden/issues/140): the Protection-on panel in the off-vs-on image shows an 83 ms spike, and the image is labeled 4.3.2 while the current release is 4.4.0. Opened [#142](https://github.com/oliverames/ping-warden/issues/142) for search and discoverability work beyond per-page metadata, and [#143](https://github.com/oliverames/ping-warden/issues/143) for the Reddit comments that are still pending.

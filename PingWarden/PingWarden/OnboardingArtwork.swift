@@ -178,6 +178,8 @@ struct NotificationBannerArt: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
+        // Full width, so the banner keeps the same inset as its neighbors.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .modifier(MiniPanel())
         .padding(.horizontal, MiniPanel.inset)
     }
