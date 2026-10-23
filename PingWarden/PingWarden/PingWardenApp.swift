@@ -1110,8 +1110,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         updateQuickActionMenuItems()
         handleMenuMetricsPreferenceChange()
 
-        statusMenu?.addItem(NSMenuItem.separator())
-
         // Settings
         let settingsItem = NSMenuItem(
             title: "Settings…",
@@ -1275,7 +1273,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         var frame = window.frame
         frame.size.height = min(target, visible.height)
         frame.origin.y = max(visible.minY, min(frame.origin.y, visible.maxY - frame.height))
-        window.setFrame(frame, display: true, animate: true)
+        window.setFrame(frame, display: true, animate: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
     }
 
     @objc func openAbout() {
@@ -2251,12 +2249,11 @@ struct SettingsContentView: View {
 
     private var dashboardContent: some View {
         Group {
+            // DashboardSettingsContent pads all four sides by 20, so the
+            // last card ends as far from the bottom as the first starts
+            // below the toolbar.
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    DashboardSettingsContent()
-                }
-
-                Spacer(minLength: 20)
+                DashboardSettingsContent()
             }
             .scrollContentBackground(.hidden)
             .settingsScrollEdgeTreatment()
@@ -2293,7 +2290,9 @@ struct StatusBadge: View {
             .fontWeight(.semibold)
             .foregroundStyle(.white)
             .padding(.horizontal, 8)
-            .padding(.vertical, 3)
+            // No taller than a line of body text, so a row with a badge
+            // keeps the height and title position of its neighbors.
+            .padding(.vertical, 1.5)
             .background(fillColor, in: Capsule())
             .accessibilityLabel(voiceOverLabel)
     }
@@ -2309,6 +2308,28 @@ struct StatusBadge: View {
         switch tint {
         case .unavailable, .informational: return "\(text)"
         }
+    }
+}
+
+/// A button title that a spinner stands in for while work runs. The title
+/// keeps its place, so the button and the row around it do not change
+/// width when the spinner appears.
+struct BusyButtonLabel: View {
+    let title: String
+    let isBusy: Bool
+
+    var body: some View {
+        Text(title)
+            .opacity(isBusy ? 0 : 1)
+            .overlay {
+                if isBusy {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
+            .accessibilityValue(isBusy ? "In progress" : "")
     }
 }
 
@@ -2473,12 +2494,7 @@ struct GeneralSettingsContent: View {
                         Button {
                             finishSetup()
                         } label: {
-                            if setupInProgress {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Text("Finish Setup…")
-                            }
+                            BusyButtonLabel(title: "Finish Setup…", isBusy: setupInProgress)
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(setupInProgress)
@@ -2545,8 +2561,11 @@ struct GeneralSettingsContent: View {
                                     }
                                 }
                             } label: {
+                                // The glyph alone was a 10-point target.
                                 Image(systemName: "arrow.counterclockwise")
                                     .font(.caption)
+                                    .frame(width: 20, height: 20)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(.secondary)
@@ -2644,14 +2663,17 @@ struct GeneralSettingsContent: View {
                 )) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
+                            // Dimmed like Show Dock Icon: the custom label
+                            // does not dim with the disabled toggle.
                             Text(InterfaceVisibilityCopy.controlCenterOnlyTitle)
+                                .foregroundStyle(controlCenterAvailability.isAvailable ? .primary : .tertiary)
                             if !controlCenterAvailability.isAvailable {
                                 StatusBadge(text: controlCenterAvailability.statusText, tint: .unavailable)
                             }
                         }
                         Text(controlCenterAvailability.detailText)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(controlCenterAvailability.isAvailable ? .secondary : .tertiary)
                     }
                 }
                 .accessibilityLabel(InterfaceVisibilityCopy.controlCenterOnlyTitle)
@@ -2792,7 +2814,8 @@ struct LicenseSettingsContent: View {
     var body: some View {
         Form {
             Section {
-                VStack(alignment: .leading, spacing: 8) {
+                // Title and caption spaced like every other Settings row.
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
                         Image(systemName: license.canEnableProtection ? "checkmark.seal.fill" : "seal")
                             .foregroundStyle(license.canEnableProtection ? .green : .secondary)
@@ -2835,7 +2858,6 @@ struct LicenseSettingsContent: View {
                         Button("Email \(LicenseManager.donationConversionEmail)") {
                             NSWorkspace.shared.open(URL(string: "mailto:\(LicenseManager.donationConversionEmail)?subject=Ping%20Warden%20license%20from%20donation")!)
                         }
-                        .controlSize(.small)
                     }
                 } header: {
                     Text("Transition Period")
@@ -2856,7 +2878,6 @@ struct LicenseSettingsContent: View {
                         Button("Email \(LicenseManager.donationConversionEmail)") {
                             NSWorkspace.shared.open(URL(string: "mailto:\(LicenseManager.donationConversionEmail)?subject=Ping%20Warden%20license%20from%20donation")!)
                         }
-                        .controlSize(.small)
                     }
                 } header: {
                     Text("Donated Before?")
@@ -2864,7 +2885,7 @@ struct LicenseSettingsContent: View {
             }
 
             if let error = protectionExperience.lastError,
-               error.contains("license") {
+               error.localizedCaseInsensitiveContains("license") {
                 VStack(alignment: .leading, spacing: 4) {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -2878,7 +2899,7 @@ struct LicenseSettingsContent: View {
             }
         }
         .formStyle(.grouped)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .settingsScrollEdgeTreatment()
     }
 
     private var statusCaption: String {
@@ -2918,12 +2939,7 @@ struct LicenseSettingsContent: View {
                 Button {
                     submitLicenseKey()
                 } label: {
-                    if license.isVerifying {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Text("Verify")
-                    }
+                    BusyButtonLabel(title: "Verify", isBusy: license.isVerifying)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(license.isVerifying || keyField.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -3034,7 +3050,6 @@ struct AutomationSettingsContent: View {
                         Button("Enable Fullscreen Detection…") {
                             showingScreenRecordingPermissionAlert = true
                         }
-                        .controlSize(.small)
                     }
                 }
             }
@@ -3093,7 +3108,9 @@ struct AdvancedSettingsContent: View {
                         HStack(spacing: 8) {
                             Text("Send Crash Reports")
                             if crashReportingRelaunchRequired {
-                                StatusBadge(text: "Relaunch Required", tint: .unavailable)
+                                // A pending step, like Fullscreen Detection
+                                // Off, not a feature that is unavailable.
+                                StatusBadge(text: "Relaunch Required", tint: .informational)
                             }
                         }
                         Text("Sends anonymous crash reports, helper error codes, and app session counts. It never sends ping targets, IP addresses, host names, network names, or license keys. Turning this off takes effect immediately, after one record that the current session ended. Turning it on takes effect after you relaunch Ping Warden.")
@@ -3133,12 +3150,7 @@ struct AdvancedSettingsContent: View {
                     Button {
                         runHelperTest()
                     } label: {
-                        if isRunningHelperTest {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Text("Run Test")
-                        }
+                        BusyButtonLabel(title: "Run Test", isBusy: isRunningHelperTest)
                     }
                         .buttonStyle(.bordered)
                         .disabled(isRunningHelperTest)
@@ -3167,12 +3179,7 @@ struct AdvancedSettingsContent: View {
                     Button {
                         exportDiagnostics()
                     } label: {
-                        if isExportingDiagnostics {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Text("Create Snapshot")
-                        }
+                        BusyButtonLabel(title: "Create Snapshot", isBusy: isExportingDiagnostics)
                     }
                         .buttonStyle(.bordered)
                         .disabled(isExportingDiagnostics)
@@ -3482,6 +3489,9 @@ private struct DiagnosticsResultView: View {
                     .padding(12)
             }
             .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+            // The fill alone barely separates the scrolling contents from
+            // the sheet; the edge shows where the box and its overflow are.
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color(nsColor: .separatorColor)))
 
             HStack {
                 Button(copied ? "Copied" : "Copy Contents") {
@@ -3545,7 +3555,8 @@ struct AboutView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Spacer(minLength: 28)
+                // The divider sits midway between the tagline and the links.
+                Spacer(minLength: 20)
 
                 Divider()
 
@@ -3566,7 +3577,7 @@ struct AboutView: View {
                 }
                 .buttonStyle(.link)
                 .font(.caption)
-                .padding(.top, 12)
+                .padding(.top, 20)
 
                 VStack(spacing: 12) {
                     Text("Credits")
@@ -3579,7 +3590,7 @@ struct AboutView: View {
                             .font(.caption)
 
                         Text("AF_ROUTE monitoring concept")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
@@ -3588,14 +3599,14 @@ struct AboutView: View {
                             .font(.caption)
 
                         Text("SMAppService + XPC architecture")
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.vertical, 12)
 
                 Text("© 2025-2026 Oliver Ames")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.bottom, 16)
             }

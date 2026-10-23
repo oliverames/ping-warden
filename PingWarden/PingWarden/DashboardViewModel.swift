@@ -154,7 +154,12 @@ class DashboardViewModel: ObservableObject {
     private func refreshChartIfDue(force: Bool) {
         let now = Date()
         let bucket = ChartDownsampling.bucketSeconds(forTimeframeMinutes: selectedTimeframe)
-        guard force || ChartDownsampling.isRefreshDue(now: now, lastRefresh: lastChartRefresh, bucketSeconds: bucket) else {
+        // The pane's forced first build runs before the first snapshot
+        // fills the history. Draw those samples at once rather than leave
+        // "Collecting ping data…" under live numbers for a bucket's width.
+        let chartAwaitsFirstSamples = chart.snapshot.probePoints.isEmpty && !pingHistory.isEmpty
+        guard force || chartAwaitsFirstSamples
+            || ChartDownsampling.isRefreshDue(now: now, lastRefresh: lastChartRefresh, bucketSeconds: bucket) else {
             return
         }
         lastChartRefresh = now
