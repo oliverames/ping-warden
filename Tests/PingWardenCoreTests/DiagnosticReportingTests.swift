@@ -47,6 +47,24 @@ final class DiagnosticReportingTests: XCTestCase {
         XCTAssertEqual(rejected.errorCode, 4097)
     }
 
+    func testLateReplyDelaysMapToCoarseRanges() {
+        XCTAssertEqual(HelperLateReply(replyDelay: nil), .none)
+        XCTAssertEqual(HelperLateReply(replyDelay: 5.2), .under10Seconds)
+        XCTAssertEqual(HelperLateReply(replyDelay: 10), .under20Seconds)
+        XCTAssertEqual(HelperLateReply(replyDelay: 19.9), .under20Seconds)
+        XCTAssertEqual(HelperLateReply(replyDelay: 20), .over20Seconds)
+        XCTAssertEqual(HelperLateReply.allCases.map(\.rawValue), ["under_10s", "10_to_20s", "over_20s", "none"])
+    }
+
+    func testLateReplyIsATagButNotPartOfTheFingerprint() {
+        let timeout = HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .timedOut)
+        let slow = timeout.withLateReply(.under10Seconds)
+        XCTAssertNil(timeout.tags(appVersion: "1", macOSVersion: "2")["late_reply"])
+        XCTAssertEqual(slow.tags(appVersion: "1", macOSVersion: "2")["late_reply"], "under_10s")
+        XCTAssertEqual(slow.fingerprint, timeout.fingerprint, "late replies stay in the timeout's existing issue")
+        XCTAssertEqual(slow.rateLimitKey, timeout.rateLimitKey)
+    }
+
     func testFingerprintIsStableAndIgnoresHelperState() {
         let first = HelperProblemReport(problem: .repairFailed, helperState: .enabled, failure: .timedOut)
         let second = HelperProblemReport(problem: .repairFailed, helperState: .notFound, failure: .timedOut)

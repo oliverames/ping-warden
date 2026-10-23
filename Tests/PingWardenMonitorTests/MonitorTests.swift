@@ -27,6 +27,10 @@ extension PingWardenMonitor {
         helperReplyTimeout = 0.2
         helperRetryDelay = 0.05
     }
+    func harnessCommandTiming(timeout: TimeInterval, lateReplyGrace grace: TimeInterval) {
+        protectionCommandTimeout = timeout
+        lateReplyGrace = grace
+    }
     func harnessConnectRequested() -> NSXPCConnection {
         isMonitoring = true
         _desiredProtectionEnabled = true
@@ -1065,6 +1069,112 @@ do {
     ], "signals from before the handler existed are delivered once it is installed")
     monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
     check(signals.withValue { $0 }.count == 3, "held signals are delivered only once")
+}
+
+func problemSignals(_ signals: LockedValue<[HelperTelemetrySignal]>) -> [HelperTelemetrySignal] {
+    signals.withValue { $0 }.filter { if case .problem = $0 { return true } else { return false } }
+}
+
+// An invalid connection (no launchd job behind an enabled registration)
+// fails the validation request and the first enable together. The
+// validation's teardown must not hide the enable's failure (#145).
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let connection = monitor.harnessConnection!
+    check(connection.errorHandlers.count == 2, "launch sends a validation request, then the enable")
+    connection.failAllRequests(code: 4099)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    spin()
+    check(results.withValue { $0 } == [false], "an enable on an invalid connection fails")
+    let problems = problemSignals(signals)
+    check(problems == [.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .rejected(code: 4099)))],
+          "an enable ended by an invalid connection reports its XPC error once, without waiting: \(problems)")
+}
+
+// A timed-out enable's event waits for the helper's late reply and says how
+// late it came, so a slow helper start reads differently from a silent
+// helper (#145). The failure breadcrumb still goes out at the deadline.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessCommandTiming(timeout: 0.2, lateReplyGrace: 0.6)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let (_, reply) = take(monitor.harnessConnection!.helper, \.commands)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    check(results.withValue { $0 } == [false], "an unanswered enable fails at its deadline")
+    check(signals.withValue { $0 }.contains(.breadcrumb(.protectionEnableFailed)), "the failure breadcrumb goes out at the deadline")
+    check(problemSignals(signals).isEmpty, "the timeout's event waits for a late reply")
+    reply(true)
+    spin()
+    let late = HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .timedOut, lateReply: .under10Seconds)
+    check(problemSignals(signals) == [.problem(late)], "a late reply sends the held event with its delay range: \(problemSignals(signals))")
+    check(results.withValue { $0 } == [false], "a late reply does not complete the failed enable again")
+    spin(0.7)
+    check(problemSignals(signals).count == 1, "the end of the wait sends nothing more")
+}
+
+// With no late reply, the held event goes out when the wait ends, and a
+// reply after that adds nothing.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessCommandTiming(timeout: 0.2, lateReplyGrace: 0.3)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    monitor.startMonitoring(persistUserPreference: false)
+    let (_, reply) = take(monitor.harnessConnection!.helper, \.commands)
+    spin(until: { !problemSignals(signals).isEmpty }, timeout: 3)
+    let silent = HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .timedOut, lateReply: HelperLateReply.none)
+    check(problemSignals(signals) == [.problem(silent)], "a helper that never answers is reported as such: \(problemSignals(signals))")
+    reply(true)
+    spin()
+    check(problemSignals(signals).count == 1, "a reply after the wait adds no second event")
+}
+
+// A quit hands over a held event at once, with no late-reply value because
+// the wait did not finish, and the wait ending later sends nothing.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessCommandTiming(timeout: 0.2, lateReplyGrace: 0.4)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    _ = take(monitor.harnessConnection!.helper, \.commands)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    var flushed: [HelperTelemetrySignal] = []
+    monitor.flushHeldTelemetry { flushed.append($0) }
+    check(flushed == [.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .timedOut))],
+          "a quit delivers the held event without a late-reply value: \(flushed)")
+    spin(0.5)
+    check(problemSignals(signals).isEmpty, "a flushed event is not sent again when the wait ends")
+}
+
+// An enable superseded by Off is not a failure, even when its connection
+// fails afterwards.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    monitor.startMonitoring(persistUserPreference: false)
+    let connection = monitor.harnessConnection!
+    monitor.stopMonitoring(persistUserPreference: false)
+    connection.failAllRequests(code: 4099)
+    spin(0.1)
+    let enableProblems = signals.withValue { $0 }.filter {
+        if case .problem(let report) = $0 { return report.problem == .protectionEnableFailed } else { return false }
+    }
+    check(enableProblems.isEmpty, "a superseded enable reports no enable failure: \(enableProblems)")
 }
 
 print("Monitor checks complete. Failures: \(failures.count)")
