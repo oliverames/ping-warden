@@ -73,9 +73,9 @@ struct LatencyTimelineEvent: Identifiable {
     var color: Color {
         switch kind {
         case .latencySpike:
-            return .orange
+            return LatencyPalette.fair
         case .awdlIntervention:
-            return .green
+            return LatencyPalette.excellent
         }
     }
 }
@@ -97,8 +97,13 @@ private enum DashboardLayout {
     static let cardCornerRadius: CGFloat = 10
     static let cardPadding: CGFloat = 18
     static let sectionSpacing: CGFloat = 12
+    /// A regular push button's height, the tallest control in a card header.
+    static let headerControlHeight: CGFloat = 24
 }
 
+/// The dashboard's one set of status colors: latency bands, protection
+/// state, intervention attempts and timeline events all draw from it, so
+/// a green or orange means the same shade everywhere on the page.
 private enum LatencyPalette {
     // Light variants are darker so they hit WCAG AA (>=4.5:1) against
     // .regularMaterial; dark variants keep the original vivid palette which
@@ -149,6 +154,12 @@ private extension View {
             .padding(DashboardLayout.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .modifier(DashboardCardBackground())
+    }
+
+    /// A header with no button keeps the height of one that has a button,
+    /// so every card's title sits the same distance below its top edge.
+    func dashboardCardHeader() -> some View {
+        frame(minHeight: DashboardLayout.headerControlHeight)
     }
 }
 
@@ -410,6 +421,7 @@ struct ProtectedSessionCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Unlock Ping Protection", systemImage: "shield.lefthalf.filled")
                 .font(.headline)
+                .dashboardCardHeader()
             Text("Help reduce Wi-Fi latency spikes caused by nearby Apple-device activity. Includes protected sessions with a recap of each game or call.")
                 .font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true)
@@ -749,17 +761,19 @@ struct StatusCard: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Network Quality")
                 .font(.headline)
+                .dashboardCardHeader()
 
             ViewThatFits(in: .horizontal) {
+                // Fixed vertically so the divider spans the taller column.
                 HStack(alignment: .top, spacing: 24) {
                     currentPingBlock
                         .frame(minWidth: 120, alignment: .leading)
 
                     Divider()
-                        .frame(height: 80)
 
                     metricGrid(isProtectionActive: isProtectionActive)
                 }
+                .fixedSize(horizontal: false, vertical: true)
 
                 VStack(alignment: .leading, spacing: 16) {
                     currentPingBlock
@@ -772,6 +786,33 @@ struct StatusCard: View {
     }
 
     private var currentPingBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .topLeading) {
+                // Holds the height of a reading, so the card and everything
+                // below it stay put while measuring or when a probe fails.
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("00")
+                        .font(.system(size: heroPingSize, weight: .bold, design: .rounded))
+                    Label("Excellent", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline)
+                }
+                .hidden()
+
+                currentPingState
+            }
+
+            if let selectedTarget = viewModel.selectedTarget {
+                Text(selectedTarget.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(currentPingAccessibilityLabel)
+    }
+
+    private var currentPingState: some View {
         VStack(alignment: .leading, spacing: 8) {
             switch viewModel.latestProbeSucceeded {
             case nil:
@@ -811,21 +852,12 @@ struct StatusCard: View {
                     .font(.subheadline)
                     .foregroundStyle(colorForQuality(viewModel.stats.quality))
             }
-
-            if let selectedTarget = viewModel.selectedTarget {
-                Text(selectedTarget.displayName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(currentPingAccessibilityLabel)
     }
 
     private var pingValueText: some View {
         Text(String(format: "%.0f", viewModel.stats.currentPing))
-            .font(.system(size: heroPingSize, weight: .bold, design: .rounded))
+            .font(.system(size: heroPingSize, weight: .bold, design: .rounded).monospacedDigit())
             .foregroundStyle(colorForQuality(viewModel.stats.quality))
             .contentTransition(.numericText())
     }
@@ -850,7 +882,7 @@ struct StatusCard: View {
                 MetricRow(
                     label: "Protection",
                     value: isProtectionActive ? "Active" : "Off",
-                    tint: isProtectionActive ? .green : .orange,
+                    tint: isProtectionActive ? LatencyPalette.excellent : LatencyPalette.fair,
                     useMonospacedValue: false
                 )
             }
@@ -904,22 +936,28 @@ struct MetricRow: View {
     /// do at default size; the previous fixed 74pt truncated long ones.
     @ScaledMetric(relativeTo: .caption) private var labelColumnWidth: CGFloat = 74
 
+    /// Room for a four-digit reading ("1250 ms"), so a longer Worst value
+    /// during a spike doesn't push the second column sideways.
+    @ScaledMetric(relativeTo: .callout) private var valueColumnWidth: CGFloat = 52
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: labelColumnWidth, alignment: .leading)
 
-            if useMonospacedValue {
-                Text(value)
-                    .font(.callout.monospacedDigit())
-                    .foregroundStyle(tint)
-            } else {
-                Text(value)
-                    .font(.callout)
-                    .foregroundStyle(tint)
+            Group {
+                if useMonospacedValue {
+                    Text(value)
+                        .font(.callout.monospacedDigit())
+                } else {
+                    Text(value)
+                        .font(.callout)
+                }
             }
+            .foregroundStyle(tint)
+            .frame(minWidth: valueColumnWidth, alignment: .leading)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label): \(value)")
@@ -964,8 +1002,10 @@ struct PingGraphCard: View {
 
                     Spacer(minLength: 12)
 
+                    // Ends at the card's trailing edge like every other
+                    // header control, instead of centering in its frame.
                     timeframePicker
-                        .frame(maxWidth: 390)
+                        .frame(maxWidth: 390, alignment: .trailing)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -973,7 +1013,7 @@ struct PingGraphCard: View {
                         .font(.headline)
 
                     timeframePicker
-                        .frame(maxWidth: 390)
+                        .frame(maxWidth: 390, alignment: .leading)
                 }
             }
 
@@ -991,7 +1031,9 @@ struct PingGraphCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                .frame(height: 170)
+                // The chart's height, so the card keeps its size when the
+                // first sample arrives.
+                .frame(height: 190)
                 .frame(maxWidth: .infinity)
             } else {
                 latencyChart(snapshot)
@@ -1038,14 +1080,9 @@ struct PingGraphCard: View {
                 )
                 .foregroundStyle(LatencyPalette.forLatency(latestPoint.latencyMs))
                 .symbolSize(42)
-                .annotation(position: .top, alignment: .trailing) {
-                    Text("\(Int(latestPoint.latencyMs.rounded())) ms")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(.quaternary.opacity(0.35), in: Capsule())
-                }
+                // No value label: inside the glass card it drew as a
+                // clipped sliver or not at all, and the Network Quality
+                // card directly above already shows the current reading.
             }
 
             ForEach(snapshot.events) { event in
@@ -1069,10 +1106,6 @@ struct PingGraphCard: View {
         }
         .chartXScale(domain: snapshot.windowStart...snapshot.windowEnd)
         .chartYScale(domain: 0...snapshot.yUpperBound)
-        .chartPlotStyle { plotArea in
-            plotArea
-                .padding(.trailing, 34)
-        }
         .chartXAxis {
             // Clock-aligned ticks keep the same Date values from one redraw
             // to the next; see ChartTimeAxis for why that matters.
@@ -1167,14 +1200,19 @@ struct PingGraphCard: View {
         (100, "Poor", LatencyPalette.poor)
     ]
 
+    /// The latency bands on one row and the chart's markers on the next,
+    /// at every width that fits them; an adaptive grid split the bands and
+    /// left a marker alone on a third row in narrow windows.
     private var legend: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 14) {
-                legendItems
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
+                GridRow { latencyBandLegendItems }
+                GridRow { markerLegendItems }
             }
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 126), spacing: 10, alignment: .leading)], alignment: .leading, spacing: 6) {
-                legendItems
+                latencyBandLegendItems
+                markerLegendItems
             }
         }
         .font(.caption)
@@ -1183,14 +1221,18 @@ struct PingGraphCard: View {
     /// Each swatch matches its mark: dots for latency points, a dot for a
     /// failed probe, and a dashed line for timeline events.
     @ViewBuilder
-    private var legendItems: some View {
+    private var latencyBandLegendItems: some View {
         LegendItem(color: LatencyPalette.excellent, label: "Excellent", range: "<20 ms")
         LegendItem(color: LatencyPalette.good, label: "Good", range: "20–50 ms")
         LegendItem(color: LatencyPalette.fair, label: "Fair", range: "50–100 ms")
         LegendItem(color: LatencyPalette.poor, label: "Poor", range: "≥100 ms")
+    }
+
+    @ViewBuilder
+    private var markerLegendItems: some View {
         ChartEventLegendItem(color: LatencyPalette.poor, swatch: .dot, label: "Failed probe")
-        ChartEventLegendItem(color: .orange, swatch: .dashedLine, label: "Latency spike")
-        ChartEventLegendItem(color: .green, swatch: .dashedLine, label: "Intervention attempt")
+        ChartEventLegendItem(color: LatencyPalette.fair, swatch: .dashedLine, label: "Latency spike")
+        ChartEventLegendItem(color: LatencyPalette.excellent, swatch: .dashedLine, label: "Intervention attempt")
     }
 
     private var timeframePicker: some View {
@@ -1350,8 +1392,8 @@ struct LatencyTimelineCard: View {
     var body: some View {
         let events = viewModel.filteredTimelineEvents
 
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
                 Text("Latency Timeline")
                     .font(.headline)
                 Spacer()
@@ -1359,12 +1401,13 @@ struct LatencyTimelineCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .dashboardCardHeader()
 
             if events.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle")
                         .font(.caption)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(LatencyPalette.excellent)
                     Text("No notable events in selected timeframe.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -1374,6 +1417,7 @@ struct LatencyTimelineCard: View {
                     ForEach(events.suffix(Self.visibleEventLimit).reversed()) { event in
                         HStack(alignment: .top, spacing: 10) {
                             Image(systemName: event.symbol)
+                                .font(.caption)
                                 .foregroundStyle(event.color)
                                 .frame(width: 14)
                                 .accessibilityHidden(true)
@@ -1438,7 +1482,7 @@ struct InterventionsCard: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                     if error.localizedCaseInsensitiveContains("license") {
-                        Button("Buy a License… · $15") {
+                        Button("Buy a License · $15") {
                             NSWorkspace.shared.open(LicenseManager.purchaseURL(from: "dashboard-protection"))
                         }
                         .buttonStyle(.link)
@@ -1452,6 +1496,9 @@ struct InterventionsCard: View {
             }
 
             ViewThatFits(in: .horizontal) {
+                // 245 + 32 + 320 = 597 points, inside the default window's
+                // 624-point card. No trailing Spacer: its share of the
+                // spacing pushed this past the card and left it stacked.
                 HStack(alignment: .center, spacing: 32) {
                     interventionCountBlock
                         .frame(width: 245, alignment: .leading)
@@ -1459,8 +1506,6 @@ struct InterventionsCard: View {
                     interventionStatusBlock(isProtectionActive: isProtectionActive)
                         .frame(minWidth: 320, maxWidth: 560, alignment: .leading)
                         .layoutPriority(1)
-
-                    Spacer(minLength: 0)
                 }
 
                 VStack(alignment: .leading, spacing: 14) {
@@ -1587,8 +1632,8 @@ struct InterventionsCard: View {
 
     private var interventionCountText: some View {
         Text("\(viewModel.interventionCount)")
-            .font(.system(size: heroCountSize, weight: .bold, design: .rounded))
-            .foregroundStyle(.green)
+            .font(.system(size: heroCountSize, weight: .bold, design: .rounded).monospacedDigit())
+            .foregroundStyle(LatencyPalette.excellent)
             .contentTransition(.numericText())
     }
 
@@ -1606,7 +1651,7 @@ struct InterventionsCard: View {
                 // intervention marker.
                 Label("Intervention attempts recorded", systemImage: "arrow.counterclockwise")
                     .font(.subheadline)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(LatencyPalette.excellent)
 
                 Text("Ping Warden made \(viewModel.interventionCount) attempt\(viewModel.interventionCount == 1 ? "" : "s") to turn off AWDL. Attempts do not confirm successful interventions or latency spikes prevented.")
                     .font(.caption)
@@ -1618,7 +1663,7 @@ struct InterventionsCard: View {
                     systemImage: isProtectionActive ? "checkmark.shield" : "pause.circle"
                 )
                 .font(.subheadline)
-                .foregroundStyle(isProtectionActive ? .green : .orange)
+                .foregroundStyle(isProtectionActive ? LatencyPalette.excellent : LatencyPalette.fair)
 
                 Text(isProtectionActive ? "Ping Protection is active." : "Turn on Ping Protection to block AWDL activation attempts.")
                     .font(.caption)
@@ -1693,13 +1738,14 @@ struct ServerSelectionSettingsSection: View {
                     Button("Retry") {
                         viewModel.refreshGeForceNOWTargetsOnDemand()
                     }
-                    .controlSize(.small)
                     .accessibilityLabel("Retry refreshing GeForce NOW zones")
                 }
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 12) {
+                // Titled like the Ping Target and Update Interval rows.
                 VStack(alignment: .leading, spacing: 2) {
+                    Text("Fastest Target")
                     Text("Compare available ping targets")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -1725,7 +1771,6 @@ struct ServerSelectionSettingsSection: View {
                         Text("Find Fastest Target")
                     }
                 }
-                .controlSize(.small)
                 .disabled(viewModel.isAutoSelectingTarget || viewModel.targets.isEmpty)
                 .accessibilityLabel(
                     viewModel.isAutoSelectingTarget
@@ -1872,7 +1917,6 @@ struct CustomServersSettingsSection: View {
                     } label: {
                         Label("Add Target", systemImage: "plus")
                     }
-                    .controlSize(.small)
                 }
             }
         } header: {

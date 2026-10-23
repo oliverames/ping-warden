@@ -27,9 +27,11 @@ enum OnboardingSpacing {
 struct OnboardingView: View {
     /// The window is 540 points wide and as tall as the current screen's
     /// content, so no screen carries a band of empty space. Shorter screens
-    /// keep a floor height so the window does not jump far between steps.
+    /// keep a floor height so the window does not jump between steps. The
+    /// floor fits Approve, the tallest step, so the footer buttons stay
+    /// under the pointer from Protection through Done.
     static let width: CGFloat = 540
-    static let minimumContentHeight: CGFloat = 400
+    static let minimumContentHeight: CGFloat = 420
     /// Accessibility text sizes scroll inside a window of this height.
     static let accessibilityHeight: CGFloat = 680
 
@@ -59,9 +61,10 @@ struct OnboardingView: View {
         .background(.background)
         .overlay(alignment: .topTrailing) {
             if model.mode == .repair {
-                // Level with the window controls in the transparent title bar.
+                // Level with the window controls in the transparent title
+                // bar: both centered 16 points from the top.
                 RepairBadge()
-                    .padding(.top, 14)
+                    .padding(.top, 6)
                     .padding(.trailing, 18)
                     .ignoresSafeArea(.container, edges: .top)
             }
@@ -511,7 +514,7 @@ private struct ProtectionScreen: View {
                 .monospacedDigit()
             }
             .padding(OnboardingSpacing.medium)
-            .frame(maxWidth: 444)
+            .frame(maxWidth: OnboardingSpacing.column)
             .modifier(OnboardingCardBackground())
 
             Caption(OnboardingCopy.protectionCaption)
@@ -531,10 +534,15 @@ private struct LicenseScreen: View {
 
             VStack(alignment: .leading, spacing: OnboardingSpacing.medium) {
                 if model.canEnableProtection {
-                    Label("License active", systemImage: "checkmark.circle.fill")
-                        .font(.headline)
-                        .foregroundStyle(.green)
-                        .frame(maxWidth: .infinity)
+                    // Green symbol, plain text, like Settings → License.
+                    Label {
+                        Text("License active")
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
                 } else {
                     keyEntry
                     Divider()
@@ -562,16 +570,12 @@ private struct LicenseScreen: View {
                     .autocorrectionDisabled()
                     .onSubmit { model.activateLicense() }
                     .accessibilityLabel("License Key")
+                // Regular size, the license field's height.
                 Button {
                     model.activateLicense()
                 } label: {
-                    if license.isVerifying {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text("Activate")
-                    }
+                    BusyButtonLabel(title: "Activate", isBusy: license.isVerifying)
                 }
-                .controlSize(.large)
                 .disabled(license.isVerifying
                           || model.licenseKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("onboarding.activate")
@@ -597,7 +601,6 @@ private struct LicenseScreen: View {
             }
             Spacer(minLength: OnboardingSpacing.small)
             Button("Buy a License…") { model.buyLicense() }
-                .controlSize(.large)
         }
     }
 }
@@ -641,8 +644,10 @@ private struct ApproveScreen: View {
                 Breadcrumb(levels: SystemSettingsCopy.switchBreadcrumb(osMajorVersion: Self.osMajorVersion(for: tracker.variant)))
             }
 
+            // Tall enough for a title over two lines of detail, so the
+            // window keeps its height as the status changes.
             ApprovalStatusView(line: tracker.statusLine)
-                .frame(minHeight: 44)
+                .frame(minHeight: 50)
 
             TrustCaption(showsHelperInfo: $model.showsHelperInfo)
         }
@@ -677,13 +682,15 @@ private struct TrustCaption: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: OnboardingSpacing.small) {
             Image(systemName: "lock")
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
+            // Hugs its wrapped lines, so the 400-point frame centers the
+            // lock and text together like everything else on the screen.
             Text(caption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: 400)
         .environment(\.openURL, OpenURLAction { url in
@@ -733,9 +740,10 @@ private struct ApprovalStatusView: View {
                     case .neutral:
                         EmptyView()
                     }
+                    // The symbol carries the color; colored headline text
+                    // was low contrast in light mode.
                     Text(title)
                         .font(.headline)
-                        .foregroundStyle(titleColor)
                 }
             }
             Text(line.detail)
@@ -747,14 +755,6 @@ private struct ApprovalStatusView: View {
         .frame(maxWidth: OnboardingSpacing.column)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.updatesFrequently)
-    }
-
-    private var titleColor: Color {
-        switch line.tone {
-        case .success: return .green
-        case .warning: return .orange
-        case .neutral, .progress: return .primary
-        }
     }
 }
 

@@ -51,8 +51,11 @@ struct OnboardingGlassGroup<Content: View>: View {
 }
 
 /// A small floating panel inside an illustration, standing in for a macOS
-/// banner, settings group, or sheet.
+/// banner, settings group, or sheet. The three approval cards share its
+/// radius and inset, so their panels line up side by side.
 private struct MiniPanel: ViewModifier {
+    static let inset: CGFloat = 8
+
     var cornerRadius: CGFloat = 10
     var shadow = true
 
@@ -96,6 +99,7 @@ struct ApprovalPreviewCard<Art: View>: View {
     let caption: String
     let state: HelperApprovalTracker.CardState
     @ViewBuilder var art: () -> Art
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 8) {
@@ -118,11 +122,13 @@ struct ApprovalPreviewCard<Art: View>: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 108)
-            .modifier(OnboardingCardBackground(cornerRadius: OnboardingMetrics.cardCornerRadius))
+            // The outline is glass content too; applied after the glass,
+            // it drew under the container's glass layer and never showed.
             .overlay(
                 RoundedRectangle(cornerRadius: OnboardingMetrics.cardCornerRadius, style: .continuous)
                     .strokeBorder(Color.accentColor, lineWidth: state == .current ? 1.5 : 0)
             )
+            .modifier(OnboardingCardBackground(cornerRadius: OnboardingMetrics.cardCornerRadius))
             .background(
                 RoundedRectangle(cornerRadius: OnboardingMetrics.cardCornerRadius + 3, style: .continuous)
                     .fill(Color.accentColor.opacity(state == .current ? 0.22 : 0))
@@ -137,6 +143,9 @@ struct ApprovalPreviewCard<Art: View>: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        // Eases the outline, dimming and check mark in with each step,
+        // at the same pace as the setup window's step changes.
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: state)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(caption)
         .accessibilityValue(Self.accessibilityValue(for: state))
@@ -169,8 +178,8 @@ struct NotificationBannerArt: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
-        .modifier(MiniPanel(cornerRadius: 11))
-        .padding(.horizontal, 7)
+        .modifier(MiniPanel())
+        .padding(.horizontal, MiniPanel.inset)
     }
 }
 
@@ -210,8 +219,8 @@ struct SwitchSectionArt: View {
             Divider()
             row { Skeleton(width: 38) } toggle: { MiniSwitch(isOn: false) }
         }
-        .modifier(MiniPanel(cornerRadius: 10, shadow: false))
-        .padding(.horizontal, 10)
+        .modifier(MiniPanel(shadow: false))
+        .padding(.horizontal, MiniPanel.inset)
     }
 
     @ViewBuilder
@@ -298,8 +307,8 @@ struct AuthenticationSheetArt: View {
         .padding(.horizontal, 8)
         .padding(.top, 8)
         .padding(.bottom, 7)
-        .modifier(MiniPanel(cornerRadius: 12))
-        .padding(.horizontal, 9)
+        .modifier(MiniPanel())
+        .padding(.horizontal, MiniPanel.inset)
     }
 }
 
@@ -361,9 +370,12 @@ struct LatencyIllustration: View {
                 GeometryReader { geometry in
                     ZStack(alignment: .topTrailing) {
                         ForEach(gridValues, id: \.self) { value in
+                            // Right-aligned, so every label sits the same
+                            // distance from the plot, as on the dashboard.
                             Text("\(Int(value))")
                                 .font(.system(size: 9).monospacedDigit())
                                 .foregroundStyle(.secondary)
+                                .frame(width: axisWidth, alignment: .trailing)
                                 .position(x: axisWidth / 2, y: y(for: value, height: geometry.size.height))
                         }
                     }
