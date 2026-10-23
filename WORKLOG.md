@@ -8,7 +8,11 @@
 
 **Verification:** The new invalid-connection harness check failed on unchanged code (no event) and passes with the fix. A mutation that disabled both changes failed all six new monitor checks. The monitor harness, coordinator harness (222 checks), crash-reporter tests (104 and 108 checks), `swift test --filter DiagnosticReportingTests` (29 tests), and the site build and check all passed. The Release app build status is recorded in the PR. Not verified: a real invalid connection or late reply on a signed build, and SentrySDK storing the flushed event before exit, which relies on the SDK writing its envelope during `capture`.
 
-**Left off at:** Waiting for Oliver to approve the disclosure wording before merge. The disable path has the same dropped-on-drop gap. It's left alone because PING-WARDEN-B's events are timeouts, not drops.
+**Review:** Codex found that the grace started when the timeout handler ran, so a stalled main thread could stretch the wait past 30 seconds. The wait is now fixed from the send (ae952bd), with a harness check that stalls the main thread. Its second finding, reserving the rate-limit slot for a held timeout, was declined: a held event only loses the slot to a newer failure that carries at least as much information.
+
+**Decisions made:** Oliver approved the disclosure wording on 2026-10-23 and asked to merge once CI passes.
+
+**Left off at:** #145 stays open until a release with this telemetry produces events. The disable path has the same gap, where a dropped connection's failure goes unreported. It's left alone because PING-WARDEN-B's events are timeouts, not drops. A coordinator-harness run under a load average of about 470 failed four timing-sensitive checks (B1, B14, and two #107 checks), and they passed on rerun at both commits.
 
 ## 2026-10-20 - Gumroad reviews on the home page, and discoverability follow-ups
 
