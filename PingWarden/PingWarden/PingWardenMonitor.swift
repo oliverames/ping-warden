@@ -557,6 +557,7 @@ class PingWardenMonitor: @unchecked Sendable {
         error: NSError? = nil,
         declineReason: HelperDeclineReason? = nil,
         posixError: Int = 0,
+        helperState: HelperDiagnosticState? = nil,
         heldForLateReply hold: (operationID: UInt64, until: DispatchTime)? = nil
     ) {
         if let breadcrumb {
@@ -564,7 +565,7 @@ class PingWardenMonitor: @unchecked Sendable {
         }
         let report = HelperProblemReport(
             problem: problem,
-            helperState: cachedDiagnosticState(),
+            helperState: helperState ?? cachedDiagnosticState(),
             failure: failure,
             error: error,
             declineReason: declineReason,
@@ -588,6 +589,9 @@ class PingWardenMonitor: @unchecked Sendable {
     func reportDeclinedDisable() {
         dispatchPrecondition(condition: .onQueue(.main))
         emitTelemetry(.breadcrumb(.protectionDisableFailed))
+        // The event describes the helper as it was when it declined, not
+        // after the round trip that asks it why.
+        let helperState = cachedDiagnosticState()
         let didReport = LockedValue(false)
         let report: @Sendable (HelperDeclineReason, Int) -> Void = { [weak self] reason, posixError in
             let claimed = didReport.withValue { reported in
@@ -602,7 +606,8 @@ class PingWardenMonitor: @unchecked Sendable {
                     problem: .protectionDisableFailed,
                     failure: .declined,
                     declineReason: reason,
-                    posixError: posixError
+                    posixError: posixError,
+                    helperState: helperState
                 )
             }
         }
