@@ -18,6 +18,25 @@ NS_ASSUME_NONNULL_BEGIN
 /// `log show` predicate covers both processes.
 os_log_t PingWardenHelperLog(void);
 
+/// Why the most recent `setAwdlEnabled:` returned NO. Raw values cross XPC
+/// and are mapped to fixed names by `HelperDeclineReason` in the app, so
+/// they must not be renumbered.
+typedef NS_ENUM(NSInteger, PingWardenCommandFailure) {
+    PingWardenCommandFailureNone = 0,
+    /// The helper is exiting and refuses new commands.
+    PingWardenCommandFailureShuttingDown = 1,
+    /// Blocking was asked for while the poll thread was not running.
+    PingWardenCommandFailureMonitorStopped = 2,
+    /// Reading awdl0's flags failed before any change.
+    PingWardenCommandFailureReadFailed = 3,
+    /// Writing awdl0's flags failed.
+    PingWardenCommandFailureWriteFailed = 4,
+    /// Reading the flags back after the change failed.
+    PingWardenCommandFailureConfirmReadFailed = 5,
+    /// The flags read back did not show the requested state.
+    PingWardenCommandFailureNotConfirmed = 6,
+};
+
 /// Monitors and controls the AWDL (awdl0) network interface.
 /// While awdlEnabled is NO, the monitor keeps awdl0 down: every AF_ROUTE
 /// wakeup and a periodic timeout re-read the interface's actual flags, so a
@@ -34,6 +53,10 @@ os_log_t PingWardenHelperLog(void);
 /// confirm the change, NO if the operation fails or the monitor has stopped.
 /// Allowing AWDL works even if the poll thread has died; blocking needs it.
 - (BOOL)setAwdlEnabled:(BOOL)enabled;
+
+/// Why the most recent `setAwdlEnabled:` failed, with the errno of a failed
+/// ioctl (0 when none). Reports None after a command that succeeded.
+- (PingWardenCommandFailure)lastCommandFailureWithPOSIXError:(NSInteger *_Nullable)posixError;
 
 /// Stop the monitoring thread and cleanup all resources.
 /// Should be called before the helper exits.

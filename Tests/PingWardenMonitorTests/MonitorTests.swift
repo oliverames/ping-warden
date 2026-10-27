@@ -14,6 +14,7 @@ extension PingWardenMonitor {
         SMAppService.registerCalls = 0
         SMAppService.unregisterCalls = 0
         FakeHelper.autoReplyVersion = nil
+        FakeHelper.lastFailure = (0, 0)
         let monitor = PingWardenMonitor(harness: ())
         // Registration polling runs in fixture time: 20 ms reads, a 200 ms
         // Not Registered grace period, and a 300 ms Login Items handoff.
@@ -959,6 +960,41 @@ do {
     check(recorded.contains(.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined))),
           "a declined enable reports one scrubbed problem")
     check(!recorded.contains(.breadcrumb(.protectionEnabled)), "a declined enable never claims protection")
+}
+
+// A declined turn-off reports the helper's own reason (#153). A helper
+// older than 4.4.1 is not asked, and the event says the reason is unknown.
+for (version, reason, posixError, asks) in [
+    ("4.4.1", HelperDeclineReason.writeFailed, 5, true),
+    ("4.4.0", HelperDeclineReason.unknown, 0, false),
+] {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let connection = confirmed(monitor)
+    FakeHelper.autoReplyVersion = version
+    FakeHelper.lastFailure = (4, 5)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.stopMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    take(connection.helper, \.commands).1(false)
+    let problems: () -> [HelperProblemReport] = {
+        signals.withValue { $0 }.compactMap { if case .problem(let report) = $0 { return report } else { return nil } }
+    }
+    spin(until: { !problems().isEmpty }, timeout: 3)
+    spin(0.1)
+    check(results.withValue { $0 } == [false], "a declined turn-off fails (\(version))")
+    check(signals.withValue { $0 }.contains(.breadcrumb(.protectionDisableFailed)),
+          "a declined turn-off leaves its breadcrumb (\(version))")
+    let expected = HelperProblemReport(
+        problem: .protectionDisableFailed,
+        helperState: .enabled,
+        failure: .declined,
+        declineReason: reason,
+        posixError: posixError
+    )
+    check(problems() == [expected], "a declined turn-off reports one event with the helper's reason (\(version)): \(problems())")
+    check(connection.helper.failureQueries == (asks ? 1 : 0), "only a helper that knows the question is asked (\(version))")
 }
 
 // A confirmed enable and disable leave only state breadcrumbs.

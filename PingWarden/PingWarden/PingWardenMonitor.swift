@@ -65,6 +65,9 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Pause between attempts while confirming the helper answers.
     private var helperRetryDelay: TimeInterval = 1.0
 
+    /// How long a declined turn-off's event waits for the helper's reason.
+    private var declineReasonTimeout: TimeInterval = 2.0
+
     /// How long the helper gets to confirm turning protection on or off.
     private var protectionCommandTimeout: TimeInterval = 5.0
 
@@ -552,6 +555,8 @@ class PingWardenMonitor: @unchecked Sendable {
         problem: HelperProblem,
         failure: HelperCommandFailure? = nil,
         error: NSError? = nil,
+        declineReason: HelperDeclineReason? = nil,
+        posixError: Int = 0,
         heldForLateReply hold: (operationID: UInt64, until: DispatchTime)? = nil
     ) {
         if let breadcrumb {
@@ -561,7 +566,9 @@ class PingWardenMonitor: @unchecked Sendable {
             problem: problem,
             helperState: cachedDiagnosticState(),
             failure: failure,
-            error: error
+            error: error,
+            declineReason: declineReason,
+            posixError: posixError
         )
         guard let hold, failure == .timedOut else {
             emitTelemetry(.problem(report))
@@ -571,6 +578,55 @@ class PingWardenMonitor: @unchecked Sendable {
         DispatchQueue.main.asyncAfter(deadline: hold.until) { [weak self] in
             self?.releaseHeldTimeoutReport(for: hold.operationID, replyDelay: nil)
         }
+    }
+
+    /// Report a declined turn-off with the helper's reason for it (#153).
+    /// Asks the helper's version first, because a helper older than
+    /// `HelperDeclineReason.minimumHelperVersion` was never taught the
+    /// question. The event goes out once, with `unknown` when no reason
+    /// arrives within `declineReasonTimeout`. Main thread.
+    func reportDeclinedDisable() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        emitTelemetry(.breadcrumb(.protectionDisableFailed))
+        let didReport = LockedValue(false)
+        let report: @Sendable (HelperDeclineReason, Int) -> Void = { [weak self] reason, posixError in
+            let claimed = didReport.withValue { reported in
+                guard !reported else { return false }
+                reported = true
+                return true
+            }
+            guard claimed else { return }
+            DispatchQueue.main.async {
+                self?.recordFailure(
+                    nil,
+                    problem: .protectionDisableFailed,
+                    failure: .declined,
+                    declineReason: reason,
+                    posixError: posixError
+                )
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + declineReasonTimeout) {
+            report(.unknown, 0)
+        }
+        guard let versionProxy = getHelperProxy(logsMissingConnection: false, onError: { _ in
+            report(.unknown, 0)
+        }) else {
+            report(.unknown, 0)
+            return
+        }
+        versionProxy.getVersion(reply: { [weak self] version in
+            guard HelperDeclineReason.helperCanReport(version: version),
+                  let reasonProxy = self?.getHelperProxy(logsMissingConnection: false, onError: { _ in
+                      report(.unknown, 0)
+                  }) else {
+                report(.unknown, 0)
+                return
+            }
+            reasonProxy.getLastCommandFailure(reply: { failure, posixError in
+                report(HelperDeclineReason(helperCode: failure), posixError)
+            })
+        })
     }
 
     /// Send a held timeout's event with what its wait observed: the delay
@@ -1473,7 +1529,7 @@ class PingWardenMonitor: @unchecked Sendable {
                     log.error("❌ Failed to enable AWDL")
                     monitor.recordCommandFailure(.declined)
                     if !compensating {
-                        monitor.recordFailure(.protectionDisableFailed, problem: .protectionDisableFailed, failure: .declined)
+                        monitor.reportDeclinedDisable()
                     }
                     PingWardenPreferences.shared.lastKnownState = "unknown"
                     monitor.notifyStateChange()

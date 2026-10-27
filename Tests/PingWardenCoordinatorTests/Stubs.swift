@@ -11,6 +11,7 @@ protocol PingWardenHelperProtocol: AnyObject {
     func getAWDLStatus(reply: @escaping (String) -> Void)
     func getAWDLInterventionCount(reply: @escaping (Int) -> Void)
     func resetAWDLInterventionCount(reply: @escaping (Bool) -> Void)
+    func getLastCommandFailure(reply: @escaping (Int, Int) -> Void)
 }
 final class FakeHelper: PingWardenHelperProtocol {
     var commands: [(Bool, (Bool) -> Void)] = []
@@ -31,6 +32,7 @@ final class FakeHelper: PingWardenHelperProtocol {
     }
     func getAWDLInterventionCount(reply: @escaping (Int) -> Void) { reply(0) }
     func resetAWDLInterventionCount(reply: @escaping (Bool) -> Void) { reply(true) }
+    func getLastCommandFailure(reply: @escaping (Int, Int) -> Void) { reply(0, 0) }
 }
 final class NSXPCConnection {
     struct Options { static let privileged = Options() }

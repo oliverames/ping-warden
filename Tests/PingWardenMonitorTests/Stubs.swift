@@ -7,6 +7,7 @@ protocol PingWardenHelperProtocol: AnyObject {
     func getAWDLStatus(reply: @escaping (String) -> Void)
     func getAWDLInterventionCount(reply: @escaping (Int) -> Void)
     func resetAWDLInterventionCount(reply: @escaping (Bool) -> Void)
+    func getLastCommandFailure(reply: @escaping (Int, Int) -> Void)
 }
 final class FakeHelper: PingWardenHelperProtocol {
     var commands: [(Bool, (Bool) -> Void)] = []
@@ -31,6 +32,13 @@ final class FakeHelper: PingWardenHelperProtocol {
     var resets: [(Bool) -> Void] = []
     func resetAWDLInterventionCount(reply: @escaping (Bool) -> Void) {
         if Self.holdsResetReplies { resets.append(reply) } else { reply(true) }
+    }
+    // The reason and errno the helper reports for its last declined command.
+    static var lastFailure = (0, 0)
+    var failureQueries = 0
+    func getLastCommandFailure(reply: @escaping (Int, Int) -> Void) {
+        failureQueries += 1
+        reply(Self.lastFailure.0, Self.lastFailure.1)
     }
 }
 final class NSXPCConnection {
