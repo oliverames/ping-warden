@@ -869,6 +869,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         welcomeWindow = window
         setupModel = model
+        CrashReporter.record(.breadcrumb(.setupWindowOpened))
 
         // Show dock icon while the setup window is open
         NSApp.setActivationPolicy(.regular)
@@ -939,6 +940,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         )
 
         let hostingController = NSHostingController(rootView: view)
+        // The window owns its size; see showAbout.
+        hostingController.sizingOptions = []
         hostingController.view.frame = NSRect(origin: .zero, size: LicenseTransitionNoticeView.contentSize)
 
         let window = NSWindow(
@@ -959,6 +962,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         licenseNoticeWindow = window
         LicenseManager.shared.recordTransitionNoticePresented()
+        CrashReporter.record(.breadcrumb(.licenseNoticeWindowOpened))
 
         NSApp.setActivationPolicy(.regular)
         window.makeKeyAndOrderFront(nil)
@@ -1376,6 +1380,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         }
 
         settingsWindow = window
+        CrashReporter.record(.breadcrumb(.settingsWindowOpened))
         window.makeKeyAndOrderFront(nil)
         updateDockIconVisibility()
     }
@@ -1390,12 +1395,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
         let aboutView = AboutView()
         let hostingController = NSHostingController(rootView: aboutView)
+        // The window owns its size, as Settings does. PING-WARDEN-D (#144)
+        // was AppKit's fatal "more Update Constraints in Window passes than
+        // there are views" exception, raised while a window took its frame
+        // from its hosting view's constraints and the new frame invalidated
+        // the hosting view's safe area again. With the default
+        // .standardBounds, About and the license notice were the only
+        // windows here sized that way. The style mask is also set when the
+        // window is made, so adding the full-size content view no longer
+        // resizes an open window.
+        hostingController.sizingOptions = []
+        let initialSize = NSSize(width: 420, height: 480)
+        hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
 
-        let window = NSWindow(contentViewController: hostingController)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: initialSize),
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentViewController = hostingController
         window.title = "About Ping Warden"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         window.minSize = NSSize(width: 380, height: 420)
         window.backgroundColor = .clear
         window.center()
@@ -1403,7 +1425,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.delegate = self
 
         aboutWindow = window
-        
+        CrashReporter.record(.breadcrumb(.aboutWindowOpened))
+
         // Show dock icon when about window opens
         NSApp.setActivationPolicy(.regular)
         
