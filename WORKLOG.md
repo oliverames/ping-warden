@@ -1,5 +1,17 @@
 # Ping Warden Worklog
 
+## 2026-10-27 - 4.4.1: window layout crash and turn-off decline reason
+
+**What changed:** Two fixes from the daily Sentry check, for [#144](https://github.com/oliverames/ping-warden/issues/144) (PING-WARDEN-D) and [#153](https://github.com/oliverames/ping-warden/issues/153) (PING-WARDEN-C), plus the version bump to 4.4.1 (build 44100). D was a fatal `NSGenericException` raised from `_changeWindowFrameFromConstraintsIfNecessary`, where a window took its frame from its hosting view's constraints and the new frame invalidated the hosting view's safe area again. About and the license transition notice were the only windows still using the default `.standardBounds`, so both now set `sizingOptions = []` and own their size, as Settings has since 2.4.3. About is also built with its style mask instead of gaining `.fullSizeContentView` after creation. For C, the helper records why `setAwdlEnabled:` returned NO (`PingWardenCommandFailure`: shutting down, monitor stopped, read failed, write failed, confirm read failed, not confirmed) with the errno of a failed ioctl, and answers a new `getLastCommandFailure` XPC request. A declined turn-off asks the helper's version first and asks for the reason only from 4.4.1 or later, so an older running helper never gets a selector it doesn't know. The event waits up to 2 seconds for the reason and goes out once.
+
+**Disclosure:** Events add a `decline_reason` tag and, for a failed ioctl, the errno as an `NSPOSIXErrorDomain` code. A reason without an errno keeps the existing fingerprint, so those events stay in PING-WARDEN-C. New `app.window` breadcrumbs record which window opened (setup, settings, about, license notice). README's "What crash reporting sends" and the CrashReporter header comment cover both, the site pages were rebuilt, and the overview's date moved to 2026-10-27.
+
+**Verification:** Written in a Linux cloud session without a Mac, so nothing here was built or run locally. CI runs the helper tests (plain, TSan, ASan), the monitor and coordinator harnesses, the crash reporter tests, `swift test`, and the Release build. The crash itself was not reproduced, so the D fix rests on the stack trace matching the only two windows sized from constraints.
+
+**Still open:** The release (`release.sh 4.4.1`) needs Oliver's Mac for signing, notarization, and the appcast. Once it ships, PING-WARDEN-C and -D get resolved in the next release. Whether a failed turn-off should stop blocking is still Oliver's call on #153; this change only reports why it happens.
+
+---
+
 ## 2026-10-23 - Security and dead-code review
 
 **What changed:** Removed `OnboardingModel.enterLicenseTapped()`, which nothing has called since it arrived in #125.

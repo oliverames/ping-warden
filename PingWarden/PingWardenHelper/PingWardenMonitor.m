@@ -94,6 +94,12 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     // up again. Guarded by _interfaceLock.
     BOOL _loweredByHelper;
     BOOL _loggedMissingInterface;
+    // Why the last ifconfig: returned NO, and the last command's outcome.
+    // Guarded by _interfaceLock.
+    PingWardenCommandFailure _ifconfigFailure;
+    int _ifconfigErrno;
+    PingWardenCommandFailure _lastCommandFailure;
+    int _lastCommandErrno;
     // Stop watching a route socket that keeps reporting hard errors, so a
     // broken descriptor cannot spin the poller; timeouts still reconcile.
     atomic_bool _routeSocketBroken;
@@ -281,9 +287,13 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
 - (BOOL)ifconfig:(BOOL)up {
     struct ifreq ifr = {0};
     strlcpy(ifr.ifr_name, TARGETIFNAM, IFNAMSIZ);
+    _ifconfigFailure = PingWardenCommandFailureNone;
+    _ifconfigErrno = 0;
 
     if (ioctl(_iocfd, SIOCGIFFLAGS, &ifr) < 0) {
-        os_log_error(LOG, "Error getting current interface flags: %d (%s)", errno, strerror(errno));
+        _ifconfigErrno = errno;
+        _ifconfigFailure = PingWardenCommandFailureReadFailed;
+        os_log_error(LOG, "Error getting current interface flags: %d (%s)", _ifconfigErrno, strerror(_ifconfigErrno));
         return NO;
     }
 
@@ -291,7 +301,9 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         // Interface is UP but we want it DOWN
         ifr.ifr_flags &= ~IFF_UP;
         if (ioctl(_iocfd, SIOCSIFFLAGS, &ifr) < 0) {
-            os_log_error(LOG, "Error bringing interface down: %d (%s)", errno, strerror(errno));
+            _ifconfigErrno = errno;
+            _ifconfigFailure = PingWardenCommandFailureWriteFailed;
+            os_log_error(LOG, "Error bringing interface down: %d (%s)", _ifconfigErrno, strerror(_ifconfigErrno));
             return NO;
         } else {
             os_log_debug(LOG, "Brought awdl0 DOWN");
@@ -301,7 +313,9 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         // Interface is DOWN but we want it UP
         ifr.ifr_flags |= IFF_UP;
         if (ioctl(_iocfd, SIOCSIFFLAGS, &ifr) < 0) {
-            os_log_error(LOG, "Error bringing interface up: %d (%s)", errno, strerror(errno));
+            _ifconfigErrno = errno;
+            _ifconfigFailure = PingWardenCommandFailureWriteFailed;
+            os_log_error(LOG, "Error bringing interface up: %d (%s)", _ifconfigErrno, strerror(_ifconfigErrno));
             return NO;
         } else {
             os_log_debug(LOG, "Brought awdl0 UP");
@@ -310,12 +324,19 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     // Read back even when no write was needed. Never turn command acceptance
     // into a claim that the interface reached the requested state.
     if (ioctl(_iocfd, SIOCGIFFLAGS, &ifr) < 0) {
-        os_log_error(LOG, "Error confirming interface flags: %d (%s)", errno, strerror(errno));
+        _ifconfigErrno = errno;
+        _ifconfigFailure = PingWardenCommandFailureConfirmReadFailed;
+        os_log_error(LOG, "Error confirming interface flags: %d (%s)", _ifconfigErrno, strerror(_ifconfigErrno));
         return NO;
     }
     BOOL confirmed = !!(ifr.ifr_flags & IFF_UP) == up;
     if (confirmed && up) {
         [self clearLoweredLocked];
+    }
+    if (!confirmed) {
+        os_log_error(LOG, "awdl0 flags read back %{public}s after a request for %{public}s",
+                     (ifr.ifr_flags & IFF_UP) ? "up" : "down", up ? "up" : "down");
+        _ifconfigFailure = PingWardenCommandFailureNotConfirmed;
     }
     return confirmed;
 }
@@ -560,10 +581,16 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
     // the interface, so a dead poller can never trap AWDL down.
     if (_invalidating || (!enabled && !atomic_load(&_threadRunning))) {
         os_log_error(LOG, "Cannot set AWDL state to %d: monitor thread is not running", enabled);
+        _lastCommandFailure = _invalidating
+            ? PingWardenCommandFailureShuttingDown
+            : PingWardenCommandFailureMonitorStopped;
+        _lastCommandErrno = 0;
         [_interfaceLock unlock];
         return NO;
     }
     BOOL success = [self ifconfig:enabled];
+    _lastCommandFailure = success ? PingWardenCommandFailureNone : _ifconfigFailure;
+    _lastCommandErrno = success ? 0 : _ifconfigErrno;
     if (success) {
         atomic_store(&_awdlEnabledAtomic, enabled);
         atomic_store(&_enforcementPending, false);
@@ -573,6 +600,14 @@ _Static_assert(sizeof("awdl0") <= IFNAMSIZ, "TARGETIFNAM must fit in IFNAMSIZ");
         [self wakePoller];
     }
     return success;
+}
+
+- (PingWardenCommandFailure)lastCommandFailureWithPOSIXError:(NSInteger *)posixError {
+    [_interfaceLock lock];
+    PingWardenCommandFailure failure = _lastCommandFailure;
+    if (posixError) *posixError = _lastCommandErrno;
+    [_interfaceLock unlock];
+    return failure;
 }
 
 - (void)restoreInterfaceIfLowered {

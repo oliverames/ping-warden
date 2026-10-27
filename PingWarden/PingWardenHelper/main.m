@@ -21,7 +21,7 @@
 #define LOG PingWardenHelperLog()
 // Fallback only — the live version is read from the embedded Info.plist by
 // helperVersionString(). Kept current so the fallback is never stale.
-#define HELPER_VERSION @"4.4.0"
+#define HELPER_VERSION @"4.4.1"
 
 // Team ID for code signing validation
 #define TEAM_ID @"PV3W52NDZ3"
@@ -159,6 +159,13 @@ static BOOL isProperlyCodeSigned(void) {
     }
 
     reply(success);
+}
+
+- (void)getLastCommandFailureWithReply:(void (^)(NSInteger, NSInteger))reply {
+    NSInteger posixError = 0;
+    PingWardenCommandFailure failure = [self.monitor lastCommandFailureWithPOSIXError:&posixError];
+    os_log_debug(LOG, "getLastCommandFailure: %ld errno %ld", (long)failure, (long)posixError);
+    reply(failure, posixError);
 }
 
 - (void)getAWDLStatusWithReply:(void (^)(NSString *))reply {

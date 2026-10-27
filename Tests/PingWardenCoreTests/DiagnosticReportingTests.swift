@@ -65,6 +65,44 @@ final class DiagnosticReportingTests: XCTestCase {
         XCTAssertEqual(slow.rateLimitKey, timeout.rateLimitKey)
     }
 
+    func testDeclineReasonsMapFromTheHelpersCodes() {
+        XCTAssertEqual((0...7).map { HelperDeclineReason(helperCode: $0) }, [
+            .unknown, .shuttingDown, .monitorStopped, .readFailed,
+            .writeFailed, .confirmReadFailed, .notConfirmed, .unknown,
+        ])
+        XCTAssertEqual(HelperDeclineReason(helperCode: -1), .unknown)
+        XCTAssertTrue(HelperDeclineReason.helperCanReport(version: "4.4.1"))
+        XCTAssertTrue(HelperDeclineReason.helperCanReport(version: "4.10.0"))
+        XCTAssertFalse(HelperDeclineReason.helperCanReport(version: "4.4.0"))
+        XCTAssertFalse(HelperDeclineReason.helperCanReport(version: "Unknown"))
+        XCTAssertFalse(HelperDeclineReason.helperCanReport(version: ""))
+    }
+
+    func testDeclineReasonIsATagAndErrnoIsAPOSIXError() {
+        let plain = HelperProblemReport(problem: .protectionDisableFailed, helperState: .enabled, failure: .declined)
+        let unconfirmed = HelperProblemReport(
+            problem: .protectionDisableFailed, helperState: .enabled, failure: .declined, declineReason: .notConfirmed
+        )
+        XCTAssertEqual(unconfirmed.tags(appVersion: "1", macOSVersion: "2")["decline_reason"], "not_confirmed")
+        XCTAssertNil(plain.tags(appVersion: "1", macOSVersion: "2")["decline_reason"])
+        XCTAssertEqual(unconfirmed.fingerprint, plain.fingerprint, "a reason without an errno stays in the existing issue")
+        let writeFailed = HelperProblemReport(
+            problem: .protectionDisableFailed, helperState: .enabled, failure: .declined,
+            declineReason: .writeFailed, posixError: 16
+        )
+        XCTAssertEqual(writeFailed.errorDomain, NSPOSIXErrorDomain)
+        XCTAssertEqual(writeFailed.errorCode, 16)
+        XCTAssertEqual(writeFailed.rateLimitKey, plain.rateLimitKey)
+    }
+
+    func testWindowBreadcrumbsHaveTheirOwnCategory() {
+        for crumb in [StateBreadcrumb.setupWindowOpened, .settingsWindowOpened, .aboutWindowOpened, .licenseNoticeWindowOpened] {
+            XCTAssertEqual(crumb.category, "app.window")
+            XCTAssertTrue(StateBreadcrumb.isAllowed(category: "app.window", message: crumb.rawValue))
+        }
+        XCTAssertFalse(StateBreadcrumb.isAllowed(category: "app.window", message: "window.other_opened"))
+    }
+
     func testFingerprintIsStableAndIgnoresHelperState() {
         let first = HelperProblemReport(problem: .repairFailed, helperState: .enabled, failure: .timedOut)
         let second = HelperProblemReport(problem: .repairFailed, helperState: .notFound, failure: .timedOut)
@@ -159,7 +197,7 @@ final class DiagnosticReportingTests: XCTestCase {
         XCTAssertEqual(StateBreadcrumb.repairFailed.category, "app.repair")
         XCTAssertEqual(StateBreadcrumb.protectionDisabled.category, "app.protection")
         XCTAssertEqual(StateBreadcrumb.helperConnectionLost.category, "app.helper")
-        XCTAssertEqual(StateBreadcrumb.allowedCategories, ["app.setup", "app.repair", "app.protection", "app.helper"])
+        XCTAssertEqual(StateBreadcrumb.allowedCategories, ["app.setup", "app.repair", "app.protection", "app.helper", "app.window"])
         XCTAssertTrue(StateBreadcrumb.isAllowed(category: "app.repair", message: "repair.started"))
         XCTAssertFalse(StateBreadcrumb.isAllowed(category: "app.repair", message: "setup.started"))
         XCTAssertFalse(StateBreadcrumb.isAllowed(category: "app.repair", message: "game.example.com"))

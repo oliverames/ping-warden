@@ -62,6 +62,51 @@ enum HelperFailureReason: String, Sendable {
     }
 }
 
+/// Why the helper declined a protection command, as the helper reported it.
+/// The helper sends a `PingWardenCommandFailure` raw value
+/// (PingWardenMonitor.h); this maps it to a fixed name.
+enum HelperDeclineReason: String, Sendable, CaseIterable {
+    /// The helper was exiting and refused new commands.
+    case shuttingDown = "shutting_down"
+    /// Blocking was asked for while the helper's watcher was not running.
+    case monitorStopped = "monitor_stopped"
+    /// Reading awdl0's state failed before any change.
+    case readFailed = "read_failed"
+    /// Changing awdl0's state failed.
+    case writeFailed = "write_failed"
+    /// Reading awdl0's state back after the change failed.
+    case confirmReadFailed = "confirm_read_failed"
+    /// awdl0's state read back did not show the change.
+    case notConfirmed = "not_confirmed"
+    /// The helper gave no reason: it predates the question, did not answer
+    /// in time, or reported none.
+    case unknown
+
+    /// The first helper version that answers `getLastCommandFailure`.
+    static let minimumHelperVersion = "4.4.1"
+
+    init(helperCode: Int) {
+        switch helperCode {
+        case 1: self = .shuttingDown
+        case 2: self = .monitorStopped
+        case 3: self = .readFailed
+        case 4: self = .writeFailed
+        case 5: self = .confirmReadFailed
+        case 6: self = .notConfirmed
+        default: self = .unknown
+        }
+    }
+
+    /// Whether a helper reporting this version can be asked for a reason.
+    /// An older helper never learned the request, so it is not sent one.
+    /// A reply that isn't a version number, such as "Unknown", counts as
+    /// older: a numeric compare alone would sort letters after digits.
+    static func helperCanReport(version: String) -> Bool {
+        guard version.first?.isNumber == true else { return false }
+        return version.compare(minimumHelperVersion, options: .numeric) != .orderedAscending
+    }
+}
+
 /// When the helper answered a command that had already timed out, in coarse
 /// ranges measured from when the command was sent. `none` means no reply
 /// arrived while the event waited for one. A slow helper start answers
@@ -103,18 +148,25 @@ struct HelperProblemReport: Equatable, Sendable {
     let errorCode: Int?
     /// Set only on a timeout whose event waited for a late reply.
     private(set) var lateReply: HelperLateReply?
+    /// Set only on a decline, with the helper's own reason.
+    let declineReason: HelperDeclineReason?
 
+    /// `posixError` is the errno of the helper's failed ioctl, reported as a
+    /// POSIX error when no other error applies.
     init(
         problem: HelperProblem,
         helperState: HelperDiagnosticState,
         failure: HelperCommandFailure? = nil,
         error: NSError? = nil,
-        lateReply: HelperLateReply? = nil
+        lateReply: HelperLateReply? = nil,
+        declineReason: HelperDeclineReason? = nil,
+        posixError: Int = 0
     ) {
         self.problem = problem
         self.helperState = helperState
         self.lateReply = lateReply
         self.failureReason = failure.map(HelperFailureReason.init)
+        self.declineReason = declineReason
         if let error {
             errorDomain = Self.reportableDomain(error.domain)
             errorCode = error.code
@@ -122,6 +174,9 @@ struct HelperProblemReport: Equatable, Sendable {
             // NSXPCConnection errors are Cocoa errors (4097, 4099, ...).
             errorDomain = NSCocoaErrorDomain
             errorCode = code
+        } else if posixError != 0 {
+            errorDomain = NSPOSIXErrorDomain
+            errorCode = posixError
         } else {
             errorDomain = nil
             errorCode = nil
@@ -170,6 +225,7 @@ struct HelperProblemReport: Equatable, Sendable {
         ]
         if let failureReason { tags["failure_reason"] = failureReason.rawValue }
         if let lateReply { tags["late_reply"] = lateReply.rawValue }
+        if let declineReason { tags["decline_reason"] = declineReason.rawValue }
         if let errorDomain { tags["error_domain"] = errorDomain }
         if let errorCode { tags["error_code"] = String(errorCode) }
         return tags
@@ -194,10 +250,16 @@ enum StateBreadcrumb: String, Sendable, CaseIterable {
     case protectionDisableFailed = "protection.disable_failed"
     case helperConnectionInterrupted = "helper.connection_interrupted"
     case helperConnectionLost = "helper.connection_lost"
+    // Which window opened, so a layout crash names the window it came from.
+    case setupWindowOpened = "window.setup_opened"
+    case settingsWindowOpened = "window.settings_opened"
+    case aboutWindowOpened = "window.about_opened"
+    case licenseNoticeWindowOpened = "window.license_notice_opened"
 
     static let categoryPrefix = "app."
 
-    /// `app.setup`, `app.repair`, `app.protection`, or `app.helper`.
+    /// `app.setup`, `app.repair`, `app.protection`, `app.helper`, or
+    /// `app.window`.
     var category: String {
         Self.categoryPrefix + String(rawValue.prefix(while: { $0 != "." }))
     }
