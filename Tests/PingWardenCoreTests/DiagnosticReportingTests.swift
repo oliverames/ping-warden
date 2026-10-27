@@ -75,6 +75,7 @@ final class DiagnosticReportingTests: XCTestCase {
         XCTAssertTrue(HelperDeclineReason.helperCanReport(version: "4.10.0"))
         XCTAssertFalse(HelperDeclineReason.helperCanReport(version: "4.4.0"))
         XCTAssertFalse(HelperDeclineReason.helperCanReport(version: "Unknown"))
+        XCTAssertFalse(HelperDeclineReason.helperCanReport(version: ""))
     }
 
     func testDeclineReasonIsATagAndErrnoIsAPOSIXError() {

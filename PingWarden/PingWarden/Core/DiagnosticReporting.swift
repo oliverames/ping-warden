@@ -99,8 +99,11 @@ enum HelperDeclineReason: String, Sendable, CaseIterable {
 
     /// Whether a helper reporting this version can be asked for a reason.
     /// An older helper never learned the request, so it is not sent one.
+    /// A reply that isn't a version number, such as "Unknown", counts as
+    /// older: a numeric compare alone would sort letters after digits.
     static func helperCanReport(version: String) -> Bool {
-        version.compare(minimumHelperVersion, options: .numeric) != .orderedAscending
+        guard version.first?.isNumber == true else { return false }
+        return version.compare(minimumHelperVersion, options: .numeric) != .orderedAscending
     }
 }
 
