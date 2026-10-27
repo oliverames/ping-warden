@@ -1,3 +1,16 @@
+# Ping Warden 4.4.1
+
+This update fixes a crash and makes it easier to find out why turning Ping Protection off sometimes fails.
+
+## Fixes
+
+- Ping Warden could quit unexpectedly while it laid out one of its windows on macOS 26. The About window and the license notice now keep their own size instead of resizing to fit their contents, which is how the Settings window already works.
+
+## Crash reporting
+
+- When the helper can't turn Ping Protection off, the error report now says why, using one of a fixed set of reasons: the helper was shutting down, it couldn't read or change the AWDL interface, or the change didn't stick. A failed read or change also includes its system error number.
+- Reports now note which Ping Warden window opened last (Setup, Settings, About, or the license notice), so a crash like the one above can be traced to its window.
+
 # Ping Warden 4.4.0
 
 This update walks you through setting up Ping Protection one step at a time, turns protection on as soon as you add your license, and offers Repair when the helper stops working.
