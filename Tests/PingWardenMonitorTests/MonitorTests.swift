@@ -986,9 +986,10 @@ for (version, reason, posixError, asks) in [
     check(results.withValue { $0 } == [false], "a declined turn-off fails (\(version))")
     check(signals.withValue { $0 }.contains(.breadcrumb(.protectionDisableFailed)),
           "a declined turn-off leaves its breadcrumb (\(version))")
+    // confirmed() connects without a status check, so the state is unknown.
     let expected = HelperProblemReport(
         problem: .protectionDisableFailed,
-        helperState: .enabled,
+        helperState: .unknown,
         failure: .declined,
         declineReason: reason,
         posixError: posixError
