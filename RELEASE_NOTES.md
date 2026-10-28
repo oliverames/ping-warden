@@ -5,9 +5,11 @@ This update fixes a crash and makes it easier to find out why turning Ping Prote
 ## Fixes
 
 - Ping Warden could quit unexpectedly while it laid out one of its windows on macOS 26. The About window and the license notice now keep their own size instead of resizing to fit their contents, which is how the Settings window already works.
+- Setup buttons stay in the same place between steps, and the Dashboard and Settings keep their cards, controls, and status colors consistent as windows resize.
 
 ## Crash reporting
 
+- If the helper connection drops while Ping Protection is turning on, the failure is now reported. Timeout reports also distinguish a delayed reply from no reply.
 - When the helper can't turn Ping Protection off, the error report now says why, using one of a fixed set of reasons: the helper was shutting down, it couldn't read or change the AWDL interface, or the change didn't stick. A failed read or change also includes its system error number.
 - Reports now note which Ping Warden window opened last (Setup, Settings, About, or the license notice), so a crash like the one above can be traced to its window.
 
