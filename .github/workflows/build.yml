@@ -11,7 +11,27 @@ on:
 # Developer ID and notary credentials.
 
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      native: ${{ steps.scope.outputs.native }}
+      site: ${{ steps.scope.outputs.site }}
+      shell: ${{ steps.scope.outputs.shell }}
+    steps:
+      - name: Checkout change history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Identify changed source surfaces
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 .github/scripts/ci-scope.py
+
   build:
+    needs: scope
+    if: needs.scope.outputs.native == 'true'
     runs-on: macos-26
 
     steps:
@@ -123,6 +143,8 @@ jobs:
   # and compiles on Linux; running the suite here catches portability
   # regressions that the macOS job can't see, and gives much faster feedback.
   linux-core-tests:
+    needs: scope
+    if: needs.scope.outputs.native == 'true'
     runs-on: ubuntu-latest
     container: swift:5.10
     steps:
@@ -133,6 +155,8 @@ jobs:
       run: swift test
 
   shell-lint:
+    needs: scope
+    if: needs.scope.outputs.shell == 'true'
     runs-on: macos-26
     steps:
     - name: Checkout
