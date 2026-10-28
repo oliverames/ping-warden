@@ -1,5 +1,11 @@
 # Ping Warden Worklog
 
+## 2026-10-28 - Complete branch integration and scope CI
+
+The integration branch combines the reviewed CodeQL action update (#139), Wrangler update (#152), and worklog compaction (#155), preserving their commits. Build and CodeQL jobs now select native, site, and shell checks from the changed paths while retaining the required check names. Scheduled analysis still runs every surface, and changes to the workflows or classifier run every check.
+
+Verification: classifier checks cover documentation-only, site, native Swift source, workflow, and classifier changes. The full receiving CI run remains the integration gate. Historical platform branches and unfinished experiments stay preserved.
+
 Compacted October 28, 2026. The [complete pre-compaction worklog](WORKLOG-2026-10-28.md) preserves every entry and historical anchor byte for byte, beside this file so relative links keep their original base. The retained entries below keep their recorded dates and verification limits. This documentation pass adds no release, installation or runtime acceptance.
 
 ## 2026-10-27 - 4.4.1: window layout crash and turn-off decline reason
