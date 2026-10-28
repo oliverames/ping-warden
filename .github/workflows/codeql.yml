@@ -19,6 +19,7 @@ jobs:
       native: ${{ steps.scope.outputs.native }}
       site: ${{ steps.scope.outputs.site }}
       shell: ${{ steps.scope.outputs.shell }}
+      feeds: ${{ steps.scope.outputs.feeds }}
     steps:
       - name: Checkout change history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

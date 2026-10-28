@@ -17,6 +17,7 @@ jobs:
       native: ${{ steps.scope.outputs.native }}
       site: ${{ steps.scope.outputs.site }}
       shell: ${{ steps.scope.outputs.shell }}
+      feeds: ${{ steps.scope.outputs.feeds }}
     steps:
       - name: Checkout change history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,7 +32,7 @@ jobs:
 
   build:
     needs: scope
-    if: needs.scope.outputs.native == 'true'
+    if: needs.scope.outputs.native == 'true' || needs.scope.outputs.feeds == 'true'
     runs-on: macos-26
 
     steps:
@@ -48,6 +49,7 @@ jobs:
         echo "✓ appcast.xml is valid XML"
 
     - name: Validate version consistency
+      if: needs.scope.outputs.native == 'true'
       run: |
         APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" PingWarden/PingWarden/Info.plist)
         HELPER_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" PingWarden/PingWardenHelper/Info.plist)
@@ -73,21 +75,27 @@ jobs:
         echo "✓ Target versions are consistent ($APP_VERSION, build $APP_BUILD)"
 
     - name: Run core logic tests
+      if: needs.scope.outputs.native == 'true'
       run: swift test
 
     - name: Test helper interface failures and recovery
+      if: needs.scope.outputs.native == 'true'
       run: bash scripts/test_helper.sh
 
     - name: Test helper connection recovery and callback ordering
+      if: needs.scope.outputs.native == 'true'
       run: python3 scripts/test_monitor.py
 
     - name: Test protection coordinator transitions and recovery
+      if: needs.scope.outputs.native == 'true'
       run: python3 scripts/test_coordinator.py
 
     - name: Test crash reporting privacy and lifecycle
+      if: needs.scope.outputs.native == 'true'
       run: bash scripts/test_crash_reporter.sh
 
     - name: Test release metadata and buyer content
+      if: needs.scope.outputs.native == 'true'
       run: python3 scripts/test_release_tools.py
 
     - name: Verify update feeds against the app public key
@@ -97,6 +105,7 @@ jobs:
         swift scripts/verify_sparkle.swift appcast-beta.xml "$PUBLIC_KEY"
 
     - name: Build complete app
+      if: needs.scope.outputs.native == 'true'
       run: |
         xcodebuild build \
           -project PingWarden/PingWarden.xcodeproj \
@@ -110,6 +119,7 @@ jobs:
           ONLY_ACTIVE_ARCH=NO
 
     - name: Verify Build Artifacts
+      if: needs.scope.outputs.native == 'true'
       run: |
         echo "=== Build Verification Results ==="
         echo ""
@@ -127,6 +137,7 @@ jobs:
         echo "=== Build verification passed ==="
 
     - name: Verify Bundle Structure Requirements
+      if: needs.scope.outputs.native == 'true'
       run: |
         APP="$RUNNER_TEMP/PingWardenDerivedData/Build/Products/Release/Ping Warden.app"
         RELEASE_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' PingWarden/PingWarden/Info.plist)

@@ -1,5 +1,15 @@
 # Ping Warden Worklog
 
+## 2026-10-28 - Ping Warden 4.4.1 released
+
+Published [4.4.1](https://github.com/oliverames/ping-warden/releases/tag/v4.4.1), build 44100, from `0acfef5ccd51f30b9d1a2477065b8a87e6246c57`. The release ships the About/license-window layout crash fix, Dashboard/setup layout improvements, and helper failure diagnostics already merged since 4.4.0. The notes and generated release page now cover those changes.
+
+Verification: 347 local core tests pass, and the full native build, helper harnesses, and Swift/Objective-C CodeQL passed on the integrated app source. The canonical release script built a fresh universal archive, signed it with the existing `PV3W52NDZ3` identity, and verified the mounted DMG, Gatekeeper, and Apple's accepted/stapled notarization. Both live Sparkle feeds and the GitHub asset matched local delivery checks. Sentry received the symbols/release, Gumroad verified the current buyer download while preserving license-key content, and Linear confirmed release completion. The underlying window-layout crash was not reproduced during this session.
+
+The DMG SHA-256 is `01d87bad5aba66e55c6f5fb2c74362667ea78710cca93a0eef8fb4e4643ac6a0` (6,349,423 bytes). The Homebrew tap is updated at `e90033fc1cce2cfd1a4abcc0ee7ef9ee8538c8bb`, and the in-repository cask matches it. The required Gumroad CLI was restored through the existing `antiwork/cli/gumroad` Homebrew formula.
+
+Post-release CI separates feed validation from native source checks. Feed-only updates retain XML and Sparkle-signature verification, while app, test, script, and workflow changes retain native verification. The receiving checks on the bookkeeping pull request remain the final integration gate. Existing unresolved helper-behavior and customer-acceptance follow-ups below keep their recorded status.
+
 ## 2026-10-28 - Complete branch integration and scope CI
 
 The integration branch combines the reviewed CodeQL action update (#139), Wrangler update (#152), and worklog compaction (#155), preserving their commits. Build and CodeQL jobs now select native, site, and shell checks from the changed paths while retaining the required check names. Scheduled analysis still runs every surface, and changes to the workflows or classifier run every check.
