@@ -22,6 +22,8 @@
 //      an allowlisted error domain and numeric code, the app version, and
 //      the macOS version. An enable that timed out waits up to 30 seconds
 //      for a late reply and adds its coarse delay range (HelperLateReply).
+//      A declined turn-off adds the helper's own reason (HelperDeclineReason)
+//      and, for a failed ioctl, its errno as a POSIX error code.
 //      At most one per problem every 30 minutes (persisted across
 //      launches) and ten per app run.
 //    • Release health: one session per app run (start, end, crashed or not)
@@ -30,7 +32,7 @@
 //      build, and the Mac's model family, model, and architecture. All other
 //      SDK contexts, the server name, and the event user are removed.
 //    • Breadcrumbs of app state transitions (setup, repair, protection,
-//      helper connection), as enum values only.
+//      helper connection, which window opened), as enum values only.
 //    • Client reports: counts of reports the SDK dropped and why (for
 //      example a rate limit), with no report contents.
 //

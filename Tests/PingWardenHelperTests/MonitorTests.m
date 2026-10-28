@@ -330,6 +330,42 @@ static void testReadbackMismatch(void) {
     finishMonitor(monitor);
 }
 
+static PingWardenCommandFailure lastFailure(PingWardenMonitor *monitor, NSInteger *posixError) {
+    return [monitor lastCommandFailureWithPOSIXError:posixError];
+}
+
+// Each way a command can fail reports its own reason, with the errno of a
+// failed ioctl, and a later success clears it.
+static void testCommandFailureReasons(void) {
+    NSInteger posixError = -1;
+    PingWardenMonitor *monitor = makeMonitor(IFF_UP);
+    CHECK(lastFailure(monitor, &posixError) == PingWardenCommandFailureNone && posixError == 0);
+    failReadAfter(1);
+    CHECK(![monitor setAwdlEnabled:NO]);
+    CHECK(lastFailure(monitor, &posixError) == PingWardenCommandFailureReadFailed && posixError == EIO);
+    setWriteFailure(YES);
+    CHECK(![monitor setAwdlEnabled:NO]);
+    CHECK(lastFailure(monitor, &posixError) == PingWardenCommandFailureWriteFailed && posixError == EIO);
+    setWriteFailure(NO);
+    failReadAfter(2);
+    CHECK(![monitor setAwdlEnabled:NO]);
+    CHECK(lastFailure(monitor, &posixError) == PingWardenCommandFailureConfirmReadFailed && posixError == EIO);
+    CHECK([monitor setAwdlEnabled:NO]);
+    CHECK(lastFailure(monitor, &posixError) == PingWardenCommandFailureNone && posixError == 0);
+    pthread_mutex_lock(&fixtureLock);
+    fixtureIgnoreWrites = YES;
+    pthread_mutex_unlock(&fixtureLock);
+    CHECK(![monitor setAwdlEnabled:YES]);
+    CHECK(lastFailure(monitor, &posixError) == PingWardenCommandFailureNotConfirmed && posixError == 0);
+    pthread_mutex_lock(&fixtureLock);
+    fixtureIgnoreWrites = NO;
+    pthread_mutex_unlock(&fixtureLock);
+    [monitor invalidate];
+    CHECK(![monitor setAwdlEnabled:YES]);
+    CHECK(lastFailure(monitor, &posixError) == PingWardenCommandFailureShuttingDown && posixError == 0);
+    closeFixtureRouteWriter();
+}
+
 static void testFailedDisablePreservesBlocking(void) {
     PingWardenMonitor *monitor = makeMonitor(IFF_UP);
     CHECK([monitor setAwdlEnabled:NO]);
@@ -626,6 +662,7 @@ int main(void) {
         testWriteFailure();
         testReadbackFailure();
         testReadbackMismatch();
+        testCommandFailureReasons();
         testFailedDisablePreservesBlocking();
         testStateReadReflectsFailureAndActualFlags();
         testRouteEnforcementAttempts();

@@ -24,6 +24,12 @@
 /// @param reply Callback with success status
 - (void)setAWDLEnabled:(BOOL)enable withReply:(void (^_Nonnull)(BOOL success))reply NS_SWIFT_NAME(setAWDLEnabled(_:reply:));
 
+/// Why the most recent setAWDLEnabled command replied NO, for diagnostics.
+/// Asked only after a decline. A helper older than 4.4.1 does not answer it.
+/// @param reply Callback with a PingWardenCommandFailure raw value (0 when the
+///   last command succeeded) and the errno of a failed ioctl (0 when none)
+- (void)getLastCommandFailureWithReply:(void (^_Nonnull)(NSInteger failure, NSInteger posixError))reply NS_SWIFT_NAME(getLastCommandFailure(reply:));
+
 /// Get current AWDL interface status for diagnostics
 /// @param reply Callback with human-readable status string
 - (void)getAWDLStatusWithReply:(void (^_Nonnull)(NSString *_Nonnull status))reply NS_SWIFT_NAME(getAWDLStatus(reply:));
