@@ -11,9 +11,11 @@
 <h2 id="fixes">Fixes</h2>
 <ul>
 <li>Ping Warden could quit unexpectedly while it laid out one of its windows on macOS 26. The About window and the license notice now keep their own size instead of resizing to fit their contents, which is how the Settings window already works.</li>
+<li>Setup buttons stay in the same place between steps, and the Dashboard and Settings keep their cards, controls, and status colors consistent as windows resize.</li>
 </ul>
 <h2 id="crash-reporting">Crash reporting</h2>
 <ul>
+<li>If the helper connection drops while Ping Protection is turning on, the failure is now reported. Timeout reports also distinguish a delayed reply from no reply.</li>
 <li>When the helper can't turn Ping Protection off, the error report now says why, using one of a fixed set of reasons: the helper was shutting down, it couldn't read or change the AWDL interface, or the change didn't stick. A failed read or change also includes its system error number.</li>
 <li>Reports now note which Ping Warden window opened last (Setup, Settings, About, or the license notice), so a crash like the one above can be traced to its window.</li>
 </ul>
