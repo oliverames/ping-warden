@@ -22,7 +22,7 @@
 //      an allowlisted error domain and numeric code, the app version, and
 //      the macOS version. An enable that timed out waits up to 30 seconds
 //      for a late reply and adds its coarse delay range (HelperLateReply).
-//      A declined turn-off adds the helper's own reason (HelperDeclineReason)
+//      A declined protection command adds the helper's reason (HelperDeclineReason)
 //      and, for a failed ioctl, its errno as a POSIX error code.
 //      At most one per problem every 30 minutes (persisted across
 //      launches) and ten per app run.

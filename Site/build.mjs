@@ -16,7 +16,7 @@ const publisher = { '@type': 'Organization', name: 'Ames Consulting LLC', url: '
 // change under squash merges and break the CI check that committed pages match
 // the build. Bump it when a page's content changes.
 const pages = [
-  { source: 'README.md', slug: 'overview', updated: '2026-10-27', title: 'Features, Pricing, and Privacy', description: 'Explore Ping Warden features, the $15 Ping Protection license, the existing-user transition, privacy, system requirements, and source builds.' },
+  { source: 'README.md', slug: 'overview', updated: '2026-10-28', title: 'Features, Pricing, and Privacy', description: 'Explore Ping Warden features, the $15 Ping Protection license, the existing-user transition, privacy, system requirements, and source builds.' },
   { source: 'PingWarden/QUICKSTART.md', slug: 'setup', updated: '2026-10-17', title: 'Setup for Mac: Install, Approve, Verify', description: 'Set up Ping Warden on your Mac: install the app, enter your license key, approve the background helper in Login Items, and confirm Ping Protection is on.' },
   { source: 'PingWarden/README.md', slug: 'technical', updated: '2026-09-28', title: 'Technical Documentation', description: 'How Ping Warden works: AWDL events, the privileged helper, XPC, latency measurement, automation, security, diagnostics, and signed updates.' },
   { source: 'PingWarden/TROUBLESHOOTING.md', slug: 'troubleshooting', updated: '2026-10-13', title: 'Troubleshooting and Removal', description: 'Resolve Ping Warden setup, helper, Game Mode, Control Center, and latency problems. Collect diagnostics and safely remove the app.' },
