@@ -947,8 +947,10 @@ do {
     let results = LockedValue<[Bool]>([])
     monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
     let connection = monitor.harnessConnection!
+    FakeHelper.autoReplyVersion = "4.4.0"
     take(connection.helper, \.commands).1(false)
     spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    spin()
     let recorded = signals.withValue { $0 }
     check(results.withValue { $0 } == [false], "a declined enable fails")
     check(recorded.first == .breadcrumb(.protectionEnableRequested), "an enable request leaves a breadcrumb first")
@@ -957,9 +959,40 @@ do {
     let problemIndex = recorded.firstIndex { if case .problem = $0 { return true } else { return false } }
     check(crumbIndex != nil && problemIndex != nil && crumbIndex! < problemIndex!,
           "the failure breadcrumb precedes its problem event")
-    check(recorded.contains(.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined))),
+    check(recorded.contains(.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined, declineReason: .unknown))),
           "a declined enable reports one scrubbed problem")
     check(!recorded.contains(.breadcrumb(.protectionEnabled)), "a declined enable never claims protection")
+}
+
+// A declined enable uses the existing version-gated helper diagnostics too
+// (#158). It stays unconfirmed, and older helpers receive no new selector.
+for (version, reason, posixError, asks) in [
+    ("4.4.1", HelperDeclineReason.writeFailed, 5, true),
+    ("4.4.0", HelperDeclineReason.unknown, 0, false),
+] {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let connection = monitor.harnessConnection!
+    FakeHelper.autoReplyVersion = version
+    FakeHelper.lastFailure = (4, 5)
+    take(connection.helper, \.commands).1(false)
+    spin(until: { !problemSignals(signals).isEmpty }, timeout: 3)
+    let expected = HelperProblemReport(
+        problem: .protectionEnableFailed,
+        helperState: .enabled,
+        failure: .declined,
+        declineReason: reason,
+        posixError: posixError
+    )
+    check(problemSignals(signals) == [.problem(expected)], "a declined enable reports its reason once (\(version)): \(problemSignals(signals))")
+    check(results.withValue { $0 } == [false] && !monitor.isMonitoringActive,
+          "a declined enable never confirms protection (\(version))")
+    check(connection.helper.failureQueries == (asks ? 1 : 0),
+          "a declined enable asks only compatible helpers (\(version))")
 }
 
 // A declined turn-off reports the helper's own reason (#153). A helper
@@ -1059,10 +1092,12 @@ do {
     let connection = monitor.harnessConnection!
     let (_, reply) = take(connection.helper, \.commands)
     let readsBefore = SMAppService.statusReads
+    FakeHelper.autoReplyVersion = "4.4.0"
     reply(false)
     spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    spin()
     check(SMAppService.statusReads == readsBefore, "a reported failure adds no status read (\(SMAppService.statusReads - readsBefore))")
-    check(signals.withValue { $0 }.contains(.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined))),
+    check(signals.withValue { $0 }.contains(.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined, declineReason: .unknown))),
           "the last observed state is still reported")
 }
 
@@ -1095,14 +1130,16 @@ do {
     let results = LockedValue<[Bool]>([])
     monitor.startMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
     let connection = monitor.harnessConnection!
+    FakeHelper.autoReplyVersion = "4.4.0"
     take(connection.helper, \.commands).1(false)
     spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    spin()
     let signals = LockedValue<[HelperTelemetrySignal]>([])
     monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
     check(signals.withValue { $0 } == [
         .breadcrumb(.protectionEnableRequested),
         .breadcrumb(.protectionEnableFailed),
-        .problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined)),
+        .problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .declined, declineReason: .unknown)),
     ], "signals from before the handler existed are delivered once it is installed")
     monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
     check(signals.withValue { $0 }.count == 3, "held signals are delivered only once")
@@ -1131,6 +1168,48 @@ do {
     let problems = problemSignals(signals)
     check(problems == [.problem(HelperProblemReport(problem: .protectionEnableFailed, helperState: .enabled, failure: .rejected(code: 4099)))],
           "an enable ended by an invalid connection reports its XPC error once, without waiting: \(problems)")
+}
+
+// An invalid connection fails validation before the first disable's proxy
+// error arrives. That teardown must not hide its failure (#153).
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessCommandTiming(timeout: 0.2, lateReplyGrace: 0.3)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.stopMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let connection = monitor.harnessConnection!
+    let lateStop = take(connection.helper, \.commands).1
+    check(connection.errorHandlers.count == 2, "first disable has validation and command proxies")
+    connection.failAllRequests(code: 4099)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    lateStop(true)
+    spin(0.3)
+    let expected = HelperProblemReport(problem: .protectionDisableFailed, helperState: .unknown, failure: .rejected(code: 4099))
+    check(problemSignals(signals) == [.problem(expected)],
+          "an invalid-connection disable reports its XPC error once: \(problemSignals(signals))")
+    check(results.withValue { $0 } == [false], "a dropped disable completes once despite a late reply and deadline")
+    check(!monitor.isMonitoringActive, "the dropped connection's late reply cannot confirm protection")
+}
+
+// A disable superseded by a fresh enable must not become a failure when
+// the old connection drops. Only the current command owns that report.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    monitor.stopMonitoring(persistUserPreference: false)
+    let connection = monitor.harnessConnection!
+    monitor.startMonitoring(persistUserPreference: false)
+    connection.failAllRequests(code: 4099)
+    spin(0.1)
+    let disableProblems = problemSignals(signals).filter {
+        if case .problem(let report) = $0 { return report.problem == .protectionDisableFailed } else { return false }
+    }
+    check(disableProblems.isEmpty, "a superseded disable reports no failure: \(disableProblems)")
 }
 
 // A timed-out enable's event waits for the helper's late reply and says how

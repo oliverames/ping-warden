@@ -65,7 +65,7 @@ class PingWardenMonitor: @unchecked Sendable {
     /// Pause between attempts while confirming the helper answers.
     private var helperRetryDelay: TimeInterval = 1.0
 
-    /// How long a declined turn-off's event waits for the helper's reason.
+    /// How long a declined protection command waits for the helper's reason.
     private var declineReasonTimeout: TimeInterval = 2.0
 
     /// How long the helper gets to confirm turning protection on or off.
@@ -580,14 +580,15 @@ class PingWardenMonitor: @unchecked Sendable {
         }
     }
 
-    /// Report a declined turn-off with the helper's reason for it (#153).
+    /// Report a declined protection command with the helper's reason (#153, #158).
     /// Asks the helper's version first, because a helper older than
     /// `HelperDeclineReason.minimumHelperVersion` was never taught the
     /// question. The event goes out once, with `unknown` when no reason
     /// arrives within `declineReasonTimeout`. Main thread.
-    func reportDeclinedDisable() {
+    private func reportDeclinedProtectionChange(enabling: Bool) {
         dispatchPrecondition(condition: .onQueue(.main))
-        emitTelemetry(.breadcrumb(.protectionDisableFailed))
+        let problem: HelperProblem = enabling ? .protectionEnableFailed : .protectionDisableFailed
+        emitTelemetry(.breadcrumb(enabling ? .protectionEnableFailed : .protectionDisableFailed))
         let didReport = LockedValue(false)
         let report: @Sendable (HelperDeclineReason, Int) -> Void = { [weak self] reason, posixError in
             let claimed = didReport.withValue { reported in
@@ -599,7 +600,7 @@ class PingWardenMonitor: @unchecked Sendable {
             DispatchQueue.main.async {
                 self?.recordFailure(
                     nil,
-                    problem: .protectionDisableFailed,
+                    problem: problem,
                     failure: .declined,
                     declineReason: reason,
                     posixError: posixError
@@ -1378,7 +1379,7 @@ class PingWardenMonitor: @unchecked Sendable {
                 } else {
                     log.error("❌ Failed to disable AWDL")
                     monitor.recordCommandFailure(.declined)
-                    monitor.recordFailure(.protectionEnableFailed, problem: .protectionEnableFailed, failure: .declined)
+                    monitor.reportDeclinedProtectionChange(enabling: true)
                     monitor.abandonEnable(operationID)
                     PingWardenPreferences.shared.effectiveMonitoringEnabled = false
                     monitor.notifyStateChange()
@@ -1455,8 +1456,19 @@ class PingWardenMonitor: @unchecked Sendable {
         }
         let failUnanswered: @Sendable () -> Void = { [weak self] in
             guard claimCompletion() else { return }
-            guard let self, self.isCurrentProtectionOperation(operationID) else {
-                self?.notifyStateChange()
+            guard let self else {
+                completion?(false)
+                return
+            }
+            guard self.isCurrentProtectionOperation(operationID) else {
+                // Validation can tear down an invalid connection before this
+                // command's error callback runs. Keep its failure visible,
+                // unless a newer command superseded it or it was cleanup.
+                if !compensating, self.wasEndedByConnectionDrop(operationID) {
+                    self.recordCommandTimeout()
+                    self.recordFailure(.protectionDisableFailed, problem: .protectionDisableFailed, failure: self.lastCommandFailure)
+                }
+                self.notifyStateChange()
                 completion?(false)
                 return
             }
@@ -1529,7 +1541,7 @@ class PingWardenMonitor: @unchecked Sendable {
                     log.error("❌ Failed to enable AWDL")
                     monitor.recordCommandFailure(.declined)
                     if !compensating {
-                        monitor.reportDeclinedDisable()
+                        monitor.reportDeclinedProtectionChange(enabling: false)
                     }
                     PingWardenPreferences.shared.lastKnownState = "unknown"
                     monitor.notifyStateChange()

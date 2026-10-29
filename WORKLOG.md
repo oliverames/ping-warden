@@ -1,5 +1,11 @@
 # Ping Warden Worklog
 
+## 2026-10-28 - Sentry helper diagnostics follow-up
+
+The seven-day Sentry review found 17 production events, all from 4.4.0 before today's 4.4.1 release. [#158](https://github.com/oliverames/ping-warden/issues/158) now tracks the declined enable separately from the unanswered enables in #145. Declined enables use the same version-gated helper reason/errno query as declined disables, with an unknown fallback and one event. An invalid connection no longer drops a disable failure when validation tears the connection down first (#153); superseded and compensating commands stay excluded. The README privacy disclosure and generated overview cover both command directions.
+
+Verification: new regression cases failed against the old production monitor, showing the missing reason and dropped disable event. The production-monitor harness passes with zero failures, all 32 diagnostic-reporting tests pass, the crash-reporter harness passes 108 checks, and site checks pass. Protected native CI and independent review remain the merge gate. These are source diagnostics for a future release. Published 4.4.1 is unchanged, and the underlying helper failures remain open.
+
 ## 2026-10-28 - Ping Warden 4.4.1 released
 
 Published [4.4.1](https://github.com/oliverames/ping-warden/releases/tag/v4.4.1), build 44100, from `0acfef5ccd51f30b9d1a2477065b8a87e6246c57`. The release ships the About/license-window layout crash fix, Dashboard/setup layout improvements, and helper failure diagnostics already merged since 4.4.0. The notes and generated release page now cover those changes.
