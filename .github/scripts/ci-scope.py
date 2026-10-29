@@ -10,16 +10,17 @@ def scopes(paths):
         ".github/workflows/build.yml", ".github/workflows/codeql.yml"
     ) for p in paths)
     native = workflow or any(p.startswith(("PingWarden/", "Tests/", "scripts/")) or
-                             p in ("Package.swift", "Package.resolved", "appcast.xml", "appcast-beta.xml") for p in paths)
+                             p in ("Package.swift", "Package.resolved") for p in paths)
     site = workflow or any(p.startswith(("Site/", "scripts/")) for p in paths)
     shell = workflow or any(p.endswith(".sh") for p in paths)
-    return {"native": native, "site": site, "shell": shell}
+    feeds = workflow or any(p in ("appcast.xml", "appcast-beta.xml") for p in paths)
+    return {"native": native, "site": site, "shell": shell, "feeds": feeds}
 
 
 def main():
     base, head = os.environ.get("BASE_SHA", ""), os.environ.get("HEAD_SHA", "HEAD")
     if not base or set(base) == {"0"}:
-        result = dict.fromkeys(("native", "site", "shell"), True)
+        result = dict.fromkeys(("native", "site", "shell", "feeds"), True)
     else:
         paths = subprocess.check_output(["git", "diff", "--name-only", base, head], text=True).splitlines()
         result = scopes(paths)
