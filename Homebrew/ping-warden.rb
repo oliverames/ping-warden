@@ -1,6 +1,6 @@
 cask "ping-warden" do
-  version "4.4.1"
-  sha256 "01d87bad5aba66e55c6f5fb2c74362667ea78710cca93a0eef8fb4e4643ac6a0"
+  version "4.4.2"
+  sha256 "ca39c3d4be86df6c99d943e527cd2594f8430120526dc1e8f0e624549699a3d6"
 
   url "https://github.com/oliverames/ping-warden/releases/download/v#{version}/PingWarden-#{version}.dmg"
   name "Ping Warden"

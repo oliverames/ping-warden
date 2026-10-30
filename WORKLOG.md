@@ -1,5 +1,18 @@
 # Ping Warden Worklog
 
+
+## 2026-10-29 - Publish 4.4.2 helper diagnostics
+
+**What changed:** Published 4.4.2 (build 44200) from main e8afe6a after PR #162 passed its required checks. The release reports the helper's reason for a declined enable and retains disable-failure telemetry when connection validation ends first. The canonical release produced a fresh universal archive, Developer ID signatures, Apple-accepted app and disk-image notarizations, a stapled and mounted-payload-verified disk image, signed stable and beta feeds, the GitHub download, Sentry symbols and release, and a verified Gumroad buyer download with license content preserved. Homebrew tap commit 612ffb6 publishes the matching checksum; the in-repository cask and generated website now match.
+
+**Verification:** The reviewed source passed 347 core tests, the monitor regression harness, and 108 crash-reporter checks. The regenerated site validates its pages, links, structured data and sitemap, and all seven worker tests pass. The first packaging attempt failed while the Mac's disk-image services were busy; its temporary artifacts disappeared during interruption. The successful retry rebuilt through the full canonical pipeline without skipping artifact or publication guards. No installed app, helper or AWDL setting was changed.
+
+**Left off at:** GitHub release v4.4.2 and both update feeds are published. The maintained finalizer verified receiving downloads and both feeds, then confirmed the completed Ping Warden 4.4.2 release in Linear. The closeout commit records the regenerated website and feeds.
+
+**Still open:** #145, #153 and #158 retain their production follow-up; better diagnostics do not establish that the underlying helper failures are resolved. The unlicensed-dashboard decision in #148 and the prior hardware, older-system and live-game acceptance items remain outside this release verification.
+
+---
+
 ## 2026-10-28 - Sentry helper diagnostics follow-up
 
 The seven-day Sentry review found 17 production events, all from 4.4.0 before today's 4.4.1 release. [#158](https://github.com/oliverames/ping-warden/issues/158) now tracks the declined enable separately from the unanswered enables in #145. Declined enables use the same version-gated helper reason/errno query as declined disables, with an unknown fallback and one event. An invalid connection no longer drops a disable failure when validation tears the connection down first (#153); superseded and compensating commands stay excluded. The README privacy disclosure and generated overview cover both command directions.
