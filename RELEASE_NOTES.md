@@ -1,3 +1,12 @@
+# Ping Warden 4.4.2
+
+This update fills two gaps in helper error reports so failures are easier to diagnose.
+
+## Crash reporting
+
+- When the helper declines to turn Ping Protection on, the report now includes its reason and any system error number, as reports for turning protection off already do.
+- If the helper connection drops while Ping Protection is turning off, the failure is still reported even when connection validation notices the drop first.
+
 # Ping Warden 4.4.1
 
 This update fixes a crash and makes it easier to find out why turning Ping Protection off sometimes fails.
