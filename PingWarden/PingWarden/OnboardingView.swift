@@ -29,7 +29,9 @@ struct OnboardingView: View {
     /// content, so no screen carries a band of empty space. Shorter screens
     /// keep a floor height so the window does not jump between steps. The
     /// floor fits Approve, the tallest step, so the footer buttons stay
-    /// under the pointer from Protection through Done.
+    /// under the pointer from Protection through Done. On a display too
+    /// short for a screen, the window stops at the display's visible height
+    /// and the screen scrolls (PING-WARDEN-D, #144).
     static let width: CGFloat = 540
     static let minimumContentHeight: CGFloat = 420
     /// Accessibility text sizes scroll inside a window of this height.
@@ -41,6 +43,29 @@ struct OnboardingView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        // The window measures this view and sizes itself, no taller than its
+        // display. A screen that doesn't fit scrolls rather than asking the
+        // window to grow past the display, which looped AppKit's layout.
+        ViewThatFits(in: .vertical) {
+            sizedContent
+            ScrollView { sizedContent }
+        }
+        .background(.background)
+        .overlay(alignment: .topTrailing) {
+            if model.mode == .repair {
+                // Level with the window controls in the transparent title
+                // bar: both centered 16 points from the top.
+                RepairBadge()
+                    .padding(.top, 6)
+                    .padding(.trailing, 18)
+                    .ignoresSafeArea(.container, edges: .top)
+            }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: model.step)
+    }
+
+    /// The current screen at its own height, or the accessibility height.
+    private var sizedContent: some View {
         Group {
             if model.step == .welcome {
                 WelcomeScreen(model: model)
@@ -58,18 +83,6 @@ struct OnboardingView: View {
         .frame(width: Self.width)
         .frame(height: dynamicTypeSize.isAccessibilitySize ? Self.accessibilityHeight : nil)
         .fixedSize(horizontal: false, vertical: !dynamicTypeSize.isAccessibilitySize)
-        .background(.background)
-        .overlay(alignment: .topTrailing) {
-            if model.mode == .repair {
-                // Level with the window controls in the transparent title
-                // bar: both centered 16 points from the top.
-                RepairBadge()
-                    .padding(.top, 6)
-                    .padding(.trailing, 18)
-                    .ignoresSafeArea(.container, edges: .top)
-            }
-        }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: model.step)
     }
 
     /// The current screen, centered in at least the floor height.
