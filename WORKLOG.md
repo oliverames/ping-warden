@@ -1,5 +1,12 @@
 # Ping Warden Worklog
 
+## 2026-10-31 - Size the setup window to the display (PING-WARDEN-D)
+
+**What changed:** PING-WARDEN-D came back on 4.4.1 (#160). Both 4.4.1 events carry one breadcrumb, `window.setup_opened`, under a second before the crash, both from 13-inch MacBook Airs. The setup window followed its hosting controller's preferred size, and the view pins its height. When a step is taller than the display's visible area, AppKit shrinks the window to the screen, the hosting view asks for its full height again, and AppKit raises NSGenericException after too many constraint passes. The setup window now sets its own size: each step's height, no taller than the visible part of its display, refit when the step or its content changes and when the window moves to another display. A step that doesn't fit scrolls instead of growing the window. No window still follows a hosting controller's size.
+
+**Verification:** Not built or run here: this session has no Mac. Native CI is the merge gate. To confirm on a Mac, open setup at a display resolution shorter than the welcome screen (for example a 13-inch Air at a larger-text scale) and step through Protect, License, Approve and Done.
+
+**Still open:** PING-WARDEN-E (#158): both events are from 4.4.0, before the helper reported why it declines a turn-on. 4.4.2 sends that reason, so the next event will say whether it is a shutdown, an interface read or write failure, or a change that didn't stick.
 
 ## 2026-10-29 - Publish 4.4.2 helper diagnostics
 

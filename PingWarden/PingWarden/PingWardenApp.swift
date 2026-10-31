@@ -131,6 +131,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
     /// The setup window: first-run introduction, Finish Setup, and Repair.
     private var welcomeWindow: NSWindow?
     private var setupModel: OnboardingModel?
+    /// Measures the setup window's content for a proposed size.
+    private var setupWindowMeasure: ((NSSize) -> NSSize)?
+    private var setupWindowObservation: AnyCancellable?
     private var licenseNoticeWindow: NSWindow?
     private var gameModeDetector: GameModeDetector?
     private var monitorStateObserverToken: UUID?
@@ -630,6 +633,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 
     // MARK: - NSWindowDelegate
 
+    /// A setup step that fit one display may not fit the next.
+    func windowDidChangeScreen(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === welcomeWindow else { return }
+        fitSetupWindow(animate: false)
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow else { return }
 
@@ -643,6 +652,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
             }
             if window === welcomeWindow {
                 welcomeWindow = nil
+                setupWindowObservation = nil
+                setupWindowMeasure = nil
                 // Closing is Not Now. A registration already submitted
                 // keeps running in the monitor; only the window's polling stops.
                 setupModel?.windowWillClose()
@@ -846,9 +857,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
 #else
         let hostingController = NSHostingController(rootView: setupView)
 #endif
-        // The window takes each screen's height as the steps change.
-        hostingController.sizingOptions = [.preferredContentSize]
-        let initialSize = hostingController.view.fittingSize
+        // The window owns its size and fits it to each step in
+        // fitSetupWindow. Following the controller's preferred size crashed
+        // on displays shorter than a step (PING-WARDEN-D, #144): AppKit
+        // shrank the window to the screen, the hosting view asked for its
+        // full height again, and AppKit raised NSGenericException after too
+        // many constraint passes.
+        hostingController.sizingOptions = []
+        setupWindowMeasure = { [weak hostingController] proposal in
+            hostingController?.sizeThatFits(in: proposal) ?? proposal
+        }
+        let initialSize = NSSize(width: OnboardingView.width, height: OnboardingView.minimumContentHeight)
         hostingController.view.frame = NSRect(origin: .zero, size: initialSize)
 
         let window = NSWindow(
@@ -863,12 +882,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
-        window.center()
         window.isReleasedWhenClosed = false
         window.delegate = self
 
         welcomeWindow = window
         setupModel = model
+        fitSetupWindow(animate: false)
+        window.center()
+        // Steps and their content change through the model. Fit after the
+        // change lands, outside any layout pass.
+        setupWindowObservation = model.objectWillChange.sink { [weak self] in
+            Task { @MainActor in self?.fitSetupWindow(animate: true) }
+        }
         CrashReporter.record(.breadcrumb(.setupWindowOpened))
 
         // Show dock icon while the setup window is open
@@ -880,9 +905,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDele
         ensureApplicationMenuItems()
     }
 
+    /// Size the setup window to its current step, no taller than the
+    /// visible part of its display, keeping the top edge in place. A step
+    /// that doesn't fit scrolls inside the window.
+    private func fitSetupWindow(animate: Bool) {
+        guard let window = welcomeWindow, let measure = setupWindowMeasure,
+              let screen = window.screen ?? NSScreen.main else { return }
+        let visible = screen.visibleFrame
+        let available = window.contentRect(forFrameRect: visible).height
+        let fitting = measure(NSSize(width: OnboardingView.width, height: available))
+        let contentSize = NSSize(width: OnboardingView.width, height: min(ceil(fitting.height), available))
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: contentSize))
+        guard frame.size != window.frame.size else { return }
+        frame.origin.x = window.frame.minX
+        frame.origin.y = window.frame.maxY - frame.height
+        frame.origin.y = min(max(frame.minY, visible.minY), visible.maxY - frame.height)
+        let animates = animate && window.isVisible
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        window.setFrame(frame, display: true, animate: animates)
+    }
+
     /// Closing is Not Now: nothing is lost, and the introduction does not
     /// open on its own again.
     private func closeSetupWindow() {
+        setupWindowObservation = nil
+        setupWindowMeasure = nil
         welcomeWindow?.close()
         welcomeWindow = nil
         setupModel?.windowWillClose()
