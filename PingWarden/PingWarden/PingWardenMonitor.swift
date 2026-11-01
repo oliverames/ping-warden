@@ -68,14 +68,20 @@ class PingWardenMonitor: @unchecked Sendable {
     /// How long a declined protection command waits for the helper's reason.
     private var declineReasonTimeout: TimeInterval = 2.0
 
-    /// How long the helper gets to confirm turning protection on or off.
+    /// How long the helper gets to confirm turning protection off.
     private var protectionCommandTimeout: TimeInterval = 5.0
 
-    /// How much longer than `protectionCommandTimeout` a timed-out enable's
+    /// How long the helper gets to confirm turning protection on. On slower
+    /// Macs the helper confirmed 5 to 10 seconds after the request, so a
+    /// 5-second wait failed turn-ons the helper had agreed to
+    /// (PING-WARDEN-A, #145).
+    private var enableCommandTimeout: TimeInterval = 15.0
+
+    /// How much longer than `enableCommandTimeout` a timed-out enable's
     /// event waits for the helper's late reply. The wait ends 30 seconds
     /// after the command was sent, however late the timeout itself runs,
     /// and the event then says no reply came.
-    private var lateReplyGrace: TimeInterval = 25.0
+    private var lateReplyGrace: TimeInterval = 15.0
 
     /// Enable timeouts whose events wait for a late reply, by operation.
     /// Main-thread confined.
@@ -1272,7 +1278,7 @@ class PingWardenMonitor: @unchecked Sendable {
         }
         // Fixed from the send, so a main thread that runs the timeout late
         // cannot stretch the wait for a late reply.
-        let lateReplyWaitEnds = DispatchTime.now() + protectionCommandTimeout + lateReplyGrace
+        let lateReplyWaitEnds = DispatchTime.now() + enableCommandTimeout + lateReplyGrace
         // A timeout and an XPC error on this command both mean the helper
         // never confirmed it.
         let failUnanswered: @Sendable () -> Void = { [weak self] in
@@ -1335,7 +1341,7 @@ class PingWardenMonitor: @unchecked Sendable {
         pendingEnable = request
         notifyStateChange()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + protectionCommandTimeout) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + enableCommandTimeout) {
             failUnanswered()
         }
 

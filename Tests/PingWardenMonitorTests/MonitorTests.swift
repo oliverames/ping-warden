@@ -30,6 +30,7 @@ extension PingWardenMonitor {
     }
     func harnessCommandTiming(timeout: TimeInterval, lateReplyGrace grace: TimeInterval) {
         protectionCommandTimeout = timeout
+        enableCommandTimeout = timeout
         lateReplyGrace = grace
     }
     func harnessConnectRequested() -> NSXPCConnection {
