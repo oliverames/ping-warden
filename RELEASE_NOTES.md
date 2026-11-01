@@ -1,11 +1,10 @@
 # Ping Warden 4.4.3
 
-This update fixes a crash in the setup window and lets Ping Protection turn on for Macs whose helper answers slowly.
+This update fixes a crash in the setup window.
 
 ## Fixes
 
 - Ping Warden could quit unexpectedly as soon as the setup window opened on a display too short for it, such as a 13-inch MacBook Air at a larger text size. The setup window now stays within the visible part of the display, and a step that doesn't fit scrolls.
-- On some older Macs, Ping Protection could fail to turn on because the helper took longer than 5 seconds to confirm. Ping Warden now waits up to 15 seconds for that confirmation. Turning protection off still waits 5 seconds.
 
 # Ping Warden 4.4.2
 

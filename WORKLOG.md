@@ -2,11 +2,11 @@
 
 ## 2026-11-01 - Give turn-on time to a slow helper (PING-WARDEN-A)
 
-**What changed:** The first PING-WARDEN-A events with a late-reply bucket answered #145's open question. All four events from 4.4.1 and 4.4.2 come from one Intel Mac mini on macOS 15.8.2, and each says the helper answered within 10 seconds, after the 5-second turn-on timeout had already failed the command and queued the compensating turn-off. The helper was slow, not missing. Turning protection on now waits 15 seconds; turning it off keeps 5 seconds, since late replies are only measured for turn-on. A timed-out turn-on's event still goes out 30 seconds after the request. The change rides in 4.4.3, whose notes now cover it.
+**What changed:** The first PING-WARDEN-A events with a late-reply bucket answered #145's open question. All four events from 4.4.1 and 4.4.2 come from one Intel Mac mini on macOS 15.8.2, and each says the helper answered within 10 seconds, after the 5-second turn-on timeout had already failed the command and queued the compensating turn-off. The helper was slow, not missing. Turning protection on now waits 15 seconds; turning it off keeps 5 seconds, since late replies are only measured for turn-on. A timed-out turn-on's event still goes out 30 seconds after the request. 4.4.3 was already building when this merged, so the change ships in the release after it; its release notes get written then.
 
 **Verification:** Not built or run here: this session has no Mac. The monitor harness sets both timeouts through `harnessCommandTiming`, and no test waits on the default turn-on time. Native CI is the merge gate.
 
-**Still open:** #145 stays open until 4.4.3 events show whether 15 seconds covers the slow Mac. Turn-off timeouts (PING-WARDEN-B, #153) carry no late-reply measurement yet.
+**Still open:** #145 stays open until events from the release after 4.4.3 show whether 15 seconds covers the slow Mac. Turn-off timeouts (PING-WARDEN-B, #153) carry no late-reply measurement yet.
 
 ## 2026-10-31 - Size the setup window to the display (PING-WARDEN-D)
 
