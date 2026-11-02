@@ -29,8 +29,8 @@ extension PingWardenMonitor {
         helperRetryDelay = 0.05
     }
     func harnessCommandTiming(timeout: TimeInterval, lateReplyGrace grace: TimeInterval) {
-        protectionCommandTimeout = timeout
         enableCommandTimeout = timeout
+        disableCommandTimeout = timeout
         lateReplyGrace = grace
     }
     func harnessConnectRequested() -> NSXPCConnection {
@@ -1236,6 +1236,30 @@ do {
     check(results.withValue { $0 } == [false], "a late reply does not complete the failed enable again")
     spin(0.7)
     check(problemSignals(signals).count == 1, "the end of the wait sends nothing more")
+}
+
+// A timed-out disable's event also waits for a late reply (#153). The late
+// success still turns protection off, and the failed stop completes once.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessCommandTiming(timeout: 0.2, lateReplyGrace: 0.6)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.stopMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let (_, reply) = take(monitor.harnessConnection!.helper, \.commands)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    check(results.withValue { $0 } == [false], "an unanswered disable fails at its deadline")
+    check(problemSignals(signals).isEmpty, "the disable timeout's event waits for a late reply")
+    reply(true)
+    spin()
+    let late = HelperProblemReport(problem: .protectionDisableFailed, helperState: .unknown, failure: .timedOut, lateReply: .under10Seconds)
+    check(problemSignals(signals) == [.problem(late)], "a late disable reply sends the held event with its delay range: \(problemSignals(signals))")
+    check(results.withValue { $0 } == [false], "a late reply does not complete the failed disable again")
+    check(!monitor.isMonitoringActive, "a late disable success still turns protection off")
+    spin(0.7)
+    check(problemSignals(signals).count == 1, "the end of the disable wait sends nothing more")
 }
 
 // With no late reply, the held event goes out when the wait ends, and a
