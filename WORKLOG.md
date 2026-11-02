@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-11-02 - Give turn-off the same time and late-reply report (PING-WARDEN-B)
+
+**What changed:** A PING-WARDEN-B turn-off timeout arrived from 4.4.2 on a MacBook Pro running macOS 27.2, the same model and system that timed out turning protection on under 4.4.0. #166 had only lengthened turn-on. Turning protection off now also waits 15 seconds, and a timed-out turn-off's event waits for a late reply and reports its delay range, as turn-on's already does. A late success already corrected the protection state; now the event says it came. The README disclosure and generated overview cover both directions. Ships in the release after 4.4.3, with #166.
+
+**Verification:** Not built or run here: this session has no Mac. A new monitor-harness case covers a late turn-off reply: one failure, the held event with its delay range, and protection off. Site build and checks pass. Native CI is the merge gate.
+
+**Still open:** #153 and #145 stay open until events from the next release show whether 15 seconds covers these Macs.
+
 ## 2026-11-01 - Give turn-on time to a slow helper (PING-WARDEN-A)
 
 **What changed:** The first PING-WARDEN-A events with a late-reply bucket answered #145's open question. All four events from 4.4.1 and 4.4.2 come from one Intel Mac mini on macOS 15.8.2, and each says the helper answered within 10 seconds, after the 5-second turn-on timeout had already failed the command and queued the compensating turn-off. The helper was slow, not missing. Turning protection on now waits 15 seconds; turning it off keeps 5 seconds, since late replies are only measured for turn-on. A timed-out turn-on's event still goes out 30 seconds after the request. 4.4.3 was already building when this merged, so the change ships in the release after it; its release notes get written then.

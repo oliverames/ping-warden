@@ -83,6 +83,8 @@ do {
 // B1: the same silent helper, with the timeout rather than an XPC error.
 do {
     MainActor.assumeIsolated { resetAll() }
+    monitor.harnessCommandTimeout(1.0)
+    defer { monitor.harnessCommandTimeout(15.0) }
     PingWardenPreferences.shared.isMonitoringEnabled = true
     HarnessInterface.flagsLine = upLine
     let alerts = NSAlert.messages.count

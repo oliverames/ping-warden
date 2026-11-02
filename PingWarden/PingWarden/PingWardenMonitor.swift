@@ -68,16 +68,17 @@ class PingWardenMonitor: @unchecked Sendable {
     /// How long a declined protection command waits for the helper's reason.
     private var declineReasonTimeout: TimeInterval = 2.0
 
-    /// How long the helper gets to confirm turning protection off.
-    private var protectionCommandTimeout: TimeInterval = 5.0
-
     /// How long the helper gets to confirm turning protection on. On slower
     /// Macs the helper confirmed 5 to 10 seconds after the request, so a
     /// 5-second wait failed turn-ons the helper had agreed to
     /// (PING-WARDEN-A, #145).
     private var enableCommandTimeout: TimeInterval = 15.0
 
-    /// How much longer than `enableCommandTimeout` a timed-out enable's
+    /// How long the helper gets to confirm turning protection off. The same
+    /// Macs time out turning protection off too (PING-WARDEN-B, #153).
+    private var disableCommandTimeout: TimeInterval = 15.0
+
+    /// How much longer than its command's timeout a timed-out command's
     /// event waits for the helper's late reply. The wait ends 30 seconds
     /// after the command was sent, however late the timeout itself runs,
     /// and the event then says no reply came.
@@ -1460,6 +1461,8 @@ class PingWardenMonitor: @unchecked Sendable {
             }
             return claimed
         }
+        // Fixed from the send, as for an enable.
+        let lateReplyWaitEnds = DispatchTime.now() + disableCommandTimeout + lateReplyGrace
         let failUnanswered: @Sendable () -> Void = { [weak self] in
             guard claimCompletion() else { return }
             guard let self else {
@@ -1481,7 +1484,12 @@ class PingWardenMonitor: @unchecked Sendable {
             log.error("The helper did not confirm disabling Ping Protection")
             self.recordCommandTimeout()
             if !compensating {
-                self.recordFailure(.protectionDisableFailed, problem: .protectionDisableFailed, failure: self.lastCommandFailure)
+                self.recordFailure(
+                    .protectionDisableFailed,
+                    problem: .protectionDisableFailed,
+                    failure: self.lastCommandFailure,
+                    heldForLateReply: (operationID, lateReplyWaitEnds)
+                )
             }
             PingWardenPreferences.shared.lastKnownState = "unknown"
             self.notifyStateChange()
@@ -1509,14 +1517,19 @@ class PingWardenMonitor: @unchecked Sendable {
             notifyStateChange()
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + protectionCommandTimeout) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + disableCommandTimeout) {
             failUnanswered()
         }
 
+        let sentAt = ProcessInfo.processInfo.systemUptime
         proxy.setAWDLEnabled(true, reply: { [weak self] success in
+            let replyDelay = ProcessInfo.processInfo.systemUptime - sentAt
             guard let monitor = self else { return }
             DispatchQueue.main.async {
                 monitor.helperResponded()
+                // A timed-out stop's held event now says how late the
+                // helper answered. Nothing is held otherwise.
+                monitor.releaseHeldTimeoutReport(for: operationID, replyDelay: replyDelay)
                 guard monitor.isCurrentProtectionOperation(operationID) else {
                     log.info("Ignoring stale disable-protection reply")
                     if claimCompletion() {
