@@ -1,3 +1,15 @@
+# Ping Warden 4.4.4
+
+This update gives a slow helper more time to confirm turning Ping Protection on or off.
+
+## Fixes
+
+- On some Macs the helper takes 5 to 10 seconds to confirm a request, so Ping Warden could report that turning Ping Protection on or off had failed even though the helper went on to agree. Ping Warden now waits up to 15 seconds for the helper to confirm either one. If the helper still hasn't answered, turning protection on or off takes longer to report a failure than before.
+
+## Crash reporting
+
+- When the helper doesn't answer a request to turn Ping Protection on or off in time, the error report now waits up to 30 seconds for a late reply and records only whether it arrived within 10 seconds, within 20 seconds, later, or not at all.
+
 # Ping Warden 4.4.3
 
 This update fixes a crash in the setup window.
