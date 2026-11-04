@@ -360,4 +360,19 @@ final class DiagnosticReportingTests: XCTestCase {
             DiagnosticScrubber.scrub("open \(home)/Library/x.plist failed", homeDirectory: home).contains("jdoe")
         )
     }
+
+    // A turn-off that reached no registered helper is not a problem
+    // (PING-WARDEN-J); anything that answered or was waited on still is.
+    func testDisableFailureReportingSkipsOnlyUnreachableUnregisteredHelpers() {
+        for state in [HelperDiagnosticState.notFound, .notRegistered] {
+            XCTAssertFalse(HelperProblemReport.reportsDisableFailure(helperState: state, failure: .rejected(code: 4099)))
+            XCTAssertFalse(HelperProblemReport.reportsDisableFailure(helperState: state, failure: .noConnection))
+            XCTAssertTrue(HelperProblemReport.reportsDisableFailure(helperState: state, failure: .timedOut))
+            XCTAssertTrue(HelperProblemReport.reportsDisableFailure(helperState: state, failure: .declined))
+        }
+        for state in [HelperDiagnosticState.enabled, .requiresApproval, .unknown] {
+            XCTAssertTrue(HelperProblemReport.reportsDisableFailure(helperState: state, failure: .rejected(code: 4099)))
+            XCTAssertTrue(HelperProblemReport.reportsDisableFailure(helperState: state, failure: .noConnection))
+        }
+    }
 }
