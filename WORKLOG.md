@@ -1,5 +1,13 @@
 # Ping Warden Worklog
 
+## 2026-11-04 - Stop double and empty helper reports (PING-WARDEN-G, -H, -J)
+
+**What changed:** Two 4.4.3 reports described one failure twice or no failure at all. On a Mac mini running macOS 15.7.2, Repair waited 60 seconds for approval in Login Items that never came. The registration sent `registration_approval_timed_out` (H), and the repair then sent `repair_failed` (G) for the same timeout, which also made G look like a regression. The same pair appeared on Oct 29 as `registration_failed` (F) plus G. A repair whose registration step fails now records only its `repair.failed` breadcrumb, because the registration already sent the problem. A repair that registers but never gets a reply still reports G. On a MacBook Pro running macOS 27.2, a turn-off failed in 37 ms with XPC error 4099 while the helper's registration read Not Found (J). With no registration, launchd runs no helper that could hold awdl0 down, and the coordinator already checks the interface before it warns anyone, so the person saw nothing wrong. A turn-off that can't reach a helper while none is registered now records its breadcrumb and no problem event. Timeouts and declines still report. No user-facing copy changed: the approval-timeout alert already says to approve in System Settings and try again.
+
+**Verification:** Not built or run here: this session has no Mac. New monitor-harness cases cover a repair whose registration never completes (one `registration_incomplete`, then the `repair.failed` breadcrumb) and a turn-off rejected while the helper is Not Found (no problem event, breadcrumb kept). A core test covers the reporting rule. Native CI is the merge gate.
+
+**Still open:** Why J's Mac reads Not Found is unknown. One event carries no install location, so it could be a copy outside Applications or a lost registration. If it recurs, turning protection on there will send its own registration event with more detail.
+
 ## 2026-11-02 - Give turn-off the same time and late-reply report (PING-WARDEN-B)
 
 **What changed:** A PING-WARDEN-B turn-off timeout arrived from 4.4.2 on a MacBook Pro running macOS 27.2, the same model and system that timed out turning protection on under 4.4.0. #166 had only lengthened turn-on. Turning protection off now also waits 15 seconds, and a timed-out turn-off's event waits for a late reply and reports its delay range, as turn-on's already does. A late success already corrected the protection state; now the event says it came. The README disclosure and generated overview cover both directions. Ships in the release after 4.4.3, with #166.

@@ -31,7 +31,8 @@ enum HelperProblem: String, Sendable, CaseIterable {
     case registrationIncomplete = "registration_incomplete"
     /// Approval in Login Items did not arrive before the poll's deadline.
     case registrationApprovalTimedOut = "registration_approval_timed_out"
-    /// Repair finished without a helper that answers.
+    /// Repair finished without a helper that answers. Not sent when the
+    /// repair's registration step already sent its own problem.
     case repairFailed = "repair_failed"
     /// The helper did not confirm, or declined, turning protection on.
     case protectionEnableFailed = "protection_enable_failed"
@@ -180,6 +181,23 @@ struct HelperProblemReport: Equatable, Sendable {
         } else {
             errorDomain = nil
             errorCode = nil
+        }
+    }
+
+    /// Whether a failed turn-off is worth an event. With no registration
+    /// (Not Found or Not Registered), launchd runs no helper that could be
+    /// holding awdl0 down, so a command that could not even reach one has
+    /// nothing to report: the coordinator checks the interface itself
+    /// before it warns the person (PING-WARDEN-J). A timeout or a decline
+    /// means something answered or was waited on, so those still report.
+    static func reportsDisableFailure(
+        helperState: HelperDiagnosticState,
+        failure: HelperCommandFailure?
+    ) -> Bool {
+        guard helperState == .notFound || helperState == .notRegistered else { return true }
+        switch failure {
+        case .rejected?, .noConnection?: return false
+        case .timedOut?, .declined?, nil: return true
         }
     }
 
