@@ -29,8 +29,8 @@ extension PingWardenMonitor {
         helperRetryDelay = 0.05
     }
     func harnessCommandTiming(timeout: TimeInterval, lateReplyGrace grace: TimeInterval) {
-        protectionCommandTimeout = timeout
         enableCommandTimeout = timeout
+        disableCommandTimeout = timeout
         lateReplyGrace = grace
     }
     func harnessConnectRequested() -> NSXPCConnection {
@@ -1123,6 +1123,31 @@ do {
           "incomplete registration records setup.failed, then its problem: \(recorded)")
 }
 
+// A repair whose registration fails sends only the registration's own
+// problem, not a second repair_failed for the same failure (PING-WARDEN-G,
+// -H). The repair's breadcrumb stays.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessEndRegistration(); monitor.harnessDispose(); setFixtureHelperBundle(installed: false) }
+    setFixtureHelperBundle(installed: true)
+    SMAppService.fixtureAllowsRegistration = true
+    SMAppService.fixtureStatus = .notRegistered
+    SMAppService.fixtureStatusAfterRegistration = .notRegistered
+    SMAppService.fixtureRegistrationError = NSError(domain: NSPOSIXErrorDomain, code: 1)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.repairHelperRegistration(presentsErrors: false) { value in results.withValue { $0.append(value) } }
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 3)
+    spin()
+    let incomplete = HelperTelemetrySignal.problem(HelperProblemReport(problem: .registrationIncomplete, helperState: .notRegistered))
+    check(results.withValue { $0 } == [false], "a repair whose registration fails fails once")
+    check(problemSignals(signals) == [incomplete],
+          "a failed registration inside repair reports once: \(problemSignals(signals))")
+    check(signals.withValue { $0 }.last == .breadcrumb(.repairFailed),
+          "the repair still records repair.failed: \(signals.withValue { $0 })")
+}
+
 // Signals raised before the app installs its handler (the shared
 // initializer restores protection first) are held and delivered in order.
 do {
@@ -1195,6 +1220,29 @@ do {
     check(!monitor.isMonitoringActive, "the dropped connection's late reply cannot confirm protection")
 }
 
+// A turn-off that cannot reach a helper because none is registered (Not
+// Found) sends no problem event: nothing could be holding awdl0 down. The
+// breadcrumb stays (PING-WARDEN-J).
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessCommandTiming(timeout: 0.2, lateReplyGrace: 0.3)
+    SMAppService.fixtureStatus = .notFound
+    _ = monitor.refreshHelperStatus()
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.stopMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    monitor.harnessConnection!.failAllRequests(code: 4099)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    spin(0.6)
+    check(results.withValue { $0 } == [false], "a turn-off with no registered helper still fails once")
+    check(problemSignals(signals).isEmpty,
+          "a turn-off with no registered helper reports no problem: \(problemSignals(signals))")
+    check(signals.withValue { $0 }.contains(.breadcrumb(.protectionDisableFailed)),
+          "a turn-off with no registered helper keeps its breadcrumb")
+}
+
 // A disable superseded by a fresh enable must not become a failure when
 // the old connection drops. Only the current command owns that report.
 do {
@@ -1236,6 +1284,30 @@ do {
     check(results.withValue { $0 } == [false], "a late reply does not complete the failed enable again")
     spin(0.7)
     check(problemSignals(signals).count == 1, "the end of the wait sends nothing more")
+}
+
+// A timed-out disable's event also waits for a late reply (#153). The late
+// success still turns protection off, and the failed stop completes once.
+do {
+    let monitor = PingWardenMonitor.harnessMonitor()
+    defer { monitor.harnessDispose() }
+    monitor.harnessCommandTiming(timeout: 0.2, lateReplyGrace: 0.6)
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
+    let results = LockedValue<[Bool]>([])
+    monitor.stopMonitoring(persistUserPreference: false) { value in results.withValue { $0.append(value) } }
+    let (_, reply) = take(monitor.harnessConnection!.helper, \.commands)
+    spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 2)
+    check(results.withValue { $0 } == [false], "an unanswered disable fails at its deadline")
+    check(problemSignals(signals).isEmpty, "the disable timeout's event waits for a late reply")
+    reply(true)
+    spin()
+    let late = HelperProblemReport(problem: .protectionDisableFailed, helperState: .unknown, failure: .timedOut, lateReply: .under10Seconds)
+    check(problemSignals(signals) == [.problem(late)], "a late disable reply sends the held event with its delay range: \(problemSignals(signals))")
+    check(results.withValue { $0 } == [false], "a late reply does not complete the failed disable again")
+    check(!monitor.isMonitoringActive, "a late disable success still turns protection off")
+    spin(0.7)
+    check(problemSignals(signals).count == 1, "the end of the disable wait sends nothing more")
 }
 
 // With no late reply, the held event goes out when the wait ends, and a

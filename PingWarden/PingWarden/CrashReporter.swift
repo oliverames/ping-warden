@@ -20,8 +20,9 @@
 //    • Non-fatal helper error events built only from enumerated fields: the
 //      problem name, the helper's registration state, the failure reason,
 //      an allowlisted error domain and numeric code, the app version, and
-//      the macOS version. An enable that timed out waits up to 30 seconds
-//      for a late reply and adds its coarse delay range (HelperLateReply).
+//      the macOS version. An enable or disable that timed out waits up to
+//      30 seconds for a late reply and adds its coarse delay range
+//      (HelperLateReply).
 //      A declined protection command adds the helper's reason (HelperDeclineReason)
 //      and, for a failed ioctl, its errno as a POSIX error code.
 //      At most one per problem every 30 minutes (persisted across

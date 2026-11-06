@@ -68,16 +68,17 @@ class PingWardenMonitor: @unchecked Sendable {
     /// How long a declined protection command waits for the helper's reason.
     private var declineReasonTimeout: TimeInterval = 2.0
 
-    /// How long the helper gets to confirm turning protection off.
-    private var protectionCommandTimeout: TimeInterval = 5.0
-
     /// How long the helper gets to confirm turning protection on. On slower
     /// Macs the helper confirmed 5 to 10 seconds after the request, so a
     /// 5-second wait failed turn-ons the helper had agreed to
     /// (PING-WARDEN-A, #145).
     private var enableCommandTimeout: TimeInterval = 15.0
 
-    /// How much longer than `enableCommandTimeout` a timed-out enable's
+    /// How long the helper gets to confirm turning protection off. The same
+    /// Macs time out turning protection off too (PING-WARDEN-B, #153).
+    private var disableCommandTimeout: TimeInterval = 15.0
+
+    /// How much longer than its command's timeout a timed-out command's
     /// event waits for the helper's late reply. The wait ends 30 seconds
     /// after the command was sent, however late the timeout itself runs,
     /// and the event then says no reply came.
@@ -586,6 +587,26 @@ class PingWardenMonitor: @unchecked Sendable {
         }
     }
 
+    /// Record a failed turn-off, unless no registered helper was there to
+    /// fail it (`HelperProblemReport.reportsDisableFailure`). The
+    /// breadcrumb is kept either way. Main thread.
+    private func recordDisableFailure(
+        _ failure: HelperCommandFailure?,
+        heldForLateReply hold: (operationID: UInt64, until: DispatchTime)? = nil
+    ) {
+        guard HelperProblemReport.reportsDisableFailure(helperState: cachedDiagnosticState(), failure: failure) else {
+            log.notice("Turn-off reached no helper and none is registered; not reporting it")
+            recordBreadcrumb(.protectionDisableFailed)
+            return
+        }
+        recordFailure(
+            .protectionDisableFailed,
+            problem: .protectionDisableFailed,
+            failure: failure,
+            heldForLateReply: hold
+        )
+    }
+
     /// Report a declined protection command with the helper's reason (#153, #158).
     /// Asks the helper's version first, because a helper older than
     /// `HelperDeclineReason.minimumHelperVersion` was never taught the
@@ -1051,6 +1072,15 @@ class PingWardenMonitor: @unchecked Sendable {
                 monitor?.finishRepair(repaired)
             }
         }
+        // A registration that fails has already sent its own problem
+        // (approval timed out, registration failed or incomplete), so the
+        // repair adds only its breadcrumb (PING-WARDEN-G, -H).
+        let finishAfterReportedFailure: @Sendable () -> Void = { [weak self] in
+            let monitor = self
+            DispatchQueue.main.async {
+                monitor?.finishRepair(false, failureAlreadyReported: true)
+            }
+        }
         let registerThenConfirm: @Sendable () -> Void = { [weak self] in
             guard let self else {
                 finish(false)
@@ -1059,7 +1089,7 @@ class PingWardenMonitor: @unchecked Sendable {
             self.registerHelper(presentsErrors: presentsErrors) { registered in
                 DispatchQueue.main.async {
                     guard registered else {
-                        finish(false)
+                        finishAfterReportedFailure()
                         return
                     }
                     self.confirmHelperResponds(
@@ -1102,8 +1132,9 @@ class PingWardenMonitor: @unchecked Sendable {
     }
 
     /// Deliver the repair's result to every caller and settle any reconnect
-    /// the repair held back. Main-thread only.
-    private func finishRepair(_ repaired: Bool) {
+    /// the repair held back. `failureAlreadyReported` skips the repair's own
+    /// problem event when a step inside it sent one. Main-thread only.
+    private func finishRepair(_ repaired: Bool, failureAlreadyReported: Bool = false) {
         dispatchPrecondition(condition: .onQueue(.main))
         let completions = repairCompletions
         repairCompletions = []
@@ -1123,6 +1154,8 @@ class PingWardenMonitor: @unchecked Sendable {
 
         if repaired {
             recordBreadcrumb(.repairSucceeded)
+        } else if failureAlreadyReported {
+            recordBreadcrumb(.repairFailed)
         } else {
             recordFailure(.repairFailed, problem: .repairFailed, failure: connectionFailure)
         }
@@ -1460,6 +1493,8 @@ class PingWardenMonitor: @unchecked Sendable {
             }
             return claimed
         }
+        // Fixed from the send, as for an enable.
+        let lateReplyWaitEnds = DispatchTime.now() + disableCommandTimeout + lateReplyGrace
         let failUnanswered: @Sendable () -> Void = { [weak self] in
             guard claimCompletion() else { return }
             guard let self else {
@@ -1472,7 +1507,7 @@ class PingWardenMonitor: @unchecked Sendable {
                 // unless a newer command superseded it or it was cleanup.
                 if !compensating, self.wasEndedByConnectionDrop(operationID) {
                     self.recordCommandTimeout()
-                    self.recordFailure(.protectionDisableFailed, problem: .protectionDisableFailed, failure: self.lastCommandFailure)
+                    self.recordDisableFailure(self.lastCommandFailure)
                 }
                 self.notifyStateChange()
                 completion?(false)
@@ -1481,7 +1516,10 @@ class PingWardenMonitor: @unchecked Sendable {
             log.error("The helper did not confirm disabling Ping Protection")
             self.recordCommandTimeout()
             if !compensating {
-                self.recordFailure(.protectionDisableFailed, problem: .protectionDisableFailed, failure: self.lastCommandFailure)
+                self.recordDisableFailure(
+                    self.lastCommandFailure,
+                    heldForLateReply: (operationID, lateReplyWaitEnds)
+                )
             }
             PingWardenPreferences.shared.lastKnownState = "unknown"
             self.notifyStateChange()
@@ -1495,7 +1533,7 @@ class PingWardenMonitor: @unchecked Sendable {
             log.warning("No helper proxy - cannot confirm Ping Protection stopped")
             recordCommandFailure(.noConnection)
             if !compensating {
-                recordFailure(.protectionDisableFailed, problem: .protectionDisableFailed, failure: .noConnection)
+                recordDisableFailure(.noConnection)
             }
             PingWardenPreferences.shared.lastKnownState = "unknown"
             notifyStateChange()
@@ -1509,14 +1547,19 @@ class PingWardenMonitor: @unchecked Sendable {
             notifyStateChange()
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + protectionCommandTimeout) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + disableCommandTimeout) {
             failUnanswered()
         }
 
+        let sentAt = ProcessInfo.processInfo.systemUptime
         proxy.setAWDLEnabled(true, reply: { [weak self] success in
+            let replyDelay = ProcessInfo.processInfo.systemUptime - sentAt
             guard let monitor = self else { return }
             DispatchQueue.main.async {
                 monitor.helperResponded()
+                // A timed-out stop's held event now says how late the
+                // helper answered. Nothing is held otherwise.
+                monitor.releaseHeldTimeoutReport(for: operationID, replyDelay: replyDelay)
                 guard monitor.isCurrentProtectionOperation(operationID) else {
                     log.info("Ignoring stale disable-protection reply")
                     if claimCompletion() {

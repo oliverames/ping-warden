@@ -13,6 +13,12 @@ extension PingWardenMonitor {
     func harnessHeldProbeReplies() {
         helperReplyTimeout = 10.0
     }
+    /// How long protection commands wait for the helper, for tests that
+    /// time one out on purpose.
+    func harnessCommandTimeout(_ timeout: TimeInterval) {
+        enableCommandTimeout = timeout
+        disableCommandTimeout = timeout
+    }
     /// Forget every connection and request. Old connections' timers see a
     /// newer generation and complete quietly.
     func harnessReset() {
