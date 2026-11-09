@@ -533,11 +533,18 @@ do {
     monitor.harnessFastReplies()
     setFixtureHelperBundle(installed: true)
     SMAppService.fixtureAllowsRegistration = true
+    let signals = LockedValue<[HelperTelemetrySignal]>([])
+    monitor.telemetryHandler = { signal in signals.withValue { $0.append(signal) } }
     let results = LockedValue<[HelperProbeOutcome]>([])
     monitor.probeHelper { value in results.withValue { $0.append(value) } }
     spin(until: { !results.withValue { $0 }.isEmpty }, timeout: 3)
     spin()
     check(results.withValue { $0 } == [.silent], "a silent helper probes as silent exactly once")
+    let probeProblems = signals.withValue { $0 }.filter { if case .problem = $0 { return true } else { return false } }
+    check(probeProblems.isEmpty,
+          "a silent probe asks for approval and sends no repair_failed (PING-WARDEN-M): \(probeProblems)")
+    check(signals.withValue { $0 }.last == .breadcrumb(.repairNeedsApproval),
+          "a silent probe records repair.needs_approval: \(signals.withValue { $0 })")
     check(SMAppService.unregisterCalls == 0 && SMAppService.registerCalls == 0,
           "the probe never rebuilds a silent helper's registration")
     check(!monitor.isRepairingHelper, "a failed probe clears its in-progress flag")

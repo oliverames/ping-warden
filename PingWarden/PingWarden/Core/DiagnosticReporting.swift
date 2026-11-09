@@ -32,7 +32,8 @@ enum HelperProblem: String, Sendable, CaseIterable {
     /// Approval in Login Items did not arrive before the poll's deadline.
     case registrationApprovalTimedOut = "registration_approval_timed_out"
     /// Repair finished without a helper that answers. Not sent when the
-    /// repair's registration step already sent its own problem.
+    /// repair's registration step already sent its own problem, or when
+    /// Repair's first check only found that approval is needed.
     case repairFailed = "repair_failed"
     /// The helper did not confirm, or declined, turning protection on.
     case protectionEnableFailed = "protection_enable_failed"
@@ -260,6 +261,9 @@ enum StateBreadcrumb: String, Sendable, CaseIterable {
     case repairStarted = "repair.started"
     case repairSucceeded = "repair.succeeded"
     case repairFailed = "repair.failed"
+    /// Repair's check found a helper that must be registered again, which
+    /// waits for the person to approve it.
+    case repairNeedsApproval = "repair.needs_approval"
     case protectionEnableRequested = "protection.enable_requested"
     case protectionEnabled = "protection.enabled"
     case protectionEnableFailed = "protection.enable_failed"

@@ -1001,7 +1001,14 @@ class PingWardenMonitor: @unchecked Sendable {
         }
         guard beginRepair(joining: { _ in }) else { return }
         runHelperProbe { [weak self] outcome in
-            self?.finishRepair(outcome == .responding)
+            // A helper that doesn't answer here is Repair's next step, not
+            // its failure: the person is asked to approve a rebuild, and
+            // that step reports its own outcome (PING-WARDEN-M).
+            self?.finishRepair(
+                outcome == .responding,
+                sendsProblem: false,
+                unrepairedBreadcrumb: .repairNeedsApproval
+            )
             completion(outcome)
         }
     }
@@ -1078,7 +1085,7 @@ class PingWardenMonitor: @unchecked Sendable {
         let finishAfterReportedFailure: @Sendable () -> Void = { [weak self] in
             let monitor = self
             DispatchQueue.main.async {
-                monitor?.finishRepair(false, failureAlreadyReported: true)
+                monitor?.finishRepair(false, sendsProblem: false)
             }
         }
         let registerThenConfirm: @Sendable () -> Void = { [weak self] in
@@ -1132,9 +1139,15 @@ class PingWardenMonitor: @unchecked Sendable {
     }
 
     /// Deliver the repair's result to every caller and settle any reconnect
-    /// the repair held back. `failureAlreadyReported` skips the repair's own
-    /// problem event when a step inside it sent one. Main-thread only.
-    private func finishRepair(_ repaired: Bool, failureAlreadyReported: Bool = false) {
+    /// the repair held back. `sendsProblem: false` records only
+    /// `unrepairedBreadcrumb` when the repair doesn't end repaired: a step
+    /// inside it already sent the problem, or the probe found the next
+    /// step rather than a failure. Main-thread only.
+    private func finishRepair(
+        _ repaired: Bool,
+        sendsProblem: Bool = true,
+        unrepairedBreadcrumb: StateBreadcrumb = .repairFailed
+    ) {
         dispatchPrecondition(condition: .onQueue(.main))
         let completions = repairCompletions
         repairCompletions = []
@@ -1154,8 +1167,8 @@ class PingWardenMonitor: @unchecked Sendable {
 
         if repaired {
             recordBreadcrumb(.repairSucceeded)
-        } else if failureAlreadyReported {
-            recordBreadcrumb(.repairFailed)
+        } else if !sendsProblem {
+            recordBreadcrumb(unrepairedBreadcrumb)
         } else {
             recordFailure(.repairFailed, problem: .repairFailed, failure: connectionFailure)
         }
